@@ -188,7 +188,15 @@ internal sealed class TellSender(
         var request = pending.FirstOrDefault(candidate => candidate.Echo is null && IsActive(candidate, tell.Session)
             && candidate.Peer == tell.Peer.ContentId && candidate.Body == body);
         if (request is null)
+        {
+            // Track Tells sent directly from the native in-game chat box so server rejections still attach.
+            pending.Add(new PendingTell(tell.Session, tell.Peer, body)
+            {
+                Echo = archive,
+                StartedAt = Stopwatch.GetTimestamp(),
+            });
             return;
+        }
 
         request.Echo = archive;
         AttachRejection(request);
@@ -273,6 +281,10 @@ internal sealed class TellSender(
             var firstPeer = candidates[0].Peer;
             ulong? conversation = candidates.All(request => request.Peer == firstPeer) ? firstPeer : null;
             warnings.Enqueue(new TellWarning(session, conversation, reason));
+        }
+        else if (peer is { } rejectedPeer)
+        {
+            warnings.Enqueue(new TellWarning(session, rejectedPeer, reason));
         }
     }
 

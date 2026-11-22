@@ -1895,10 +1895,20 @@ internal sealed class MomoTalkWindow : Window
             if (!ReferenceEquals(warning.Session, session) || warning.AttachedToMessage)
                 continue;
 
-            if (warning.Peer is { } peer && drafts.TryGetValue(peer, out var draft))
+            if (warning.Peer is { } peer)
+            {
+                if (!drafts.TryGetValue(peer, out var draft))
+                {
+                    draft = new Draft();
+                    drafts.Add(peer, draft);
+                }
+
                 draft.Warning = warning;
+            }
             else
+            {
                 unassignedWarning = warning;
+            }
         }
     }
 
