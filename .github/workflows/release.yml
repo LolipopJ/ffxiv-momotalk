@@ -1,13 +1,19 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
-      - '[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0.0 or v1.0.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -22,21 +28,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Parse version from tag
+      - name: Validate release branch and version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "::error::Tag '${TAG}' is not a valid numeric version (expected e.g. v0.1.0 or v0.1.0.0)."
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Release workflow must be run from the 'main' branch (got '${GITHUB_REF}')."
             exit 1
           fi
-          ORIG_SHA="$(git rev-parse HEAD)"
+
+          RAW="${INPUT_VERSION#"${INPUT_VERSION%%[![:space:]]*}"}"
+          RAW="${RAW%"${RAW##*[![:space:]]}"}"
+          VERSION="${RAW#v}"
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Version '${INPUT_VERSION}' is not a valid numeric version (expected e.g. 0.1.1 or 0.1.1.0)."
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Tag '${TAG}' already exists."
+            exit 1
+          fi
+
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "orig_sha=${ORIG_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v6
@@ -111,30 +130,20 @@ jobs:
              }]' \
              "${MANIFEST_PATH}" > pluginmaster.json
 
-      - name: Commit version updates and force-push tag
+      - name: Commit version updates, tag, and push
         id: push
         shell: bash
         run: |
           set -euo pipefail
           TAG="${{ steps.version.outputs.tag }}"
-          ORIG_SHA="${{ steps.version.outputs.orig_sha }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add "${CSPROJ_PATH}" pluginmaster.json
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(release): ${TAG}"
-            git tag -f "${TAG}" HEAD
-            git push --force origin "refs/tags/${TAG}"
-
-            MAIN_SHA="$(git rev-parse origin/main 2>/dev/null || true)"
-            if [[ -n "${MAIN_SHA}" && "${ORIG_SHA}" == "${MAIN_SHA}" ]]; then
-              git push origin HEAD:refs/heads/main || echo "::warning::Failed to fast-forward main; sync pluginmaster.json on main if branch protection is enabled."
-            else
-              echo "::warning::Tag ${TAG} was not pushed from origin/main tip; main branch was not fast-forwarded."
-            fi
-          fi
+          git commit -m "chore(release): ${TAG}"
+          git tag "${TAG}" HEAD
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/${TAG}"
 
           echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -145,12 +154,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.version.outputs.tag }}"
-          if gh release view "${TAG}" >/dev/null 2>&1; then
-            gh release upload "${TAG}" "${ZIP_PATH}" --clobber
-            gh release edit "${TAG}" --target "${{ steps.push.outputs.release_sha }}"
-          else
-            gh release create "${TAG}" "${ZIP_PATH}" \
-              --title "${TAG}" \
-              --target "${{ steps.push.outputs.release_sha }}" \
-              --generate-notes
-          fi
+          gh release create "${TAG}" "${ZIP_PATH}" \
+            --title "${TAG}" \
+            --target "${{ steps.push.outputs.release_sha }}" \
+            --generate-notes
