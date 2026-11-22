@@ -43,23 +43,27 @@ public sealed class Plugin : IAsyncDalamudPlugin
     internal static IPluginLog Log { get; private set; } = null!;
 
     private readonly WindowSystem windows = new("FFXIVMomoTalk");
+    private readonly Configuration config;
     private readonly FriendDirectory directory;
     private readonly HistoryStore history;
     private readonly ChatCapture capture;
     private readonly TellSender sender;
     private readonly AvatarCache avatars;
     private readonly MomoTalkWindow mainWindow;
+    private readonly FloatingEntryWindow entryWindow;
     private bool attached;
 
     public Plugin()
     {
         var root = PluginInterface.GetPluginConfigDirectory();
+        config = Configuration.Load(PluginInterface, Log);
         directory = new FriendDirectory(ClientState, PlayerState, Data, Interop, Log);
         history = new HistoryStore(Path.Combine(root, "history"));
         capture = new ChatCapture(Chat, Framework, directory, history, Log);
         sender = new TellSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);
-        mainWindow = new MomoTalkWindow(directory, history, capture, sender, avatars);
+        mainWindow = new MomoTalkWindow(directory, history, capture, sender, avatars, config, SaveConfig, Textures);
+        entryWindow = new FloatingEntryWindow(config, SaveConfig, Textures, ToggleMainWindow);
     }
 
     public Task LoadAsync(CancellationToken cancellationToken) => Framework.RunOnFrameworkThread(() =>
@@ -71,13 +75,16 @@ public sealed class Plugin : IAsyncDalamudPlugin
         sender.Attach();
         Framework.Update += Update;
 
+        windows.AddWindow(entryWindow);
         windows.AddWindow(mainWindow);
+        mainWindow.PreloadAssets();
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
             HelpMessage = "Toggle the FFXIV MomoTalk window.",
         });
         PluginInterface.UiBuilder.Draw += windows.Draw;
         PluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
+        PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
     });
 
     public async ValueTask DisposeAsync()
@@ -102,6 +109,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
 
         PluginInterface.UiBuilder.Draw -= windows.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= OpenMainUi;
+        PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
         CommandManager.RemoveHandler(CommandName);
         windows.RemoveAllWindows();
 
@@ -118,7 +126,17 @@ public sealed class Plugin : IAsyncDalamudPlugin
         capture.Update(snapshot);
     }
 
-    private void OnCommand(string command, string arguments) => mainWindow.Toggle();
+    private void OnCommand(string command, string arguments) => ToggleMainWindow();
 
-    private void OpenMainUi() => mainWindow.IsOpen = true;
+    private void ToggleMainWindow() => mainWindow.Toggle();
+
+    private void OpenMainUi()
+    {
+        mainWindow.IsOpen = true;
+        mainWindow.BringToFront();
+    }
+
+    private void OpenConfigUi() => mainWindow.OpenSettings();
+
+    private void SaveConfig() => config.Save(PluginInterface);
 }

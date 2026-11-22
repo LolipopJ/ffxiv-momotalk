@@ -1,8 +1,11 @@
+using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using Dalamud.Plugin.Services;
 using FFXIVMomoTalk.Chat;
 
 namespace FFXIVMomoTalk.Windows;
@@ -10,12 +13,22 @@ namespace FFXIVMomoTalk.Windows;
 internal sealed class MomoTalkWindow : Window
 {
     private const float NarrowThreshold = 640f;
+    private const string LogoResourceName = "FFXIVMomoTalk.Assets.momo-logo.png";
+    private const string CoverResourceName = "FFXIVMomoTalk.Assets.momotalk-cover.png";
+    private const float IntroSolidDuration = 0.62f;
+    private const float IntroTotalDuration = 0.84f;
+    private const float SettingsTransitionDuration = 0.20f;
 
     private readonly FriendDirectory directory;
     private readonly HistoryStore history;
     private readonly ChatCapture capture;
     private readonly TellSender sender;
     private readonly AvatarCache avatars;
+    private readonly Configuration config;
+    private readonly Action saveConfig;
+    private readonly ISharedImmediateTexture logoTexture;
+    private readonly ISharedImmediateTexture coverTexture;
+    private readonly Stopwatch introTimer = new();
     private readonly Dictionary<PlayerKey, Draft> drafts = new();
     private readonly Dictionary<PlayerKey, TellMessage> latestByPeer = new();
 
@@ -37,15 +50,37 @@ internal sealed class MomoTalkWindow : Window
     private TellWarning? unassignedWarning;
     private Vector2 dragWindowOrigin;
     private Vector2 dragMouseOrigin;
+    private bool playingIntro;
+    private bool introWaitingCover;
+    private bool suppressNextIntro;
+    private bool settingsOpen;
+    private bool settingsOpenedThisFrame;
+    private float settingsAnim;
+    private float entrySwitchAnim;
+    private float introSwitchAnim;
 
-    public MomoTalkWindow(FriendDirectory directory, HistoryStore history, ChatCapture capture, TellSender sender,
-        AvatarCache avatars) : base("FFXIV MomoTalk")
+    public MomoTalkWindow(
+        FriendDirectory directory,
+        HistoryStore history,
+        ChatCapture capture,
+        TellSender sender,
+        AvatarCache avatars,
+        Configuration config,
+        Action saveConfig,
+        ITextureProvider textures) : base("FFXIV MomoTalk")
     {
         this.directory = directory;
         this.history = history;
         this.capture = capture;
         this.sender = sender;
         this.avatars = avatars;
+        this.config = config;
+        this.saveConfig = saveConfig;
+        logoTexture = textures.GetFromManifestResource(typeof(Plugin).Assembly, LogoResourceName);
+        coverTexture = textures.GetFromManifestResource(typeof(Plugin).Assembly, CoverResourceName);
+        entrySwitchAnim = config.ShowFloatingEntry ? 1f : 0f;
+        introSwitchAnim = config.ShowIntroAnimation ? 1f : 0f;
+
         Flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
         Size = new Vector2(840, 560);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -56,8 +91,60 @@ internal sealed class MomoTalkWindow : Window
         };
     }
 
+    public void PreloadAssets()
+    {
+        _ = logoTexture.GetWrapOrDefault();
+        _ = coverTexture.GetWrapOrDefault();
+    }
+
+    public void OpenSettings()
+    {
+        if (!IsOpen)
+        {
+            suppressNextIntro = true;
+            IsOpen = true;
+        }
+
+        BringToFront();
+        playingIntro = false;
+        introWaitingCover = false;
+        introTimer.Reset();
+        settingsOpen = true;
+        settingsOpenedThisFrame = true;
+    }
+
+    public override void OnOpen()
+    {
+        if (suppressNextIntro)
+        {
+            suppressNextIntro = false;
+            playingIntro = false;
+            introWaitingCover = false;
+            introTimer.Reset();
+            return;
+        }
+
+        if (config.ShowIntroAnimation)
+        {
+            playingIntro = true;
+            introWaitingCover = coverTexture.GetWrapOrDefault() is null;
+            introTimer.Restart();
+        }
+    }
+
+    public override void OnClose()
+    {
+        playingIntro = false;
+        introWaitingCover = false;
+        introTimer.Reset();
+        settingsOpen = false;
+        settingsOpenedThisFrame = false;
+        settingsAnim = 0f;
+    }
+
     public override void PreDraw()
     {
+        RespectCloseHotkey = !settingsOpen;
         var scale = ImGuiHelpers.GlobalScale;
         ImGui.PushStyleColor(ImGuiCol.Text, ChatVisuals.Ink);
         ImGui.PushStyleColor(ImGuiCol.TextDisabled, ChatVisuals.Placeholder);
@@ -103,31 +190,79 @@ internal sealed class MomoTalkWindow : Window
         var winPos = ImGui.GetWindowPos();
         var winSize = ImGui.GetWindowSize();
         var draw = ImGui.GetWindowDrawList();
-        var headerHeight = 46f * scale;
 
+        var snapshot = directory.Current;
+        SyncSession(snapshot.Session);
+        ApplySendWarnings();
+        if (session is not null)
+        {
+            SyncInspectedFriend(snapshot);
+            UpdateSummaries();
+        }
+
+        if (playingIntro && introWaitingCover)
+        {
+            if (coverTexture.GetWrapOrDefault() is not null || introTimer.Elapsed.TotalSeconds >= 0.5)
+            {
+                introWaitingCover = false;
+                introTimer.Restart();
+            }
+            else
+            {
+                DrawIntroCover(draw, winPos, winSize, elapsed: 0f, alpha: 1f, scale);
+                return;
+            }
+        }
+
+        var introElapsed = playingIntro ? (float)introTimer.Elapsed.TotalSeconds : IntroTotalDuration;
+        if (playingIntro && introElapsed >= IntroTotalDuration)
+        {
+            playingIntro = false;
+            introTimer.Reset();
+        }
+
+        if (playingIntro && introElapsed < IntroSolidDuration)
+        {
+            DrawIntroCover(draw, winPos, winSize, introElapsed, alpha: 1f, scale);
+            return;
+        }
+
+        var headerHeight = 46f * scale;
         DrawHeader(draw, winPos, winSize.X, headerHeight, scale);
 
         var bodyPos = winPos + new Vector2(0, headerHeight);
         var bodySize = new Vector2(winSize.X, MathF.Max(1f, winSize.Y - headerHeight));
 
-        var snapshot = directory.Current;
-        SyncSession(snapshot.Session);
-        ApplySendWarnings();
-
         if (session is null)
         {
             DrawLoggedOut(draw, bodyPos, bodySize, scale);
+        }
+        else
+        {
+            var narrow = bodySize.X < NarrowThreshold * scale;
+            if (narrow)
+                DrawNarrowLayout(draw, snapshot, bodyPos, bodySize, scale);
+            else
+                DrawWideLayout(draw, snapshot, bodyPos, bodySize, scale);
+        }
+
+        if (playingIntro)
+        {
+            var fadeT = Math.Clamp((introElapsed - IntroSolidDuration) / (IntroTotalDuration - IntroSolidDuration), 0f, 1f);
+            var smoothFade = fadeT * fadeT * (3f - 2f * fadeT);
+            DrawIntroOverlay(winPos, winSize, introElapsed, 1f - smoothFade, scale);
             return;
         }
 
-        SyncInspectedFriend(snapshot);
-        UpdateSummaries();
+        var dt = MathF.Max(0.0001f, ImGui.GetIO().DeltaTime);
+        var settingsTarget = settingsOpen ? 1f : 0f;
+        var settingsStep = dt / SettingsTransitionDuration;
+        settingsAnim = settingsAnim < settingsTarget
+            ? MathF.Min(settingsTarget, settingsAnim + settingsStep)
+            : MathF.Max(settingsTarget, settingsAnim - settingsStep);
 
-        var narrow = bodySize.X < NarrowThreshold * scale;
-        if (narrow)
-            DrawNarrowLayout(draw, snapshot, bodyPos, bodySize, scale);
-        else
-            DrawWideLayout(draw, snapshot, bodyPos, bodySize, scale);
+        if (settingsOpen || settingsAnim > 0.001f)
+            DrawSettingsOverlay(winPos, winSize, scale);
     }
 
     private void DrawHeader(ImDrawListPtr draw, Vector2 winPos, float width, float height, float scale)
@@ -136,9 +271,11 @@ internal sealed class MomoTalkWindow : Window
         draw.AddRectFilled(winPos, winPos + new Vector2(width, height), ChatVisuals.Color(ChatVisuals.HeaderPink),
             rounding, ImDrawFlags.RoundCornersTop);
 
-        var closeSize = 30f * scale;
-        var closePos = new Vector2(winPos.X + width - closeSize - 10f * scale, winPos.Y + (height - closeSize) * 0.5f);
-        var dragWidth = MathF.Max(1f, closePos.X - winPos.X - 6f * scale);
+        var btnSize = 30f * scale;
+        var btnY = winPos.Y + (height - btnSize) * 0.5f;
+        var closePos = new Vector2(winPos.X + width - btnSize - 10f * scale, btnY);
+        var settingsPos = new Vector2(closePos.X - btnSize - 4f * scale, btnY);
+        var dragWidth = MathF.Max(1f, settingsPos.X - winPos.X - 6f * scale);
 
         ImGui.SetCursorScreenPos(winPos);
         ImGui.InvisibleButton("##header-drag", new Vector2(dragWidth, height));
@@ -151,17 +288,38 @@ internal sealed class MomoTalkWindow : Window
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 0f))
             ImGui.SetWindowPos(dragWindowOrigin + (ImGui.GetIO().MousePos - dragMouseOrigin));
 
-        var logoSize = 22f * scale;
-        var logoCenter = new Vector2(winPos.X + 24f * scale, winPos.Y + height * 0.5f);
-        ChatVisuals.DrawMomoLogo(draw, logoCenter, logoSize, ChatVisuals.Color(ChatVisuals.White));
+        var logoSize = 26f * scale;
+        var logoPos = new Vector2(winPos.X + 12f * scale, winPos.Y + (height - logoSize) * 0.5f);
+        if (logoTexture.GetWrapOrDefault() is { } logoWrap)
+            draw.AddImage(logoWrap.Handle, logoPos, logoPos + new Vector2(logoSize));
 
         var titleFontSize = ImGui.GetFontSize() * 1.42f;
         var titleSize = ChatVisuals.CalcTextSize("MomoTalk", titleFontSize);
-        var titlePos = new Vector2(winPos.X + 42f * scale, winPos.Y + (height - titleSize.Y) * 0.5f);
+        var titlePos = new Vector2(logoPos.X + logoSize + 6f * scale, winPos.Y + (height - titleSize.Y) * 0.5f);
         ChatVisuals.AddBoldText(draw, titlePos, titleFontSize, ChatVisuals.Color(ChatVisuals.White), "MomoTalk", scale);
 
+        ImGui.SetCursorScreenPos(settingsPos);
+        if (ImGui.InvisibleButton("##window-settings", new Vector2(btnSize)))
+        {
+            settingsOpen = !settingsOpen;
+            settingsOpenedThisFrame = settingsOpen;
+        }
+
+        var settingsHovered = ImGui.IsItemHovered();
+        var settingsActive = ImGui.IsItemActive();
+        if (settingsOpen || settingsHovered || settingsActive)
+        {
+            var bg = settingsActive || settingsOpen ? ChatVisuals.HeaderPinkActive : ChatVisuals.HeaderPinkHover;
+            draw.AddRectFilled(settingsPos, settingsPos + new Vector2(btnSize), ChatVisuals.Color(bg), 6f * scale);
+        }
+
+        ChatVisuals.DrawSettingsIcon(draw, settingsPos + new Vector2(btnSize * 0.5f), 17f * scale,
+            ChatVisuals.Color(ChatVisuals.White), scale);
+        if (settingsHovered)
+            ImGui.SetTooltip("Settings");
+
         ImGui.SetCursorScreenPos(closePos);
-        if (ImGui.InvisibleButton("##window-close", new Vector2(closeSize)))
+        if (ImGui.InvisibleButton("##window-close", new Vector2(btnSize)))
             IsOpen = false;
 
         var closeHovered = ImGui.IsItemHovered();
@@ -169,11 +327,299 @@ internal sealed class MomoTalkWindow : Window
         if (closeHovered || closeActive)
         {
             var bg = closeActive ? ChatVisuals.HeaderPinkActive : ChatVisuals.HeaderPinkHover;
-            draw.AddRectFilled(closePos, closePos + new Vector2(closeSize), ChatVisuals.Color(bg), 6f * scale);
+            draw.AddRectFilled(closePos, closePos + new Vector2(btnSize), ChatVisuals.Color(bg), 6f * scale);
         }
 
-        ChatVisuals.DrawCloseIcon(draw, closePos + new Vector2(closeSize * 0.5f), 14f * scale,
+        ChatVisuals.DrawCloseIcon(draw, closePos + new Vector2(btnSize * 0.5f), 14f * scale,
             ChatVisuals.Color(ChatVisuals.White), MathF.Max(1.6f, 1.8f * scale));
+    }
+
+    private void DrawIntroOverlay(Vector2 winPos, Vector2 winSize, float elapsed, float alpha, float scale)
+    {
+        ImGui.SetCursorScreenPos(winPos);
+        using var pad = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        using var spacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
+        using var overlay = ImRaii.Child("##intro-overlay", winSize, false,
+            ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
+        if (!overlay)
+            return;
+
+        DrawIntroCover(ImGui.GetWindowDrawList(), winPos, winSize, elapsed, alpha, scale);
+    }
+
+    private void DrawIntroCover(ImDrawListPtr draw, Vector2 winPos, Vector2 winSize, float elapsed, float alpha, float scale)
+    {
+        var winMin = winPos;
+        var winMax = winPos + winSize;
+        var rounding = 10f * scale;
+        var pink = ChatVisuals.Color(ChatVisuals.WithAlpha(ChatVisuals.CoverPink, alpha));
+
+        if (coverTexture.GetWrapOrDefault() is not { } wrap)
+        {
+            draw.AddRectFilled(winMin, winMax, pink, rounding);
+            return;
+        }
+
+        EvaluateIntroBounce(elapsed, scale, out var scaleX, out var scaleY, out var offsetY);
+        var baseSize = MathF.Min(winSize.X, winSize.Y) * 0.80f;
+        var halfSize = new Vector2(baseSize * scaleX, baseSize * scaleY) * 0.5f;
+        var center = winPos + winSize * 0.5f + new Vector2(0, offsetY);
+        var rawMin = center - halfSize;
+        var rawMax = center + halfSize;
+        var rawSize = rawMax - rawMin;
+
+        var safeTop = MathF.Ceiling(winMin.Y + rounding);
+        var safeBottom = MathF.Floor(winMax.Y - rounding);
+        var safeLeft = MathF.Ceiling(winMin.X);
+        var safeRight = MathF.Floor(winMax.X);
+
+        if (safeBottom <= safeTop || safeRight <= safeLeft || rawSize.X <= 0f || rawSize.Y <= 0f)
+        {
+            draw.AddRectFilled(winMin, winMax, pink, rounding);
+            return;
+        }
+
+        var slotMin = new Vector2(
+            Math.Clamp(MathF.Round(rawMin.X), safeLeft, safeRight),
+            Math.Clamp(MathF.Round(rawMin.Y), safeTop, safeBottom));
+        var slotMax = new Vector2(
+            Math.Clamp(MathF.Round(rawMax.X), slotMin.X, safeRight),
+            Math.Clamp(MathF.Round(rawMax.Y), slotMin.Y, safeBottom));
+
+        // Draw 4 non-overlapping pink strips around the cover slot so alpha never double-blends.
+        draw.PushClipRect(winMin, new Vector2(winMax.X, slotMin.Y), true);
+        draw.AddRectFilled(winMin, new Vector2(winMax.X, slotMin.Y + 2f), pink, rounding, ImDrawFlags.RoundCornersTop);
+        draw.PopClipRect();
+
+        draw.PushClipRect(new Vector2(winMin.X, slotMax.Y), winMax, true);
+        draw.AddRectFilled(new Vector2(winMin.X, slotMax.Y - 2f), winMax, pink, rounding, ImDrawFlags.RoundCornersBottom);
+        draw.PopClipRect();
+
+        if (slotMin.X > winMin.X && slotMax.Y > slotMin.Y)
+            draw.AddRectFilled(new Vector2(winMin.X, slotMin.Y), new Vector2(slotMin.X, slotMax.Y), pink);
+
+        if (slotMax.X < winMax.X && slotMax.Y > slotMin.Y)
+            draw.AddRectFilled(new Vector2(slotMax.X, slotMin.Y), new Vector2(winMax.X, slotMax.Y), pink);
+
+        if (slotMax.X > slotMin.X && slotMax.Y > slotMin.Y)
+        {
+            var uvMin = new Vector2((slotMin.X - rawMin.X) / rawSize.X, (slotMin.Y - rawMin.Y) / rawSize.Y);
+            var uvMax = new Vector2((slotMax.X - rawMin.X) / rawSize.X, (slotMax.Y - rawMin.Y) / rawSize.Y);
+            draw.AddImage(wrap.Handle, slotMin, slotMax, uvMin, uvMax,
+                ChatVisuals.Color(new Vector4(1f, 1f, 1f, alpha)));
+        }
+    }
+
+    private static void EvaluateIntroBounce(float t, float scale, out float scaleX, out float scaleY, out float offsetY)
+    {
+        if (t < 0.11f)
+        {
+            var u = EaseOutQuad(t / 0.11f);
+            scaleX = Lerp(0.84f, 0.96f, u);
+            scaleY = Lerp(0.84f, 1.06f, u);
+            offsetY = Lerp(6f, -20f, u) * scale;
+        }
+        else if (t < 0.22f)
+        {
+            var u = EaseInQuad((t - 0.11f) / 0.11f);
+            scaleX = Lerp(0.96f, 1.07f, u);
+            scaleY = Lerp(1.06f, 0.93f, u);
+            offsetY = Lerp(-20f, 0f, u) * scale;
+        }
+        else if (t < 0.34f)
+        {
+            var u = EaseOutQuad((t - 0.22f) / 0.12f);
+            scaleX = Lerp(1.07f, 0.97f, u);
+            scaleY = Lerp(0.93f, 1.04f, u);
+            offsetY = Lerp(0f, -14f, u) * scale;
+        }
+        else if (t < 0.46f)
+        {
+            var u = EaseInQuad((t - 0.34f) / 0.12f);
+            scaleX = Lerp(0.97f, 1.03f, u);
+            scaleY = Lerp(1.04f, 0.97f, u);
+            offsetY = Lerp(-14f, 0f, u) * scale;
+        }
+        else if (t < 0.56f)
+        {
+            var u = EaseOutQuad((t - 0.46f) / 0.10f);
+            scaleX = Lerp(1.03f, 1f, u);
+            scaleY = Lerp(0.97f, 1f, u);
+            offsetY = 0f;
+        }
+        else if (t < IntroSolidDuration)
+        {
+            scaleX = 1f;
+            scaleY = 1f;
+            offsetY = 0f;
+        }
+        else
+        {
+            var u = Math.Clamp((t - IntroSolidDuration) / (IntroTotalDuration - IntroSolidDuration), 0f, 1f);
+            var zoom = Lerp(1f, 1.04f, u);
+            scaleX = zoom;
+            scaleY = zoom;
+            offsetY = 0f;
+        }
+    }
+
+    private static float EaseOutQuad(float u) => 1f - (1f - u) * (1f - u);
+
+    private static float EaseInQuad(float u) => u * u;
+
+    private static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    private void DrawSettingsOverlay(Vector2 winPos, Vector2 winSize, float scale)
+    {
+        var justOpened = settingsOpenedThisFrame;
+        settingsOpenedThisFrame = false;
+
+        var interactive = settingsOpen;
+        if (interactive && !justOpened && ImGui.IsKeyPressed(ImGuiKey.Escape))
+        {
+            settingsOpen = false;
+            interactive = false;
+        }
+
+        var eased = settingsAnim * settingsAnim * (3f - 2f * settingsAnim);
+        if (eased <= 0.001f)
+            return;
+
+        var overlayFlags = ImGuiWindowFlags.NoBackground
+            | ImGuiWindowFlags.NoScrollbar
+            | ImGuiWindowFlags.NoScrollWithMouse;
+        if (!interactive)
+            overlayFlags |= ImGuiWindowFlags.NoInputs;
+
+        ImGui.SetCursorScreenPos(winPos);
+        using var pad = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        using var spacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
+        using var overlay = ImRaii.Child("##settings-overlay", winSize, false, overlayFlags);
+        if (!overlay)
+            return;
+
+        var draw = ImGui.GetWindowDrawList();
+        draw.AddRectFilled(winPos, winPos + winSize,
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.ModalBackdrop, eased)), 10f * scale);
+
+        var cardScale = Lerp(0.96f, 1f, eased);
+        var cardOffsetY = Lerp(8f * scale, 0f, eased);
+        var uiScale = scale * cardScale;
+
+        var cardWidth = MathF.Min(360f * scale, MathF.Max(260f * scale, winSize.X - 36f * scale)) * cardScale;
+        var headerHeight = 50f * uiScale;
+        var padX = 22f * uiScale;
+        var padTop = 20f * uiScale;
+        var padBottom = 22f * uiScale;
+        var rowHeight = 34f * uiScale;
+        var rowGap = 14f * uiScale;
+
+        const string configErrorText = "Existing config file could not be read and was preserved.";
+        ChatVisuals.BannerLayout? configErrorLayout = config.PreserveExistingFile
+            ? ChatVisuals.MeasureSystemBanner(configErrorText, MathF.Max(80f * uiScale, cardWidth - padX * 2f), uiScale)
+            : null;
+        var warnHeight = configErrorLayout is { } layout ? layout.Height + 10f * uiScale : 0f;
+
+        var cardHeight = headerHeight + padTop + warnHeight + rowHeight * 2f + rowGap + padBottom;
+        var cardSize = new Vector2(cardWidth, cardHeight);
+        var cardPos = winPos + (winSize - cardSize) * 0.5f + new Vector2(0, cardOffsetY);
+        var cardRounding = 11f * uiScale;
+
+        draw.AddRectFilled(cardPos + new Vector2(0, 2f * uiScale), cardPos + cardSize + new Vector2(0, 2f * uiScale),
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.Shadow, eased)), cardRounding);
+        draw.AddRectFilled(cardPos, cardPos + cardSize,
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.White, eased)), cardRounding);
+        draw.AddRect(cardPos, cardPos + cardSize,
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.ModalDivider, eased)), cardRounding,
+            ImDrawFlags.None, MathF.Max(1f, uiScale));
+
+        var titleFontSize = ImGui.GetFontSize() * 1.22f * cardScale;
+        var titleSize = ChatVisuals.CalcTextSize("Settings", titleFontSize);
+        var titlePos = new Vector2(cardPos.X + (cardWidth - titleSize.X) * 0.5f,
+            cardPos.Y + (headerHeight - titleSize.Y) * 0.5f);
+        ChatVisuals.AddBoldText(draw, titlePos, titleFontSize,
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.Ink, eased)), "Settings", uiScale);
+
+        var closeSize = 28f * uiScale;
+        var closePos = new Vector2(cardPos.X + cardWidth - 14f * uiScale - closeSize,
+            cardPos.Y + (headerHeight - closeSize) * 0.5f);
+        var closeHovered = false;
+        if (interactive)
+        {
+            ImGui.SetCursorScreenPos(closePos);
+            if (ImGui.InvisibleButton("##settings-close", new Vector2(closeSize)))
+                settingsOpen = false;
+            closeHovered = ImGui.IsItemHovered();
+        }
+
+        if (closeHovered)
+            draw.AddRectFilled(closePos, closePos + new Vector2(closeSize),
+                ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.ListHover, eased)), 6f * uiScale);
+
+        ChatVisuals.DrawCloseIcon(draw, closePos + new Vector2(closeSize * 0.5f), 14f * uiScale,
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(closeHovered ? ChatVisuals.Ink : ChatVisuals.Muted, eased)),
+            MathF.Max(1.6f, 1.8f * uiScale));
+
+        var dividerY = cardPos.Y + headerHeight;
+        draw.AddLine(new Vector2(cardPos.X, dividerY), new Vector2(cardPos.X + cardWidth, dividerY),
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.ModalDivider, eased)), MathF.Max(1f, uiScale));
+
+        var cursorY = dividerY + padTop;
+        if (configErrorLayout is { } errorLayout)
+        {
+            ChatVisuals.DrawSystemBanner(draw, new Vector2(cardPos.X, cursorY), cardWidth, configErrorText,
+                isAlert: true, uiScale, errorLayout, eased);
+            cursorY += errorLayout.Height + 10f * uiScale;
+        }
+
+        if (DrawSettingToggleRow(draw, "##setting-floating-entry", "Show Floating Entry",
+            new Vector2(cardPos.X + padX, cursorY), cardWidth - padX * 2f, rowHeight,
+            config.ShowFloatingEntry, ref entrySwitchAnim, uiScale, cardScale, eased, interactive))
+        {
+            config.ShowFloatingEntry = !config.ShowFloatingEntry;
+            saveConfig();
+        }
+
+        cursorY += rowHeight + rowGap;
+        if (DrawSettingToggleRow(draw, "##setting-intro-anim", "Show Intro Animation",
+            new Vector2(cardPos.X + padX, cursorY), cardWidth - padX * 2f, rowHeight,
+            config.ShowIntroAnimation, ref introSwitchAnim, uiScale, cardScale, eased, interactive))
+        {
+            config.ShowIntroAnimation = !config.ShowIntroAnimation;
+            saveConfig();
+        }
+
+        var inCard = ImGui.IsMouseHoveringRect(cardPos, cardPos + cardSize);
+        if (interactive && !justOpened && !inCard && ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            settingsOpen = false;
+    }
+
+    private static bool DrawSettingToggleRow(
+        ImDrawListPtr draw,
+        string id,
+        string label,
+        Vector2 pos,
+        float width,
+        float height,
+        bool value,
+        ref float anim,
+        float uiScale,
+        float fontScale,
+        float alpha,
+        bool interactive)
+    {
+        var switchWidth = 44f * uiScale;
+        var switchHeight = 24f * uiScale;
+        var labelFontSize = ImGui.GetFontSize() * 1.02f * fontScale;
+        var maxLabelWidth = MathF.Max(40f * uiScale, width - switchWidth - 14f * uiScale);
+        var labelText = ChatVisuals.TruncateSingleLine(label, labelFontSize, maxLabelWidth);
+        var labelSize = ChatVisuals.CalcTextSize(labelText, labelFontSize);
+        var labelPos = new Vector2(pos.X, pos.Y + (height - labelSize.Y) * 0.5f);
+        ChatVisuals.AddBoldText(draw, labelPos, labelFontSize,
+            ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.Ink, alpha)), labelText, uiScale);
+
+        var switchPos = new Vector2(pos.X + width - switchWidth, pos.Y + (height - switchHeight) * 0.5f);
+        return ChatVisuals.DrawToggleSwitch(draw, id, switchPos, value, ref anim, uiScale, alpha, interactive);
     }
 
     private static void DrawLoggedOut(ImDrawListPtr draw, Vector2 bodyPos, Vector2 bodySize, float scale)
@@ -657,13 +1103,15 @@ internal sealed class MomoTalkWindow : Window
         var timelinePos = pos + new Vector2(0, subHeaderH);
         var timelineHeight = MathF.Max(1f, size.Y - subHeaderH - composerHeight);
 
+        var timelineContentWidth = MathF.Max(1f, size.X - ImGui.GetStyle().ScrollbarSize);
+
         using var peerId = ImRaii.PushId(peer.Key.ToString());
         ImGui.SetCursorScreenPos(timelinePos);
         using (var spacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero))
         using (var timeline = ImRaii.Child("##messages", new Vector2(size.X, timelineHeight), false))
         {
             if (timeline)
-                DrawTimeline(view, peer, scale);
+                DrawTimeline(view, peer, timelineContentWidth, scale);
         }
 
         var footerPos = timelinePos + new Vector2(0, timelineHeight);
@@ -738,13 +1186,13 @@ internal sealed class MomoTalkWindow : Window
             ChatVisuals.Color(ChatVisuals.Divider), 1f);
     }
 
-    private void DrawTimeline(ConversationHistory view, PlayerIdentity peer, float scale)
+    private void DrawTimeline(ConversationHistory view, PlayerIdentity peer, float contentWidth, float scale)
     {
         var followLatest = view.RevealLatest || (view.AddedMessages && view.PrependAnchor is null
             && ImGui.GetScrollY() >= ImGui.GetScrollMaxY() - 2f * scale);
 
         ImGui.Dummy(new Vector2(0, 6f * scale));
-        var availWidth = ImGui.GetContentRegionAvail().X;
+        var availWidth = MathF.Min(ImGui.GetContentRegionAvail().X, contentWidth);
 
         if (view.ReadFailed)
         {
@@ -805,7 +1253,7 @@ internal sealed class MomoTalkWindow : Window
             if (view.PrependAnchor == message.Id)
                 ImGui.SetScrollY(MathF.Max(0f, ImGui.GetScrollY() + y - previousFirstY));
 
-            DrawMessageBubble(message, message.Outgoing ? session!.Player : peer, isGroupStart, scale);
+            DrawMessageBubble(message, message.Outgoing ? session!.Player : peer, isGroupStart, availWidth, scale);
 
             if (message.Rejection is { } rejection)
                 DrawTimelineBanner(rejection, isAlert: true, availWidth, scale);
@@ -856,10 +1304,9 @@ internal sealed class MomoTalkWindow : Window
         ImGui.Dummy(new Vector2(availWidth, layout.Height));
     }
 
-    private void DrawMessageBubble(TellMessage message, PlayerIdentity author, bool isGroupStart, float scale)
+    private void DrawMessageBubble(TellMessage message, PlayerIdentity author, bool isGroupStart, float availWidth, float scale)
     {
         var origin = ImGui.GetCursorScreenPos();
-        var availWidth = ImGui.GetContentRegionAvail().X;
         var sideMargin = 16f * scale;
         var avatarSize = 36f * scale;
         var avatarGap = 11f * scale;

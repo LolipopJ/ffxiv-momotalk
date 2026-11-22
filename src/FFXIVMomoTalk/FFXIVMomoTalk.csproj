@@ -7,8 +7,17 @@
     <Author>FFXIV MomoTalk contributors</Author>
     <Punchline>Keep your friend tells together.</Punchline>
     <Description>An in-game friend chat manager for FINAL FANTASY XIV.</Description>
+    <RepoUrl>https://github.com/LolipopJ/ffxiv-momotalk</RepoUrl>
+    <IconUrl>https://raw.githubusercontent.com/LolipopJ/ffxiv-momotalk/main/src/Data/icon.png</IconUrl>
     <Tags>social;chat</Tags>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\Data\entry.png" LogicalName="FFXIVMomoTalk.Assets.entry.png" />
+    <EmbeddedResource Include="..\Data\momo-logo.png" LogicalName="FFXIVMomoTalk.Assets.momo-logo.png" />
+    <EmbeddedResource Include="..\Data\momotalk-cover.png" LogicalName="FFXIVMomoTalk.Assets.momotalk-cover.png" />
+    <Content Include="..\Data\icon.png" Link="images\icon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />

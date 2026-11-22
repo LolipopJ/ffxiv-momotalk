@@ -12,6 +12,10 @@ internal static class ChatVisuals
     public static readonly Vector4 HeaderPink = Hex(0xFC96AB);
     public static readonly Vector4 HeaderPinkHover = Hex(0xF27D96);
     public static readonly Vector4 HeaderPinkActive = Hex(0xE26A84);
+    public static readonly Vector4 CoverPink = Hex(0xFB94A7);
+    public static readonly Vector4 ModalBackdrop = Hex(0x000000, 0.50f);
+    public static readonly Vector4 ModalDivider = Hex(0xE7EBEC);
+    public static readonly Vector4 SwitchOffBg = Hex(0xE7EBEC);
     public static readonly Vector4 RailBg = Hex(0x4B5A6F);
     public static readonly Vector4 RailActive = Hex(0x68788F);
     public static readonly Vector4 ListBg = Hex(0xF3F7F8);
@@ -42,6 +46,8 @@ internal static class ChatVisuals
         new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, alpha);
 
     public static Vector4 WithAlpha(Vector4 rgba, float alpha) => new(rgba.X, rgba.Y, rgba.Z, alpha);
+
+    public static Vector4 ScaleAlpha(Vector4 rgba, float factor) => new(rgba.X, rgba.Y, rgba.Z, rgba.W * factor);
 
     public static uint Color(Vector4 rgba) => ImGui.ColorConvertFloat4ToU32(rgba);
 
@@ -118,33 +124,6 @@ internal static class ChatVisuals
             center + new Vector2(size * 0.28f, size * 0.34f), fg, size * 0.15f);
     }
 
-    public static void DrawMomoLogo(ImDrawListPtr draw, Vector2 center, float size, uint col)
-    {
-        // Plump peach emblem inspired by the MomoTalk header icon
-        var r = size * 0.29f;
-        draw.AddCircleFilled(center + new Vector2(-size * 0.16f, size * 0.08f), r, col, 24);
-        draw.AddCircleFilled(center + new Vector2(size * 0.16f, size * 0.08f), r, col, 24);
-        draw.AddTriangleFilled(
-            center + new Vector2(-size * 0.42f, size * 0.02f),
-            center + new Vector2(size * 0.42f, size * 0.02f),
-            center + new Vector2(0, -size * 0.44f),
-            col);
-        // Small bottom leaves
-        draw.AddTriangleFilled(
-            center + new Vector2(-size * 0.46f, size * 0.34f),
-            center + new Vector2(-size * 0.16f, size * 0.24f),
-            center + new Vector2(-size * 0.22f, size * 0.42f),
-            col);
-        draw.AddTriangleFilled(
-            center + new Vector2(size * 0.46f, size * 0.34f),
-            center + new Vector2(size * 0.16f, size * 0.24f),
-            center + new Vector2(size * 0.22f, size * 0.42f),
-            col);
-        // Subtle peach cleft in header pink
-        draw.AddLine(center + new Vector2(0, -size * 0.34f), center + new Vector2(size * 0.03f, size * 0.14f),
-            Color(HeaderPink), MathF.Max(1.2f, size * 0.07f));
-    }
-
     public static void DrawContactsIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
     {
         var headRadius = size * 0.22f;
@@ -195,6 +174,60 @@ internal static class ChatVisuals
         var half = size * 0.32f;
         draw.AddLine(center + new Vector2(-half, -half), center + new Vector2(half, half), col, thickness);
         draw.AddLine(center + new Vector2(half, -half), center + new Vector2(-half, half), col, thickness);
+    }
+
+    public static void DrawSettingsIcon(ImDrawListPtr draw, Vector2 center, float size, uint col, float scale)
+    {
+        var ringRadius = size * 0.25f;
+        var ringThickness = MathF.Max(1.8f, size * 0.13f);
+        var toothInner = ringRadius + ringThickness * 0.30f;
+        var toothOuter = size * 0.44f;
+        var toothWidth = MathF.Max(2.2f, size * 0.16f);
+
+        for (var i = 0; i < 6; i++)
+        {
+            var angle = i * (MathF.PI / 3f);
+            var dir = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            draw.AddLine(center + dir * toothInner, center + dir * toothOuter, col, toothWidth);
+        }
+
+        draw.AddCircle(center, ringRadius, col, 24, ringThickness);
+    }
+
+    public static bool DrawToggleSwitch(ImDrawListPtr draw, string id, Vector2 pos, bool value, ref float anim, float scale,
+        float alpha = 1f, bool interactive = true)
+    {
+        var width = 44f * scale;
+        var height = 24f * scale;
+        var size = new Vector2(width, height);
+
+        var clicked = false;
+        var hovered = false;
+        if (interactive)
+        {
+            ImGui.SetCursorScreenPos(pos);
+            clicked = ImGui.InvisibleButton(id, size);
+            hovered = ImGui.IsItemHovered();
+        }
+
+        var target = value ? 1f : 0f;
+        var step = MathF.Min(1f, MathF.Max(0.001f, ImGui.GetIO().DeltaTime) * 12f);
+        anim = anim < target ? MathF.Min(target, anim + step) : MathF.Max(target, anim - step);
+
+        var trackColor = Vector4.Lerp(SwitchOffBg, HeaderPink, anim);
+        if (hovered)
+            trackColor = Vector4.Lerp(trackColor, value ? HeaderPinkHover : Divider, 0.25f);
+
+        draw.AddRectFilled(pos, pos + size, Color(ScaleAlpha(trackColor, alpha)), height * 0.5f);
+
+        var thumbRadius = 9f * scale;
+        var inset = 3f * scale + thumbRadius;
+        var thumbX = pos.X + inset + (width - inset * 2f) * anim;
+        var thumbCenter = new Vector2(thumbX, pos.Y + height * 0.5f);
+        draw.AddCircleFilled(thumbCenter + new Vector2(0, 1.5f * scale), thumbRadius,
+            Color(ScaleAlpha(Hex(0x000000, 0.18f), alpha)), 24);
+        draw.AddCircleFilled(thumbCenter, thumbRadius, Color(ScaleAlpha(White, alpha)), 24);
+        return clicked;
     }
 
     public static void DrawBackIcon(ImDrawListPtr draw, Vector2 center, float size, uint col, float thickness)
@@ -351,15 +384,17 @@ internal static class ChatVisuals
         string text,
         bool isAlert,
         float scale,
-        BannerLayout layout)
+        BannerLayout layout,
+        float alpha = 1f)
     {
         var bannerPos = new Vector2(origin.X + (availWidth - layout.BannerSize.X) * 0.5f, origin.Y + 3f * scale);
-        draw.AddRectFilled(bannerPos, bannerPos + layout.BannerSize, Color(SystemBg), 10f * scale);
+        draw.AddRectFilled(bannerPos, bannerPos + layout.BannerSize, Color(ScaleAlpha(SystemBg, alpha)), 10f * scale);
         var textX = layout.TextSize.X < layout.MaxTextWidth
             ? bannerPos.X + (layout.BannerSize.X - layout.TextSize.X) * 0.5f
             : bannerPos.X + layout.Padding.X;
         var textPos = new Vector2(textX, bannerPos.Y + layout.Padding.Y);
-        AddText(draw, textPos, layout.FontSize, Color(isAlert ? AlertText : SystemText), text, layout.MaxTextWidth);
+        AddText(draw, textPos, layout.FontSize, Color(ScaleAlpha(isAlert ? AlertText : SystemText, alpha)), text,
+            layout.MaxTextWidth);
     }
 
     public readonly record struct TimeDividerLayout(float Height, Vector2 PillSize, Vector2 TextSize, float FontSize);
