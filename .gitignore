@@ -1,0 +1,5 @@
+.serena/
+bin/
+obj/
+.vs/
+*.user
