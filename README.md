@@ -8,10 +8,22 @@ Ahem—this is a Dalamud plugin that brings **Blue Archive**'s **MomoTalk** chat
 
 ## Features
 
+![MomoTalk](./docs/preview.png)
+
 - **Faithful UI Style**: Feels just like office.
 - **Global Floating Launcher**: A draggable MomoTalk entry button.
 - **Friend `/tell` Messaging**: Send and receive real in-game private messages with friends.
 - **Persistent Chat History**: Never lose track of conversations with your friends.
+
+## Installation
+
+Add the following custom plugin repository URL in Dalamud Settings (`/xlsettings` → **Experimental** → **Custom Plugin Repositories**):
+
+```text
+https://raw.githubusercontent.com/LolipopJ/ffxiv-momotalk/main/pluginmaster.json
+```
+
+Then open `/xlplugins`, search for **MomoTalk**, and install it.
 
 ## Usage
 

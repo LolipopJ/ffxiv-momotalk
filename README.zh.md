@@ -8,10 +8,22 @@
 
 ## 主要功能
 
+![MomoTalk](./docs/preview.png)
+
 - **还原界面风格**：像回到为师的办公室一样亲切。
 - **全局悬浮入口**：可拖动的 MomoTalk 入口。
 - **好友私聊收发**：支持发送与接收真实好友私聊。
 - **记忆消息历史**：不再丢失与好友的互动。
+
+## 安装方法
+
+在 Dalamud 设置（`/xlsettings` → **实验性** → **自定义插件库**）中添加以下地址：
+
+```text
+https://raw.githubusercontent.com/LolipopJ/ffxiv-momotalk/main/pluginmaster.json
+```
+
+保存后打开 `/xlplugins`，搜索 **MomoTalk** 安装即可。
 
 ## 使用方法
 

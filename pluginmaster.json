@@ -1,0 +1,30 @@
+[
+  {
+    "Author": "LolipopJ",
+    "Name": "MomoTalk",
+    "InternalName": "FFXIVMomoTalk",
+    "AssemblyVersion": "0.1.0.0",
+    "Description": "Bring Blue Archive's iconic MomoTalk into FINAL FANTASY XIV! Crafted for every Sensei in Eorzea, MomoTalk turns your in-game friend /tells into a faithful Blue Archive messenger — complete with a draggable floating phone button, the signature bouncy opening splash, grouped chat bubbles, Lodestone avatars, editable friend notes, and per-character local history. Open with /momotalk or tap the floating MomoTalk icon anytime.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/LolipopJ/ffxiv-momotalk",
+    "Tags": [
+      "social",
+      "chat",
+      "tell",
+      "momotalk",
+      "bluearchive"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "Punchline": "Blue Archive's MomoTalk in Eorzea — [Hayase Yuuka] Sensei! I need you to work harder!",
+    "AcceptsFeedback": true,
+    "IconUrl": "https://raw.githubusercontent.com/LolipopJ/ffxiv-momotalk/main/src/Data/icon.png",
+    "DownloadLinkInstall": "https://github.com/LolipopJ/ffxiv-momotalk/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/LolipopJ/ffxiv-momotalk/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/LolipopJ/ffxiv-momotalk/releases/latest/download/latest.zip",
+    "LastUpdate": 1795351153
+  }
+]
