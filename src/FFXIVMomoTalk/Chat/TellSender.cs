@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using Dalamud.Game.Chat;
+using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.System.String;
@@ -9,7 +10,7 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace FFXIVMomoTalk.Chat;
 
-internal sealed record TellWarning(PlayerSession Session, PlayerKey? Peer, string Message)
+internal sealed record TellWarning(PlayerSession Session, ulong? Peer, string Message)
 {
     public volatile bool AttachedToMessage;
 }
@@ -22,8 +23,10 @@ internal sealed class TellSender(
     IPluginLog log) : IDisposable
 {
     private const int MaxCommandBytes = 500;
-    private const uint RestrictedAreaLogId = 3832;
-    private static readonly TimeSpan ReconciliationWindow = TimeSpan.FromSeconds(8);
+    private const uint ErrorMessageLogKind = 60;
+    private const string FallbackRejection = "Failed to send Tell. Check the in-game chat for details.";
+    private static readonly TimeSpan ReconciliationWindow = TimeSpan.FromSeconds(5);
+
     private readonly List<PendingTell> pending = new();
     private readonly ConcurrentQueue<TellWarning> warnings = new();
     private PendingTell? submitting;
@@ -33,6 +36,7 @@ internal sealed class TellSender(
     {
         capture.Captured += OnCaptured;
         chat.LogMessage += OnLogMessage;
+        chat.ChatMessageUnhandled += OnChatMessage;
     }
 
     public void Dispose()
@@ -40,6 +44,7 @@ internal sealed class TellSender(
         disposed = true;
         capture.Captured -= OnCaptured;
         chat.LogMessage -= OnLogMessage;
+        chat.ChatMessageUnhandled -= OnChatMessage;
         pending.Clear();
     }
 
@@ -48,7 +53,7 @@ internal sealed class TellSender(
         if (!TryBuildCommand(peer, draft, out var body, out _, out error))
             return false;
 
-        _ = DispatchAsync(new PendingTell(session, peer.Key, body));
+        _ = DispatchAsync(new PendingTell(session, peer, body));
         return true;
     }
 
@@ -63,7 +68,7 @@ internal sealed class TellSender(
                 continue;
 
             if (ReferenceEquals(request.Session, session) && request.Echo is null && request.Rejection is null)
-                Warn(request, "The game did not confirm this Tell.");
+                Warn(request, FallbackRejection);
 
             pending.RemoveAt(index);
         }
@@ -107,7 +112,7 @@ internal sealed class TellSender(
         catch (Exception exception)
         {
             log.Error(exception, "The native Tell submission failed.");
-            Warn(request, "The game could not submit this Tell.");
+            Warn(request, FallbackRejection);
         }
     }
 
@@ -126,6 +131,7 @@ internal sealed class TellSender(
             return;
         }
 
+        request.Target = friend;
         if (!TryBuildCommand(friend, request.Body, out _, out var command, out var error))
         {
             Warn(request, error);
@@ -180,7 +186,7 @@ internal sealed class TellSender(
 
         var body = NormalizeBody(tell.Body);
         var request = pending.FirstOrDefault(candidate => candidate.Echo is null && IsActive(candidate, tell.Session)
-            && candidate.Peer == tell.Peer.Key && candidate.Body == body);
+            && candidate.Peer == tell.Peer.ContentId && candidate.Body == body);
         if (request is null)
             return;
 
@@ -188,76 +194,164 @@ internal sealed class TellSender(
         AttachRejection(request);
     }
 
+    private void OnChatMessage(IChatMessage message)
+    {
+        if (submitting is not { Rejection: null } current)
+            return;
+
+        if (message.LogKind is XivChatType.ErrorMessage or XivChatType.SystemError)
+            Reject(current, FallbackRejection);
+    }
+
     private void OnLogMessage(ILogMessage message)
     {
         var id = message.LogMessageId;
-        var hasRecipient = id is 49 or 50 or 1642 or 7485;
-        var nativeCallOnly = id is 51 or 483 or 484 or 3875 or 3876 or 7382;
-        if (!hasRecipient && !nativeCallOnly && id is not (55 or RestrictedAreaLogId or 3872 or 3873 or 3874 or 3881 or 7486 or 9743))
+        var isKnown = ClassifyLogMessage(id, out var hasRecipient, out var nativeCallOnly);
+        var isSyncError = submitting is not null && message.GameData.ValueNullable?.LogKind.RowId == ErrorMessageLogKind;
+        if (!isKnown && !isSyncError)
             return;
+
+        if (!isKnown)
+            nativeCallOnly = true;
 
         var snapshot = directory.Current;
         if (snapshot.Session is not { } session)
             return;
 
-        TellPeer? recipient = hasRecipient && message.TryGetStringParameter(0, out var parameter)
-            ? ChatCapture.ReadPeer(SeString.Parse(parameter.Data.Span)) : null;
+        string? rawRecipient = null;
+        TellPeer? recipient = null;
+        if (hasRecipient && message.TryGetStringParameter(0, out var parameter))
+        {
+            var parsed = SeString.Parse(parameter.Data.Span);
+            rawRecipient = parsed.TextValue.Replace(SeIconChar.CrossWorld.ToIconString(), "@").Trim();
+            recipient = ChatCapture.ReadPeer(parsed);
+        }
+
         if (message.TargetEntity is { IsPlayer: true, HomeWorldId: > 0 } target)
         {
             var identity = new TellPeer(target.Name.ExtractText(), target.HomeWorldId, null);
             if (snapshot.Resolve(identity) is not null)
                 recipient = identity;
         }
-        var reason = ReadRejection(message);
+
+        var reason = ReadRejection(id);
         if (framework.IsInFrameworkUpdateThread)
-            HandleRejection(session, recipient, hasRecipient, nativeCallOnly, reason);
+            HandleRejection(session, recipient, rawRecipient, nativeCallOnly, reason);
         else if (!nativeCallOnly)
-            _ = framework.RunOnFrameworkThread(() => HandleRejection(session, recipient, hasRecipient, false, reason));
+            _ = framework.RunOnFrameworkThread(() => HandleRejection(session, recipient, rawRecipient, false, reason));
     }
 
-    private void HandleRejection(PlayerSession session, TellPeer? recipient, bool hasRecipient, bool nativeCallOnly, string reason)
+    private void HandleRejection(
+        PlayerSession session,
+        TellPeer? recipient,
+        string? rawRecipient,
+        bool nativeCallOnly,
+        string reason)
     {
         var snapshot = directory.Current;
         if (disposed || !ReferenceEquals(snapshot.Session, session))
             return;
 
-        var peer = recipient is { } target ? snapshot.Resolve(target)?.Key : null;
-        if (submitting is { } current && (recipient is null || current.Peer == peer))
+        var peer = ResolveRejectionPeer(snapshot, session, recipient, rawRecipient);
+        if (submitting is { } current && (peer is null || current.Peer == peer))
         {
             Reject(current, reason);
             return;
         }
 
-        if (nativeCallOnly || (recipient is not null && peer is null))
+        if (nativeCallOnly || (!string.IsNullOrWhiteSpace(rawRecipient) && peer is null))
             return;
 
         var candidates = pending.Where(request => request.Rejection is null && IsActive(request, session)
             && (peer is null || request.Peer == peer)).ToArray();
-        if (candidates.Length == 1 && (!hasRecipient || peer is not null))
+        if (candidates.Length == 1)
         {
             Reject(candidates[0], reason);
         }
         else if (candidates.Length > 0)
         {
             var firstPeer = candidates[0].Peer;
-            PlayerKey? conversation = candidates.All(request => request.Peer == firstPeer) ? firstPeer : null;
+            ulong? conversation = candidates.All(request => request.Peer == firstPeer) ? firstPeer : null;
             warnings.Enqueue(new TellWarning(session, conversation, reason));
         }
     }
 
-    private static string ReadRejection(ILogMessage message)
+    private ulong? ResolveRejectionPeer(
+        FriendSnapshot snapshot,
+        PlayerSession session,
+        TellPeer? recipient,
+        string? rawRecipient)
     {
-        if (message.ParameterCount == 0 && message.GameData.ValueNullable is { } row)
+        if (recipient is { } target && snapshot.Resolve(target) is { } resolved)
+            return resolved.ContentId;
+
+        if (string.IsNullOrWhiteSpace(rawRecipient))
+            return null;
+
+        ulong? matchedPeer = null;
+        foreach (var request in pending)
         {
-            var text = row.Text.ExtractText().Trim();
-            if (text.Length > 0)
-                return text;
+            if (request.Rejection is not null || !IsActive(request, session))
+                continue;
+
+            var candidate = request.Target;
+            var matches = StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, candidate.Name)
+                || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}@{candidate.World}")
+                || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}{candidate.World}")
+                || rawRecipient.Contains(candidate.Name, StringComparison.OrdinalIgnoreCase);
+            if (!matches)
+                continue;
+
+            if (matchedPeer is { } existing && existing != request.Peer)
+                return null;
+
+            matchedPeer = request.Peer;
         }
 
-        return message.LogMessageId == RestrictedAreaLogId
-            ? "Unable to send the Tell because the recipient is in a restricted area."
-            : "The game rejected the Tell. Check the in-game chat for details.";
+        return matchedPeer;
     }
+
+    private static bool ClassifyLogMessage(uint id, out bool hasRecipient, out bool nativeCallOnly)
+    {
+        hasRecipient = id is 49 or 50 or 1642 or 7485;
+        nativeCallOnly = id is 483 or 484 or 3875 or 3877;
+        return hasRecipient
+            || nativeCallOnly
+            || id is 51 or 55 or 690 or 691 or 749 or 1641 or 1643
+                or 3831 or 3832 or 3872 or 3873 or 3874 or 3876 or 3881
+                or 5655 or 7382 or 7486 or 7489 or 9743;
+    }
+
+    private static string ReadRejection(uint logMessageId) => logMessageId switch
+    {
+        49 => "Unable to send the Tell because the recipient is busy.",
+        50 or 7485 => "Unable to send the Tell. The recipient may be offline or unavailable.",
+        51 => "Unable to send the Tell. The recipient is offline or could not be found.",
+        55 => "Unable to send the Tell because the recipient is blacklisted.",
+        483 => "Unable to send the Tell.",
+        484 => "Unable to send the Tell because it contains disallowed text.",
+        690 => "Unable to use Tell in the current duty.",
+        691 => "Unable to send the Tell because the recipient is in a duty.",
+        749 => "Unable to send the Tell due to chat rate limiting.",
+        1641 => "Unable to use Tell during PvP.",
+        1642 => "Unable to send the Tell because the recipient is in PvP.",
+        1643 => "Unable to use Tell during a custom PvP match.",
+        3831 => "Unable to chat right now.",
+        3832 => "Unable to send the Tell because the recipient is in a restricted area.",
+        3872 => "Unable to send the Tell because the recipient is not in the same duty.",
+        3873 => "Unable to use Tell commands in the current duty.",
+        3874 => "Unable to reply to a Tell from outside the current duty.",
+        3875 => "Unable to use the Tell command right now.",
+        3876 => "Unable to send the Tell because chat participation is disabled.",
+        3877 => "Unable to send the Tell because the recipient's World is invalid.",
+        3881 => "Unable to send the Tell. Open the Friend List to refresh recipient info and try again.",
+        5655 => "Unable to send the Tell because the recipient is offline.",
+        7382 => "Unable to send the Tell because chat is restricted.",
+        7486 => "Unable to send the Tell because the Party Finder recruitment has ended.",
+        7489 => "Unable to send the Tell because the recipient's World is not in this Data Center.",
+        9743 => "Unable to send the Tell because the recipient is muted or blocked.",
+        _ => FallbackRejection,
+    };
 
     private void Reject(PendingTell request, string reason)
     {
@@ -288,11 +382,13 @@ internal sealed class TellSender(
 
     private static string NormalizeBody(string text) => text.Trim().Normalize(NormalizationForm.FormC);
 
-    private sealed class PendingTell(PlayerSession session, PlayerKey peer, string body)
+    private sealed class PendingTell(PlayerSession session, PlayerIdentity target, string body)
     {
         public PlayerSession Session { get; } = session;
 
-        public PlayerKey Peer { get; } = peer;
+        public ulong Peer => Target.ContentId;
+
+        public PlayerIdentity Target { get; set; } = target;
 
         public string Body { get; } = body;
 

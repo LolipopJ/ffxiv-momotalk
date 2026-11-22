@@ -33,6 +33,7 @@ internal static class ChatVisuals
     public static readonly Vector4 SystemBg = Hex(0xE1E7EC);
     public static readonly Vector4 SystemText = Hex(0x5D6B7A);
     public static readonly Vector4 AlertText = Hex(0xA6324C);
+    public static readonly Vector4 DangerHoverBg = Hex(0xFDECEF);
     public static readonly Vector4 SendBarBg = Hex(0xEEEEEE);
     public static readonly Vector4 SendIconIdle = Hex(0xBDBDBD);
     public static readonly Vector4 BadgeText = Hex(0x5D7C8C);
@@ -302,6 +303,164 @@ internal static class ChatVisuals
         var textPos = position + (size - textSize) * 0.5f;
         AddBoldText(draw, textPos, fontSize, Color(Ink), label, scale);
         return clicked;
+    }
+
+    public static bool SkewSortOrderButton(ImDrawListPtr draw, string id, bool ascending, Vector2 position, Vector2 size,
+        float scale)
+    {
+        ImGui.SetCursorScreenPos(position);
+        var clicked = ImGui.InvisibleButton(id, size);
+        var hovered = ImGui.IsItemHovered();
+        var active = ImGui.IsItemActive();
+
+        var skew = size.Y * 0.24f;
+        var p1 = position + new Vector2(skew, 0);
+        var p2 = position + new Vector2(size.X, 0);
+        var p3 = position + new Vector2(size.X - skew, size.Y);
+        var p4 = position + new Vector2(0, size.Y);
+
+        var shadowOffset = new Vector2(0, 2f * scale);
+        draw.AddQuadFilled(p1 + shadowOffset, p2 + shadowOffset, p3 + shadowOffset, p4 + shadowOffset, Color(Shadow));
+
+        var fill = active ? Divider : hovered ? ListHover : White;
+        draw.AddQuadFilled(p1, p2, p3, p4, Color(fill));
+        draw.AddQuad(p1, p2, p3, p4, Color(InputBorder), MathF.Max(1f, scale));
+
+        var col = Color(Ink);
+        var center = position + size * 0.5f;
+        var iconH = 12f * scale;
+        var topY = center.Y - iconH * 0.5f;
+        var barX = center.X - 8.5f * scale;
+        var barW = 8.5f * scale;
+        var barH = MathF.Max(1.8f, 2f * scale);
+
+        draw.AddRectFilled(new Vector2(barX, topY), new Vector2(barX + barW, topY + barH), col);
+        draw.AddRectFilled(new Vector2(barX, center.Y - barH * 0.5f), new Vector2(barX + barW, center.Y + barH * 0.5f), col);
+        draw.AddRectFilled(new Vector2(barX, topY + iconH - barH), new Vector2(barX + barW, topY + iconH), col);
+
+        var arrowX = center.X + 4.8f * scale;
+        var shaftHalf = MathF.Max(0.9f, 1.0f * scale);
+        var headW = 3.8f * scale;
+        var headH = 4.6f * scale;
+        if (ascending)
+        {
+            draw.AddTriangleFilled(
+                new Vector2(arrowX, topY),
+                new Vector2(arrowX - headW, topY + headH),
+                new Vector2(arrowX + headW, topY + headH),
+                col);
+            draw.AddRectFilled(
+                new Vector2(arrowX - shaftHalf, topY + headH - 0.5f),
+                new Vector2(arrowX + shaftHalf, topY + iconH),
+                col);
+        }
+        else
+        {
+            var bottomY = topY + iconH;
+            draw.AddRectFilled(
+                new Vector2(arrowX - shaftHalf, topY),
+                new Vector2(arrowX + shaftHalf, bottomY - headH + 0.5f),
+                col);
+            draw.AddTriangleFilled(
+                new Vector2(arrowX, bottomY),
+                new Vector2(arrowX - headW, bottomY - headH),
+                new Vector2(arrowX + headW, bottomY - headH),
+                col);
+        }
+
+        return clicked;
+    }
+
+    public static void DrawTypingBubble(
+        ImDrawListPtr draw,
+        Vector2 position,
+        Vector2 size,
+        float timeSeconds,
+        bool showTail,
+        float scale)
+    {
+        var fillU32 = Color(OutgoingBubble);
+        var rounding = 8f * scale;
+        draw.AddRectFilled(position, position + size, fillU32, rounding);
+
+        if (showTail)
+        {
+            var tailSize = 6f * scale;
+            var tailY = position.Y + MathF.Min(12f * scale, size.Y * 0.42f);
+            var right = position.X + size.X;
+            draw.AddTriangleFilled(
+                new Vector2(right - 1f, tailY - tailSize * 0.55f),
+                new Vector2(right + tailSize, tailY),
+                new Vector2(right - 1f, tailY + tailSize * 0.55f),
+                fillU32);
+        }
+
+        const float period = 0.55f;
+        var radius = 4.1f * scale;
+        var spacing = 13f * scale;
+        var center = position + size * 0.5f;
+        for (var i = 0; i < 3; i++)
+        {
+            var offset = i % 2 == 0 ? period * 0.5f : 0f;
+            var phase = (timeSeconds + offset) / period % 1f;
+            var wave = 0.5f + 0.5f * MathF.Cos(phase * MathF.Tau);
+            var dotScale = 0.75f + 0.25f * wave;
+            var dotAlpha = 0.20f + 0.80f * wave;
+            var dotCenter = new Vector2(center.X + (i - 1) * spacing, center.Y);
+            draw.AddCircleFilled(dotCenter, radius * dotScale, Color(WithAlpha(White, dotAlpha)), 18);
+        }
+    }
+
+    public static ContextMenuScope BeginContextMenu(string id, float scale)
+    {
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, White);
+        ImGui.PushStyleColor(ImGuiCol.Border, InputBorder);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, 8f * scale);
+        ImGui.PushStyleVar(ImGuiStyleVar.PopupBorderSize, MathF.Max(1f, scale));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(6f, 6f) * scale);
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0f, 2f * scale));
+        return new ContextMenuScope(ImGui.BeginPopup(id));
+    }
+
+    public static bool ContextMenuItem(string id, string label, float width, float scale, bool danger = false)
+    {
+        var height = 30f * scale;
+        var origin = ImGui.GetCursorScreenPos();
+        var size = new Vector2(width, height);
+        var clicked = ImGui.InvisibleButton(id, size);
+        var hovered = ImGui.IsItemHovered();
+
+        var draw = ImGui.GetWindowDrawList();
+        if (hovered)
+        {
+            var bg = danger ? DangerHoverBg : ListHover;
+            draw.AddRectFilled(origin, origin + size, Color(bg), 6f * scale);
+        }
+
+        var fontSize = ImGui.GetFontSize() * 0.96f;
+        var textSize = CalcTextSize(label, fontSize);
+        var textPos = new Vector2(origin.X + 12f * scale, origin.Y + (height - textSize.Y) * 0.5f);
+        var textCol = Color(danger ? AlertText : Ink);
+        AddText(draw, textPos, fontSize, textCol, label);
+
+        if (clicked)
+            ImGui.CloseCurrentPopup();
+
+        return clicked;
+    }
+
+    public readonly struct ContextMenuScope(bool isOpen) : IDisposable
+    {
+        public bool IsOpen { get; } = isOpen;
+
+        public void Dispose()
+        {
+            if (IsOpen)
+                ImGui.EndPopup();
+
+            ImGui.PopStyleVar(4);
+            ImGui.PopStyleColor(2);
+        }
     }
 
     public static void DrawBubble(

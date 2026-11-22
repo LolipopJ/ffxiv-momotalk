@@ -1,14 +1,7 @@
 namespace FFXIVMomoTalk.Chat;
 
-internal readonly record struct PlayerKey(string Name, uint WorldId)
+internal sealed record PlayerIdentity(ulong ContentId, string Name, uint WorldId, string World)
 {
-    public static PlayerKey From(string name, uint worldId) => new(name.Trim().ToUpperInvariant(), worldId);
-}
-
-internal sealed record PlayerIdentity(string Name, uint WorldId, string World)
-{
-    public PlayerKey Key { get; } = PlayerKey.From(Name, WorldId);
-
     public string DisplayName => $"{Name} @ {World}";
 }
 
@@ -19,9 +12,9 @@ internal sealed class PlayerSession(ulong contentId, PlayerIdentity player)
     public PlayerIdentity Player { get; } = player;
 }
 
-internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionary<PlayerKey, PlayerIdentity>? Friends)
+internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionary<ulong, PlayerIdentity>? Friends)
 {
-    public PlayerIdentity? FindRecipient(PlayerKey key, out string? unavailable)
+    public PlayerIdentity? FindRecipient(ulong contentId, out string? unavailable)
     {
         if (Friends is null)
         {
@@ -29,7 +22,7 @@ internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionar
             return null;
         }
 
-        var friend = Friends.GetValueOrDefault(key);
+        var friend = Friends.GetValueOrDefault(contentId);
         unavailable = friend is null ? "This character is no longer on your Friend List." : null;
         return friend;
     }
@@ -39,16 +32,23 @@ internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionar
         if (Friends is null)
             return null;
 
-        var key = PlayerKey.From(peer.Name, peer.WorldId);
-        if (peer.WorldId != 0)
-            return Friends.GetValueOrDefault(key);
-
+        var targetName = peer.Name.Trim();
         PlayerIdentity? match = null;
         foreach (var friend in Friends.Values)
         {
-            if (friend.Key.Name != key.Name || (peer.World is not null
-                && !StringComparer.OrdinalIgnoreCase.Equals(peer.World, friend.World)))
+            if (!StringComparer.OrdinalIgnoreCase.Equals(friend.Name.Trim(), targetName))
                 continue;
+
+            if (peer.WorldId != 0)
+            {
+                if (friend.WorldId != peer.WorldId)
+                    continue;
+            }
+            else if (peer.World is not null
+                && !StringComparer.OrdinalIgnoreCase.Equals(peer.World, friend.World))
+            {
+                continue;
+            }
 
             if (match is not null)
                 return null;

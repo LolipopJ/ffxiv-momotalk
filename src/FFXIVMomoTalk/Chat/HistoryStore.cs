@@ -6,19 +6,20 @@ namespace FFXIVMomoTalk.Chat;
 internal sealed class HistoryStore : IAsyncDisposable
 {
     private const int PageSize = 40;
+    private const int SchemaVersion = 2;
+    private const string FriendsCachedMetaKey = "friends_cached_at";
 
     private const string Schema = """
         PRAGMA foreign_keys = ON;
 
         CREATE TABLE IF NOT EXISTS conversations (
             id INTEGER PRIMARY KEY,
-            peer_key TEXT NOT NULL,
-            world_id INTEGER NOT NULL,
+            peer_content_id INTEGER NOT NULL UNIQUE,
             display_name TEXT NOT NULL,
+            world_id INTEGER NOT NULL,
             world_name TEXT NOT NULL,
             last_message_id INTEGER,
-            last_sent_at INTEGER,
-            UNIQUE (peer_key, world_id)
+            last_sent_at INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS messages (
@@ -34,6 +35,27 @@ internal sealed class HistoryStore : IAsyncDisposable
             reason TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS cached_friends (
+            content_id INTEGER PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            world_id INTEGER NOT NULL,
+            world_name TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS friend_notes (
+            content_id INTEGER PRIMARY KEY,
+            note TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS hidden_conversations (
+            content_id INTEGER PRIMARY KEY
+        );
+
+        CREATE TABLE IF NOT EXISTS store_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS message_page ON messages (conversation_id, sent_at, id);
         """;
 
@@ -41,7 +63,7 @@ internal sealed class HistoryStore : IAsyncDisposable
         SELECT m.id, m.sent_at, m.outgoing, m.body, r.reason
         FROM messages m JOIN conversations c ON c.id = m.conversation_id
         LEFT JOIN message_rejections r ON r.message_id = m.id
-        WHERE c.peer_key = $peer AND c.world_id = $world
+        WHERE c.peer_content_id = $peer
         """;
 
     private readonly string directory;
@@ -52,6 +74,7 @@ internal sealed class HistoryStore : IAsyncDisposable
     private ulong openedCharacter;
     private long revision;
     private long rejectionRevision;
+    private long notesRevision;
 
     public HistoryStore(string directory)
     {
@@ -63,20 +86,25 @@ internal sealed class HistoryStore : IAsyncDisposable
 
     public long RejectionRevision => Interlocked.Read(ref rejectionRevision);
 
+    public long NotesRevision => Interlocked.Read(ref notesRevision);
+
     public Task<long> RecordAsync(CapturedTell tell) => Enqueue(tell.Session.ContentId, connection =>
     {
         using var transaction = connection.BeginTransaction();
         using var conversation = connection.CreateCommand();
         conversation.Transaction = transaction;
         conversation.CommandText = """
-            INSERT INTO conversations (peer_key, world_id, display_name, world_name)
-            VALUES ($peer, $world, $name, $worldName)
-            ON CONFLICT (peer_key, world_id) DO UPDATE SET
-                display_name = excluded.display_name, world_name = excluded.world_name
+            INSERT INTO conversations (peer_content_id, display_name, world_id, world_name)
+            VALUES ($peer, $name, $world, $worldName)
+            ON CONFLICT (peer_content_id) DO UPDATE SET
+                display_name = excluded.display_name,
+                world_id = excluded.world_id,
+                world_name = excluded.world_name
             RETURNING id
             """;
-        BindPeer(conversation, tell.Peer.Key);
+        BindContentId(conversation, "$peer", tell.Peer.ContentId);
         conversation.Parameters.AddWithValue("$name", tell.Peer.Name);
+        conversation.Parameters.AddWithValue("$world", (long)tell.Peer.WorldId);
         conversation.Parameters.AddWithValue("$worldName", tell.Peer.World);
         var conversationId = (long)conversation.ExecuteScalar()!;
 
@@ -104,6 +132,13 @@ internal sealed class HistoryStore : IAsyncDisposable
         latest.Parameters.AddWithValue("$time", tell.SentAt);
         latest.Parameters.AddWithValue("$message", messageId);
         latest.ExecuteNonQuery();
+
+        using var unhide = connection.CreateCommand();
+        unhide.Transaction = transaction;
+        unhide.CommandText = "DELETE FROM hidden_conversations WHERE content_id = $peer";
+        BindContentId(unhide, "$peer", tell.Peer.ContentId);
+        unhide.ExecuteNonQuery();
+
         transaction.Commit();
         Interlocked.Increment(ref revision);
         return messageId;
@@ -136,26 +171,190 @@ internal sealed class HistoryStore : IAsyncDisposable
         {
             using var command = connection.CreateCommand();
             command.CommandText = """
-                SELECT m.id, m.sent_at, m.outgoing, m.body, r.reason, c.display_name, c.world_id, c.world_name
+                SELECT m.id, m.sent_at, m.outgoing, m.body, r.reason,
+                       c.peer_content_id, c.display_name, c.world_id, c.world_name
                 FROM conversations c JOIN messages m ON m.id = c.last_message_id
                 LEFT JOIN message_rejections r ON r.message_id = m.id
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM hidden_conversations h WHERE h.content_id = c.peer_content_id
+                )
                 """;
             using var reader = command.ExecuteReader();
             var conversations = new List<ConversationSummary>();
             while (reader.Read())
             {
-                var peer = new PlayerIdentity(reader.GetString(5), (uint)reader.GetInt64(6), reader.GetString(7));
+                var peer = new PlayerIdentity(
+                    ReadContentId(reader, 5),
+                    reader.GetString(6),
+                    (uint)reader.GetInt64(7),
+                    reader.GetString(8));
                 conversations.Add(new ConversationSummary(peer, ReadMessage(reader)));
             }
 
             return conversations;
         });
 
-    public Task<MessagePage> ReadPageAsync(ulong owner, PlayerKey peer, MessageCursor? before = null) =>
+    public Task HideConversationAsync(ulong owner, ulong peerContentId) => Enqueue(owner, connection =>
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT OR IGNORE INTO hidden_conversations (content_id) VALUES ($peer)";
+        BindContentId(command, "$peer", peerContentId);
+        if (command.ExecuteNonQuery() != 0)
+            Interlocked.Increment(ref revision);
+
+        return true;
+    });
+
+    public Task UnhideConversationAsync(ulong owner, ulong peerContentId) => Enqueue(owner, connection =>
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM hidden_conversations WHERE content_id = $peer";
+        BindContentId(command, "$peer", peerContentId);
+        if (command.ExecuteNonQuery() != 0)
+            Interlocked.Increment(ref revision);
+
+        return true;
+    });
+
+    public Task<IReadOnlyList<PlayerIdentity>?> ReadCachedFriendsAsync(ulong owner) =>
+        Enqueue<IReadOnlyList<PlayerIdentity>?>(owner, connection =>
+        {
+            using var meta = connection.CreateCommand();
+            meta.CommandText = "SELECT 1 FROM store_meta WHERE key = $key";
+            meta.Parameters.AddWithValue("$key", FriendsCachedMetaKey);
+            if (meta.ExecuteScalar() is null)
+                return null;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT content_id, display_name, world_id, world_name FROM cached_friends";
+            using var reader = command.ExecuteReader();
+            var friends = new List<PlayerIdentity>();
+            while (reader.Read())
+            {
+                friends.Add(new PlayerIdentity(
+                    ReadContentId(reader, 0),
+                    reader.GetString(1),
+                    (uint)reader.GetInt64(2),
+                    reader.GetString(3)));
+            }
+
+            return friends;
+        });
+
+    public Task SyncFriendsAsync(ulong owner, IReadOnlyList<PlayerIdentity> friends) => Enqueue(owner, connection =>
+    {
+        using var transaction = connection.BeginTransaction();
+
+        using (var clear = connection.CreateCommand())
+        {
+            clear.Transaction = transaction;
+            clear.CommandText = "DELETE FROM cached_friends";
+            clear.ExecuteNonQuery();
+        }
+
+        var updatedConversations = false;
+        using var insert = connection.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText = """
+            INSERT INTO cached_friends (content_id, display_name, world_id, world_name)
+            VALUES ($cid, $name, $world, $worldName)
+            """;
+        var insertCid = insert.Parameters.Add("$cid", SqliteType.Integer);
+        var insertName = insert.Parameters.Add("$name", SqliteType.Text);
+        var insertWorld = insert.Parameters.Add("$world", SqliteType.Integer);
+        var insertWorldName = insert.Parameters.Add("$worldName", SqliteType.Text);
+
+        using var updateConv = connection.CreateCommand();
+        updateConv.Transaction = transaction;
+        updateConv.CommandText = """
+            UPDATE conversations
+            SET display_name = $name, world_id = $world, world_name = $worldName
+            WHERE peer_content_id = $cid
+              AND (display_name <> $name OR world_id <> $world OR world_name <> $worldName)
+            """;
+        var updateCid = updateConv.Parameters.Add("$cid", SqliteType.Integer);
+        var updateName = updateConv.Parameters.Add("$name", SqliteType.Text);
+        var updateWorld = updateConv.Parameters.Add("$world", SqliteType.Integer);
+        var updateWorldName = updateConv.Parameters.Add("$worldName", SqliteType.Text);
+
+        foreach (var friend in friends)
+        {
+            var cid = unchecked((long)friend.ContentId);
+            insertCid.Value = cid;
+            insertName.Value = friend.Name;
+            insertWorld.Value = (long)friend.WorldId;
+            insertWorldName.Value = friend.World;
+            insert.ExecuteNonQuery();
+
+            updateCid.Value = cid;
+            updateName.Value = friend.Name;
+            updateWorld.Value = (long)friend.WorldId;
+            updateWorldName.Value = friend.World;
+            if (updateConv.ExecuteNonQuery() != 0)
+                updatedConversations = true;
+        }
+
+        using (var meta = connection.CreateCommand())
+        {
+            meta.Transaction = transaction;
+            meta.CommandText = """
+                INSERT INTO store_meta (key, value) VALUES ($key, $value)
+                ON CONFLICT (key) DO UPDATE SET value = excluded.value
+                """;
+            meta.Parameters.AddWithValue("$key", FriendsCachedMetaKey);
+            meta.Parameters.AddWithValue("$value", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+            meta.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+        if (updatedConversations)
+            Interlocked.Increment(ref revision);
+
+        return true;
+    });
+
+    public Task<IReadOnlyDictionary<ulong, string>> ReadNotesAsync(ulong owner) =>
+        Enqueue<IReadOnlyDictionary<ulong, string>>(owner, connection =>
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT content_id, note FROM friend_notes";
+            using var reader = command.ExecuteReader();
+            var notes = new Dictionary<ulong, string>();
+            while (reader.Read())
+                notes[ReadContentId(reader, 0)] = reader.GetString(1);
+
+            return notes;
+        });
+
+    public Task SaveNoteAsync(ulong owner, ulong peerContentId, string note) => Enqueue(owner, connection =>
+    {
+        var trimmed = note.Trim();
+        using var command = connection.CreateCommand();
+        if (trimmed.Length == 0)
+        {
+            command.CommandText = "DELETE FROM friend_notes WHERE content_id = $cid";
+            BindContentId(command, "$cid", peerContentId);
+        }
+        else
+        {
+            command.CommandText = """
+                INSERT INTO friend_notes (content_id, note) VALUES ($cid, $note)
+                ON CONFLICT (content_id) DO UPDATE SET note = excluded.note
+                """;
+            BindContentId(command, "$cid", peerContentId);
+            command.Parameters.AddWithValue("$note", trimmed);
+        }
+
+        command.ExecuteNonQuery();
+        Interlocked.Increment(ref notesRevision);
+        return true;
+    });
+
+    public Task<MessagePage> ReadPageAsync(ulong owner, ulong peerContentId, MessageCursor? before = null) =>
         Enqueue(owner, connection =>
         {
             using var command = connection.CreateCommand();
-            BindPeer(command, peer);
+            BindContentId(command, "$peer", peerContentId);
             command.CommandText = SelectMessages;
             if (before is { } cursor)
             {
@@ -175,13 +374,13 @@ internal sealed class HistoryStore : IAsyncDisposable
             return new MessagePage(messages, hasOlder);
         });
 
-    public Task<IReadOnlyList<TellMessage>> ReadUpdatesAsync(ulong owner, PlayerKey peer, long afterId, bool includeRejections) =>
+    public Task<IReadOnlyList<TellMessage>> ReadUpdatesAsync(ulong owner, ulong peerContentId, long afterId, bool includeRejections) =>
         Enqueue<IReadOnlyList<TellMessage>>(owner, connection =>
         {
             using var command = connection.CreateCommand();
             var filter = includeRejections ? "AND (m.id > $after OR r.message_id IS NOT NULL)" : "AND m.id > $after";
             command.CommandText = SelectMessages + $"\n{filter}\nORDER BY m.sent_at, m.id";
-            BindPeer(command, peer);
+            BindContentId(command, "$peer", peerContentId);
             command.Parameters.AddWithValue("$after", afterId);
             return ReadMessages(command);
         });
@@ -234,18 +433,39 @@ internal sealed class HistoryStore : IAsyncDisposable
         database?.Dispose();
         database = null;
         Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"{owner:X16}.sqlite3");
+        var existed = File.Exists(path) && new FileInfo(path).Length > 0;
         var options = new SqliteConnectionStringBuilder
         {
-            DataSource = Path.Combine(directory, $"{owner:X16}.sqlite3"),
+            DataSource = path,
             Pooling = false,
         };
         var next = new SqliteConnection(options.ToString());
         try
         {
             next.Open();
-            using var command = next.CreateCommand();
-            command.CommandText = Schema;
-            command.ExecuteNonQuery();
+            if (existed)
+            {
+                using var versionCmd = next.CreateCommand();
+                versionCmd.CommandText = "PRAGMA user_version;";
+                var version = Convert.ToInt32(versionCmd.ExecuteScalar());
+                if (version != SchemaVersion)
+                {
+                    throw new InvalidDataException(
+                        $"Unrecognized history database schema version {version} at '{path}' (expected {SchemaVersion}). Existing file was preserved.");
+                }
+
+                using var fk = next.CreateCommand();
+                fk.CommandText = "PRAGMA foreign_keys = ON;";
+                fk.ExecuteNonQuery();
+            }
+            else
+            {
+                using var command = next.CreateCommand();
+                command.CommandText = $"{Schema}\nPRAGMA user_version = {SchemaVersion};";
+                command.ExecuteNonQuery();
+            }
+
             openedCharacter = owner;
             database = next;
             return next;
@@ -257,11 +477,11 @@ internal sealed class HistoryStore : IAsyncDisposable
         }
     }
 
-    private static void BindPeer(SqliteCommand command, PlayerKey peer)
-    {
-        command.Parameters.AddWithValue("$peer", peer.Name);
-        command.Parameters.AddWithValue("$world", (long)peer.WorldId);
-    }
+    private static void BindContentId(SqliteCommand command, string name, ulong contentId) =>
+        command.Parameters.AddWithValue(name, unchecked((long)contentId));
+
+    private static ulong ReadContentId(SqliteDataReader reader, int ordinal) =>
+        unchecked((ulong)reader.GetInt64(ordinal));
 
     private static List<TellMessage> ReadMessages(SqliteCommand command)
     {

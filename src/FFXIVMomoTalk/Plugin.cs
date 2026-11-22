@@ -57,8 +57,8 @@ public sealed class Plugin : IAsyncDalamudPlugin
     {
         var root = PluginInterface.GetPluginConfigDirectory();
         config = Configuration.Load(PluginInterface, Log);
-        directory = new FriendDirectory(ClientState, PlayerState, Data, Interop, Log);
         history = new HistoryStore(Path.Combine(root, "history"));
+        directory = new FriendDirectory(ClientState, PlayerState, Data, Interop, history, Log);
         capture = new ChatCapture(Chat, Framework, directory, history, Log);
         sender = new TellSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);

@@ -11,11 +11,14 @@ internal sealed unsafe class FriendDirectory(
     IPlayerState playerState,
     IDataManager data,
     IGameInteropProvider interop,
+    HistoryStore history,
     IPluginLog log) : IDisposable
 {
     private FriendSnapshot current = new(null, null);
     private PlayerSession? requestedFor;
     private PlayerSession? loadedFor;
+    private PlayerSession? cachedQueryFor;
+    private Task<IReadOnlyList<PlayerIdentity>?>? cachedFriendsQuery;
     private InfoProxyInterface* friendProxy;
     private Hook<InfoProxyInterface.Delegates.RequestData>? requestHook;
     private Hook<InfoProxyInterface.Delegates.EndRequest>? endHook;
@@ -46,6 +49,8 @@ internal sealed unsafe class FriendDirectory(
         if (session is null)
             return Current;
 
+        PollCachedFriends(session);
+
         var proxy = (InfoProxyInterface*)InfoProxyFriendList.Instance();
         if (proxy != friendProxy)
             WatchProxy(proxy);
@@ -53,7 +58,7 @@ internal sealed unsafe class FriendDirectory(
         if (ReferenceEquals(loadedFor, session) && (rereadFriends
             || Stopwatch.GetElapsedTime(lastRead) >= TimeSpan.FromMilliseconds(500)))
         {
-            ReadFriends(session);
+            ReadFriends(session, forcePersist: false);
         }
 
         return Current;
@@ -67,7 +72,8 @@ internal sealed unsafe class FriendDirectory(
             if (Current.Session is { } session && session.ContentId == playerState.ContentId)
                 return session;
 
-            var player = new PlayerIdentity(playerState.CharacterName, world.RowId, world.Name.ToString());
+            var player = new PlayerIdentity(playerState.ContentId, playerState.CharacterName, world.RowId,
+                world.Name.ToString());
             var next = new PlayerSession(playerState.ContentId, player);
             Reset(next);
             return next;
@@ -83,7 +89,38 @@ internal sealed unsafe class FriendDirectory(
     {
         requestedFor = null;
         loadedFor = null;
+        cachedQueryFor = session;
+        cachedFriendsQuery = session is not null ? history.ReadCachedFriendsAsync(session.ContentId) : null;
         Volatile.Write(ref current, new FriendSnapshot(session, null));
+    }
+
+    private void PollCachedFriends(PlayerSession session)
+    {
+        if (cachedFriendsQuery is not { IsCompleted: true } completed)
+            return;
+
+        var owner = cachedQueryFor;
+        cachedFriendsQuery = null;
+        cachedQueryFor = null;
+
+        if (!ReferenceEquals(owner, session) || ReferenceEquals(loadedFor, session))
+            return;
+
+        if (completed.IsCompletedSuccessfully)
+        {
+            if (completed.Result is not { } cached)
+                return;
+
+            var friends = new Dictionary<ulong, PlayerIdentity>(cached.Count);
+            foreach (var friend in cached)
+                friends[friend.ContentId] = friend;
+
+            Volatile.Write(ref current, new FriendSnapshot(session, friends));
+        }
+        else if (completed.Exception is { } exception)
+        {
+            log.Error(exception, "Failed to read cached friends list.");
+        }
     }
 
     private void WatchProxy(InfoProxyInterface* proxy)
@@ -93,7 +130,8 @@ internal sealed unsafe class FriendDirectory(
         requestHook = null;
         endHook = null;
         friendProxy = proxy;
-        Reset(Current.Session);
+        requestedFor = null;
+        loadedFor = null;
         if (proxy is null)
             return;
 
@@ -122,19 +160,16 @@ internal sealed unsafe class FriendDirectory(
             return requestHook!.Original(self);
 
         var session = UpdateSession();
-        var previous = Current;
         var previousRequest = requestedFor;
         var previousLoad = loadedFor;
         requestedFor = session;
         loadedFor = null;
-        Volatile.Write(ref current, new FriendSnapshot(session, null));
 
         var sent = requestHook!.Original(self);
         if (!sent && ReferenceEquals(requestedFor, session))
         {
             requestedFor = previousRequest;
             loadedFor = previousLoad;
-            Volatile.Write(ref current, previous);
         }
 
         return sent;
@@ -148,25 +183,24 @@ internal sealed unsafe class FriendDirectory(
 
         requestedFor = null;
         loadedFor = owner;
-        ReadFriends(owner);
+        ReadFriends(owner, forcePersist: true);
     }
 
-    private void ReadFriends(PlayerSession owner)
+    private void ReadFriends(PlayerSession owner, bool forcePersist)
     {
         lastRead = Stopwatch.GetTimestamp();
         var list = (InfoProxyFriendList*)friendProxy;
         var count = friendProxy->EntryCount;
         if (count > 200 || (count != 0 && list->CharData is null))
-        {
-            Volatile.Write(ref current, new FriendSnapshot(owner, null));
             return;
-        }
 
         var worlds = data.GetExcelSheet<World>();
-        var friends = new Dictionary<PlayerKey, PlayerIdentity>((int)count);
+        var friends = new Dictionary<ulong, PlayerIdentity>((int)count);
         foreach (ref readonly var entry in list->CharDataSpan)
         {
-            if (entry.WaitingForFriendListApproval || (entry.State & InfoProxyCommonList.CharacterData.OnlineStatus.WaitingForFriendListApproval) != 0
+            if (entry.ContentId == 0
+                || entry.WaitingForFriendListApproval
+                || (entry.State & InfoProxyCommonList.CharacterData.OnlineStatus.WaitingForFriendListApproval) != 0
                 || !worlds.TryGetRow(entry.HomeWorld, out var world) || !world.IsPublic)
                 continue;
 
@@ -174,11 +208,40 @@ internal sealed unsafe class FriendDirectory(
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            var friend = new PlayerIdentity(name, world.RowId, world.Name.ToString());
-            friends.TryAdd(friend.Key, friend);
+            var friend = new PlayerIdentity(entry.ContentId, name, world.RowId, world.Name.ToString());
+            friends.TryAdd(friend.ContentId, friend);
         }
 
+        var previous = Current.Friends;
         Volatile.Write(ref current, new FriendSnapshot(owner, friends));
+
+        if (forcePersist || FriendsChanged(previous, friends))
+            PersistFriends(owner.ContentId, friends.Values.ToArray());
+    }
+
+    private void PersistFriends(ulong owner, IReadOnlyList<PlayerIdentity> friends)
+    {
+        _ = history.SyncFriendsAsync(owner, friends).ContinueWith(
+            task => log.Error(task.Exception, "Failed to update cached friends list."),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+    }
+
+    private static bool FriendsChanged(
+        IReadOnlyDictionary<ulong, PlayerIdentity>? previous,
+        Dictionary<ulong, PlayerIdentity> next)
+    {
+        if (previous is null || previous.Count != next.Count)
+            return true;
+
+        foreach (var (cid, friend) in next)
+        {
+            if (!previous.TryGetValue(cid, out var old) || old != friend)
+                return true;
+        }
+
+        return false;
     }
 
     private void OnLogin() => loggedOut = false;

@@ -6,7 +6,7 @@ internal sealed class ConversationHistory
 {
     private readonly HistoryStore store;
     private readonly ulong owner;
-    private readonly PlayerKey peer;
+    private readonly ulong peer;
     private readonly List<TellMessage> messages = new();
     private readonly HashSet<long> loadedIds = new();
     private Task<MessagePage>? page;
@@ -17,7 +17,7 @@ internal sealed class ConversationHistory
     private long latestId;
     private long rejectionRevision;
 
-    public ConversationHistory(HistoryStore store, ulong owner, PlayerKey peer)
+    public ConversationHistory(HistoryStore store, ulong owner, ulong peer)
     {
         this.store = store;
         this.owner = owner;

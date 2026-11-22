@@ -17,6 +17,8 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ShowIntroAnimation { get; set; } = true;
 
+    public bool ShowSelfAvatar { get; set; }
+
     public float? EntryOffsetX { get; set; }
 
     public float? EntryOffsetY { get; set; }
