@@ -1,6 +1,6 @@
 # AGENTS.md
 
-FFXIV MomoTalk 是面向《最终幻想 XIV》国际服的游戏内好友私聊插件。当前构建目标为 Windows x64、.NET 10 和 Dalamud API 15。使用 `/momotalk` 打开聊天窗口。
+FFXIV MomoTalk 是面向《最终幻想 XIV》国际服的游戏内好友私聊与群聊插件。当前构建目标为 Windows x64、.NET 10 和 Dalamud API 15。使用 `/momotalk` 打开聊天窗口。
 
 ## MVP 与兼容性
 
@@ -14,8 +14,9 @@ FFXIV MomoTalk 是面向《最终幻想 XIV》国际服的游戏内好友私聊�
 
 ```text
 FFXIVMomoTalk.slnx              解决方案与构建入口
+CHANGELOG.md                    版本变更日志（Keep a Changelog 1.1.0）
 src/FFXIVMomoTalk/Plugin.cs     Dalamud 插件入口与生命周期
-src/FFXIVMomoTalk/Chat/         好友快照、Tell 收发、SQLite 历史与头像缓存
+src/FFXIVMomoTalk/Chat/         好友/群组/小队快照、多频道收发、SQLite 历史与头像缓存
 src/FFXIVMomoTalk/Windows/      ImGui 窗口、会话视图与绘制
 openspec/specs/                 当前规范
 openspec/changes/               变更提案、设计、任务与归档
@@ -46,5 +47,6 @@ openspec validate --all --strict
 ## 验证与提交
 
 - 按改动范围运行针对性验证。仅在重现已报告的回归或保护否则难以察觉的行为时新增最小测试或测试支架。避免推测性的防御代码。
-- 原生好友名单、实际 Tell 收发和插件加载以国际服 Dalamud 实机结果为准。汇报实际执行的检查，并在对应验收通过后勾选 OpenSpec 任务。
+- 原生好友名单、实际频道收发、小队右键入口和插件加载以国际服 Dalamud 实机结果为准。汇报实际执行的检查，并在对应验收通过后勾选 OpenSpec 任务。
+- 每次编写完毕代码后，按 [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) 规范更新根目录 `CHANGELOG.md`：将变更记入 `## [Unreleased]` 下对应的标准分类（`Added`、`Changed`、`Deprecated`、`Removed`、`Fixed`、`Security`），破坏性变更以 `**Breaking:**` 标明；条目使用简洁英文描述面向用户的实际变化，并保持文末版本对比链接有效。
 - 每次完成编码任务后，用 `caveman-commit` 技能生成简短的 Conventional Commit 消息。
