@@ -4,7 +4,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <Version>0.1.0</Version>
+    <Version>0.1.0.0</Version>
     <Name>MomoTalk</Name>
     <Author>LolipopJ</Author>
     <Punchline>Blue Archive's MomoTalk in Eorzea — [Hayase Yuuka] Sensei! I need you to work harder!</Punchline>

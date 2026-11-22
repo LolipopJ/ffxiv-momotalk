@@ -22,9 +22,9 @@
     "Punchline": "Blue Archive's MomoTalk in Eorzea — [Hayase Yuuka] Sensei! I need you to work harder!",
     "AcceptsFeedback": true,
     "IconUrl": "https://raw.githubusercontent.com/LolipopJ/ffxiv-momotalk/main/src/Data/icon.png",
-    "DownloadLinkInstall": "https://github.com/LolipopJ/ffxiv-momotalk/releases/latest/download/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/LolipopJ/ffxiv-momotalk/releases/latest/download/latest.zip",
-    "DownloadLinkTesting": "https://github.com/LolipopJ/ffxiv-momotalk/releases/latest/download/latest.zip",
-    "LastUpdate": 1795351153
+    "DownloadLinkInstall": "https://github.com/LolipopJ/ffxiv-momotalk/releases/download/v0.1.0.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/LolipopJ/ffxiv-momotalk/releases/download/v0.1.0.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/LolipopJ/ffxiv-momotalk/releases/download/v0.1.0.0/latest.zip",
+    "LastUpdate": 1795352861
   }
 ]
