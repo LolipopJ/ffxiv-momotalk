@@ -63,7 +63,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         sender = new TellSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);
         mainWindow = new MomoTalkWindow(directory, history, capture, sender, avatars, config, SaveConfig, Textures);
-        entryWindow = new FloatingEntryWindow(config, SaveConfig, Textures, ToggleMainWindow);
+        entryWindow = new FloatingEntryWindow(directory, config, SaveConfig, Textures, ToggleMainWindow);
     }
 
     public Task LoadAsync(CancellationToken cancellationToken) => Framework.RunOnFrameworkThread(() =>

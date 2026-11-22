@@ -4,6 +4,7 @@ using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using FFXIVMomoTalk.Chat;
 
 namespace FFXIVMomoTalk.Windows;
 
@@ -14,6 +15,7 @@ internal sealed class FloatingEntryWindow : Window
     private const float AspectRatio = 197f / 256f;
     private const float HoverPadding = 6f;
 
+    private readonly FriendDirectory directory;
     private readonly Configuration config;
     private readonly Action saveConfig;
     private readonly ISharedImmediateTexture entryTexture;
@@ -24,9 +26,15 @@ internal sealed class FloatingEntryWindow : Window
     private Vector2 dragMouseOrigin;
     private Vector2 dragCurrentPos;
 
-    public FloatingEntryWindow(Configuration config, Action saveConfig, ITextureProvider textures, Action onToggleMain)
+    public FloatingEntryWindow(
+        FriendDirectory directory,
+        Configuration config,
+        Action saveConfig,
+        ITextureProvider textures,
+        Action onToggleMain)
         : base("##FFXIVMomoTalkEntry")
     {
+        this.directory = directory;
         this.config = config;
         this.saveConfig = saveConfig;
         this.onToggleMain = onToggleMain;
@@ -45,7 +53,14 @@ internal sealed class FloatingEntryWindow : Window
             | ImGuiWindowFlags.NoMove;
     }
 
-    public override bool DrawConditions() => config.ShowFloatingEntry;
+    public override bool DrawConditions()
+    {
+        if (config.ShowFloatingEntry && directory.Current.Session is not null)
+            return true;
+
+        dragging = false;
+        return false;
+    }
 
     public override void PreDraw()
     {
