@@ -15,7 +15,7 @@ internal sealed class FloatingEntryWindow : Window
     private const float AspectRatio = 197f / 256f;
     private const float HoverPadding = 6f;
 
-    private readonly FriendDirectory directory;
+    private readonly SocialDirectory directory;
     private readonly Configuration config;
     private readonly Action saveConfig;
     private readonly ISharedImmediateTexture entryTexture;
@@ -27,7 +27,7 @@ internal sealed class FloatingEntryWindow : Window
     private Vector2 dragCurrentPos;
 
     public FloatingEntryWindow(
-        FriendDirectory directory,
+        SocialDirectory directory,
         Configuration config,
         Action saveConfig,
         ITextureProvider textures,

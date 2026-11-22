@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Plugin.Services;
@@ -13,7 +14,7 @@ internal sealed class AvatarCache(string directory, ITextureProvider textures, I
 {
     private static readonly TimeSpan CacheAge = TimeSpan.FromDays(1);
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(5);
-    private readonly Dictionary<ulong, Lookup> lookups = new();
+    private readonly Dictionary<AvatarKey, Lookup> lookups = new();
     private readonly SemaphoreSlim requests = new(1);
     private readonly CancellationTokenSource shutdown = new();
     private readonly HttpClient images = new()
@@ -26,10 +27,14 @@ internal sealed class AvatarCache(string directory, ITextureProvider textures, I
 
     public IDalamudTextureWrap? GetTexture(PlayerIdentity player)
     {
-        if (!lookups.TryGetValue(player.ContentId, out var lookup))
+        if (player.ContentId == 0 && (string.IsNullOrWhiteSpace(player.Name) || string.IsNullOrWhiteSpace(player.World)))
+            return null;
+
+        var key = AvatarKey.FromPlayer(player);
+        if (!lookups.TryGetValue(key, out var lookup))
         {
             lookup = new Lookup();
-            lookups.Add(player.ContentId, lookup);
+            lookups.Add(key, lookup);
         }
 
         if (lookup.Work is { IsCompletedSuccessfully: true } completed)
@@ -41,14 +46,15 @@ internal sealed class AvatarCache(string directory, ITextureProvider textures, I
         }
 
         if (lookup.Work is null && DateTimeOffset.UtcNow >= lookup.RefreshAfter)
-            lookup.Work = Task.Run(() => LoadAsync(player, lookup, shutdown.Token));
+            lookup.Work = Task.Run(() => LoadAsync(key, player, lookup, shutdown.Token));
 
         return lookup.Path is { } path ? textures.GetFromFileAbsolute(path).GetWrapOrDefault() : null;
     }
 
     public string GetLodestoneUrl(PlayerIdentity player)
     {
-        if (lookups.TryGetValue(player.ContentId, out var lookup) && lookup.LodestoneId is { Length: > 0 } id)
+        var key = AvatarKey.FromPlayer(player);
+        if (lookups.TryGetValue(key, out var lookup) && lookup.LodestoneId is { Length: > 0 } id)
             return $"https://na.finalfantasyxiv.com/lodestone/character/{id}/";
 
         return $"https://na.finalfantasyxiv.com/lodestone/character/?q={Uri.EscapeDataString(player.Name)}&worldname={Uri.EscapeDataString(player.World)}";
@@ -75,9 +81,9 @@ internal sealed class AvatarCache(string directory, ITextureProvider textures, I
             && StringComparer.OrdinalIgnoreCase.Equals(homeWorld.Trim(), player.World);
     }
 
-    private async Task<CacheResult> LoadAsync(PlayerIdentity player, Lookup lookup, CancellationToken stopping)
+    private async Task<CacheResult> LoadAsync(AvatarKey key, PlayerIdentity player, Lookup lookup, CancellationToken stopping)
     {
-        var prefix = $"{player.ContentId:X16}";
+        var prefix = key.ToFilePrefix();
         var metadataPath = Path.Combine(directory, $"{prefix}.json");
         var current = await ReadCacheAsync(metadataPath, stopping).ConfigureAwait(false);
         var currentImagePath = current is not null ? Path.Combine(directory, current.Image) : null;
@@ -302,6 +308,23 @@ internal sealed class AvatarCache(string directory, ITextureProvider textures, I
         catch (Exception)
         {
             // Failed initialization never produced a client to dispose.
+        }
+    }
+
+    private readonly record struct AvatarKey(ulong ContentId, uint WorldId, string NormalizedName)
+    {
+        public static AvatarKey FromPlayer(PlayerIdentity player) =>
+            player.ContentId != 0
+                ? new AvatarKey(player.ContentId, 0, string.Empty)
+                : new AvatarKey(0, player.WorldId, player.Name.Trim().ToLowerInvariant());
+
+        public string ToFilePrefix()
+        {
+            if (ContentId != 0)
+                return $"{ContentId:X16}";
+
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(NormalizedName)))[..16];
+            return $"w{WorldId}-{hash}";
         }
     }
 

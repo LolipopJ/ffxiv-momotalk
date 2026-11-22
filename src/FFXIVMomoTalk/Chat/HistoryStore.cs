@@ -6,7 +6,7 @@ namespace FFXIVMomoTalk.Chat;
 internal sealed class HistoryStore : IAsyncDisposable
 {
     private const int PageSize = 40;
-    private const int SchemaVersion = 2;
+    private const int SchemaVersion = 3;
     private const string FriendsCachedMetaKey = "friends_cached_at";
 
     private const string Schema = """
@@ -14,12 +14,14 @@ internal sealed class HistoryStore : IAsyncDisposable
 
         CREATE TABLE IF NOT EXISTS conversations (
             id INTEGER PRIMARY KEY,
-            peer_content_id INTEGER NOT NULL UNIQUE,
+            kind INTEGER NOT NULL,
+            stable_key TEXT NOT NULL,
             display_name TEXT NOT NULL,
             world_id INTEGER NOT NULL,
             world_name TEXT NOT NULL,
             last_message_id INTEGER,
-            last_sent_at INTEGER
+            last_sent_at INTEGER,
+            UNIQUE (kind, stable_key)
         );
 
         CREATE TABLE IF NOT EXISTS messages (
@@ -27,6 +29,10 @@ internal sealed class HistoryStore : IAsyncDisposable
             conversation_id INTEGER NOT NULL REFERENCES conversations (id),
             sent_at INTEGER NOT NULL,
             outgoing INTEGER NOT NULL,
+            sender_content_id INTEGER NOT NULL,
+            sender_name TEXT NOT NULL,
+            sender_world_id INTEGER NOT NULL,
+            sender_world_name TEXT NOT NULL,
             body TEXT NOT NULL
         );
 
@@ -48,7 +54,22 @@ internal sealed class HistoryStore : IAsyncDisposable
         );
 
         CREATE TABLE IF NOT EXISTS hidden_conversations (
-            content_id INTEGER PRIMARY KEY
+            conversation_id INTEGER PRIMARY KEY REFERENCES conversations (id)
+        );
+
+        CREATE TABLE IF NOT EXISTS static_groups (
+            stable_key TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS static_members (
+            static_key TEXT NOT NULL REFERENCES static_groups (stable_key),
+            content_id INTEGER NOT NULL,
+            display_name TEXT NOT NULL,
+            world_id INTEGER NOT NULL,
+            world_name TEXT NOT NULL,
+            PRIMARY KEY (static_key, content_id)
         );
 
         CREATE TABLE IF NOT EXISTS store_meta (
@@ -60,10 +81,12 @@ internal sealed class HistoryStore : IAsyncDisposable
         """;
 
     private const string SelectMessages = """
-        SELECT m.id, m.sent_at, m.outgoing, m.body, r.reason
+        SELECT m.id, m.sent_at, m.outgoing,
+               m.sender_content_id, m.sender_name, m.sender_world_id, m.sender_world_name,
+               m.body, r.reason
         FROM messages m JOIN conversations c ON c.id = m.conversation_id
         LEFT JOIN message_rejections r ON r.message_id = m.id
-        WHERE c.peer_content_id = $peer
+        WHERE c.kind = $kind AND c.stable_key = $stableKey
         """;
 
     private readonly string directory;
@@ -75,6 +98,7 @@ internal sealed class HistoryStore : IAsyncDisposable
     private long revision;
     private long rejectionRevision;
     private long notesRevision;
+    private long staticsRevision;
 
     public HistoryStore(string directory)
     {
@@ -88,65 +112,82 @@ internal sealed class HistoryStore : IAsyncDisposable
 
     public long NotesRevision => Interlocked.Read(ref notesRevision);
 
-    public Task<long> RecordAsync(CapturedTell tell) => Enqueue(tell.Session.ContentId, connection =>
-    {
-        using var transaction = connection.BeginTransaction();
-        using var conversation = connection.CreateCommand();
-        conversation.Transaction = transaction;
-        conversation.CommandText = """
-            INSERT INTO conversations (peer_content_id, display_name, world_id, world_name)
-            VALUES ($peer, $name, $world, $worldName)
-            ON CONFLICT (peer_content_id) DO UPDATE SET
-                display_name = excluded.display_name,
-                world_id = excluded.world_id,
-                world_name = excluded.world_name
-            RETURNING id
-            """;
-        BindContentId(conversation, "$peer", tell.Peer.ContentId);
-        conversation.Parameters.AddWithValue("$name", tell.Peer.Name);
-        conversation.Parameters.AddWithValue("$world", (long)tell.Peer.WorldId);
-        conversation.Parameters.AddWithValue("$worldName", tell.Peer.World);
-        var conversationId = (long)conversation.ExecuteScalar()!;
+    public long StaticsRevision => Interlocked.Read(ref staticsRevision);
 
-        using var message = connection.CreateCommand();
-        message.Transaction = transaction;
-        message.CommandText = """
-            INSERT INTO messages (conversation_id, sent_at, outgoing, body)
-            VALUES ($conversation, $time, $outgoing, $body)
-            RETURNING id
-            """;
-        message.Parameters.AddWithValue("$conversation", conversationId);
-        message.Parameters.AddWithValue("$time", tell.SentAt);
-        message.Parameters.AddWithValue("$outgoing", tell.Outgoing);
-        message.Parameters.AddWithValue("$body", tell.Body);
-        var messageId = (long)message.ExecuteScalar()!;
+    public Task<long> RecordAsync(CapturedMessage captured, bool updateDisplayName = true) =>
+        Enqueue(captured.Session.ContentId, connection =>
+        {
+            using var transaction = connection.BeginTransaction();
+            using var conversation = connection.CreateCommand();
+            conversation.Transaction = transaction;
+            conversation.CommandText = updateDisplayName
+                ? """
+                    INSERT INTO conversations (kind, stable_key, display_name, world_id, world_name)
+                    VALUES ($kind, $stableKey, $name, $world, $worldName)
+                    ON CONFLICT (kind, stable_key) DO UPDATE SET
+                        display_name = excluded.display_name,
+                        world_id = excluded.world_id,
+                        world_name = excluded.world_name
+                    RETURNING id
+                    """
+                : """
+                    INSERT INTO conversations (kind, stable_key, display_name, world_id, world_name)
+                    VALUES ($kind, $stableKey, $name, $world, $worldName)
+                    ON CONFLICT (kind, stable_key) DO UPDATE SET
+                        world_id = excluded.world_id,
+                        world_name = excluded.world_name
+                    RETURNING id
+                    """;
+            BindConversationKey(conversation, captured.Conversation.Key);
+            conversation.Parameters.AddWithValue("$name", captured.Conversation.DisplayName);
+            conversation.Parameters.AddWithValue("$world", (long)captured.Conversation.WorldId);
+            conversation.Parameters.AddWithValue("$worldName", captured.Conversation.WorldName);
+            var conversationId = (long)conversation.ExecuteScalar()!;
 
-        using var latest = connection.CreateCommand();
-        latest.Transaction = transaction;
-        latest.CommandText = """
-            UPDATE conversations SET last_sent_at = $time, last_message_id = $message
-            WHERE id = $conversation AND
-                (last_message_id IS NULL OR (last_sent_at, last_message_id) < ($time, $message))
-            """;
-        latest.Parameters.AddWithValue("$conversation", conversationId);
-        latest.Parameters.AddWithValue("$time", tell.SentAt);
-        latest.Parameters.AddWithValue("$message", messageId);
-        latest.ExecuteNonQuery();
+            using var message = connection.CreateCommand();
+            message.Transaction = transaction;
+            message.CommandText = """
+                INSERT INTO messages (
+                    conversation_id, sent_at, outgoing,
+                    sender_content_id, sender_name, sender_world_id, sender_world_name, body)
+                VALUES ($conversation, $time, $outgoing, $senderCid, $senderName, $senderWorld, $senderWorldName, $body)
+                RETURNING id
+                """;
+            message.Parameters.AddWithValue("$conversation", conversationId);
+            message.Parameters.AddWithValue("$time", captured.SentAt);
+            message.Parameters.AddWithValue("$outgoing", captured.Outgoing);
+            BindContentId(message, "$senderCid", captured.Sender.ContentId);
+            message.Parameters.AddWithValue("$senderName", captured.Sender.Name);
+            message.Parameters.AddWithValue("$senderWorld", (long)captured.Sender.WorldId);
+            message.Parameters.AddWithValue("$senderWorldName", captured.Sender.World);
+            message.Parameters.AddWithValue("$body", captured.Body);
+            var messageId = (long)message.ExecuteScalar()!;
 
-        using var unhide = connection.CreateCommand();
-        unhide.Transaction = transaction;
-        unhide.CommandText = "DELETE FROM hidden_conversations WHERE content_id = $peer";
-        BindContentId(unhide, "$peer", tell.Peer.ContentId);
-        unhide.ExecuteNonQuery();
+            using var latest = connection.CreateCommand();
+            latest.Transaction = transaction;
+            latest.CommandText = """
+                UPDATE conversations SET last_sent_at = $time, last_message_id = $message
+                WHERE id = $conversation AND
+                    (last_message_id IS NULL OR (last_sent_at, last_message_id) < ($time, $message))
+                """;
+            latest.Parameters.AddWithValue("$conversation", conversationId);
+            latest.Parameters.AddWithValue("$time", captured.SentAt);
+            latest.Parameters.AddWithValue("$message", messageId);
+            latest.ExecuteNonQuery();
 
-        transaction.Commit();
-        Interlocked.Increment(ref revision);
-        return messageId;
-    });
+            using var unhide = connection.CreateCommand();
+            unhide.Transaction = transaction;
+            unhide.CommandText = "DELETE FROM hidden_conversations WHERE conversation_id = $conversation";
+            unhide.Parameters.AddWithValue("$conversation", conversationId);
+            unhide.ExecuteNonQuery();
+
+            transaction.Commit();
+            Interlocked.Increment(ref revision);
+            return messageId;
+        });
 
     public Task RecordRejectionAsync(ulong owner, Task<long> echo, string reason) => Enqueue(owner, connection =>
     {
-        // The echo was enqueued before its capture event, so its write has already finished here.
         if (!echo.IsCompletedSuccessfully)
             return false;
 
@@ -171,45 +212,56 @@ internal sealed class HistoryStore : IAsyncDisposable
         {
             using var command = connection.CreateCommand();
             command.CommandText = """
-                SELECT m.id, m.sent_at, m.outgoing, m.body, r.reason,
-                       c.peer_content_id, c.display_name, c.world_id, c.world_name
+                SELECT m.id, m.sent_at, m.outgoing,
+                       m.sender_content_id, m.sender_name, m.sender_world_id, m.sender_world_name,
+                       m.body, r.reason,
+                       c.kind, c.stable_key, c.display_name, c.world_id, c.world_name
                 FROM conversations c JOIN messages m ON m.id = c.last_message_id
                 LEFT JOIN message_rejections r ON r.message_id = m.id
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM hidden_conversations h WHERE h.content_id = c.peer_content_id
+                    SELECT 1 FROM hidden_conversations h WHERE h.conversation_id = c.id
                 )
                 """;
             using var reader = command.ExecuteReader();
             var conversations = new List<ConversationSummary>();
             while (reader.Read())
             {
-                var peer = new PlayerIdentity(
-                    ReadContentId(reader, 5),
-                    reader.GetString(6),
-                    (uint)reader.GetInt64(7),
-                    reader.GetString(8));
-                conversations.Add(new ConversationSummary(peer, ReadMessage(reader)));
+                var key = new ConversationKey((ConversationKind)reader.GetInt32(9), reader.GetString(10));
+                var descriptor = new ConversationDescriptor(
+                    key,
+                    reader.GetString(11),
+                    (uint)reader.GetInt64(12),
+                    reader.GetString(13));
+                conversations.Add(new ConversationSummary(descriptor, ReadMessage(reader)));
             }
 
             return conversations;
         });
 
-    public Task HideConversationAsync(ulong owner, ulong peerContentId) => Enqueue(owner, connection =>
+    public Task HideConversationAsync(ulong owner, ConversationKey key) => Enqueue(owner, connection =>
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT OR IGNORE INTO hidden_conversations (content_id) VALUES ($peer)";
-        BindContentId(command, "$peer", peerContentId);
+        command.CommandText = """
+            INSERT OR IGNORE INTO hidden_conversations (conversation_id)
+            SELECT id FROM conversations WHERE kind = $kind AND stable_key = $stableKey
+            """;
+        BindConversationKey(command, key);
         if (command.ExecuteNonQuery() != 0)
             Interlocked.Increment(ref revision);
 
         return true;
     });
 
-    public Task UnhideConversationAsync(ulong owner, ulong peerContentId) => Enqueue(owner, connection =>
+    public Task UnhideConversationAsync(ulong owner, ConversationKey key) => Enqueue(owner, connection =>
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM hidden_conversations WHERE content_id = $peer";
-        BindContentId(command, "$peer", peerContentId);
+        command.CommandText = """
+            DELETE FROM hidden_conversations
+            WHERE conversation_id IN (
+                SELECT id FROM conversations WHERE kind = $kind AND stable_key = $stableKey
+            )
+            """;
+        BindConversationKey(command, key);
         if (command.ExecuteNonQuery() != 0)
             Interlocked.Increment(ref revision);
 
@@ -253,6 +305,7 @@ internal sealed class HistoryStore : IAsyncDisposable
         }
 
         var updatedConversations = false;
+        var updatedStatics = false;
         using var insert = connection.CreateCommand();
         insert.Transaction = transaction;
         insert.CommandText = """
@@ -269,13 +322,26 @@ internal sealed class HistoryStore : IAsyncDisposable
         updateConv.CommandText = """
             UPDATE conversations
             SET display_name = $name, world_id = $world, world_name = $worldName
-            WHERE peer_content_id = $cid
+            WHERE kind = 0 AND stable_key = $stableKey
               AND (display_name <> $name OR world_id <> $world OR world_name <> $worldName)
             """;
-        var updateCid = updateConv.Parameters.Add("$cid", SqliteType.Integer);
+        var updateKey = updateConv.Parameters.Add("$stableKey", SqliteType.Text);
         var updateName = updateConv.Parameters.Add("$name", SqliteType.Text);
         var updateWorld = updateConv.Parameters.Add("$world", SqliteType.Integer);
         var updateWorldName = updateConv.Parameters.Add("$worldName", SqliteType.Text);
+
+        using var updateStaticMember = connection.CreateCommand();
+        updateStaticMember.Transaction = transaction;
+        updateStaticMember.CommandText = """
+            UPDATE static_members
+            SET display_name = $name, world_id = $world, world_name = $worldName
+            WHERE content_id = $cid
+              AND (display_name <> $name OR world_id <> $world OR world_name <> $worldName)
+            """;
+        var memberCid = updateStaticMember.Parameters.Add("$cid", SqliteType.Integer);
+        var memberName = updateStaticMember.Parameters.Add("$name", SqliteType.Text);
+        var memberWorld = updateStaticMember.Parameters.Add("$world", SqliteType.Integer);
+        var memberWorldName = updateStaticMember.Parameters.Add("$worldName", SqliteType.Text);
 
         foreach (var friend in friends)
         {
@@ -286,12 +352,19 @@ internal sealed class HistoryStore : IAsyncDisposable
             insertWorldName.Value = friend.World;
             insert.ExecuteNonQuery();
 
-            updateCid.Value = cid;
+            updateKey.Value = ConversationKey.Tell(friend.ContentId).StableKey;
             updateName.Value = friend.Name;
             updateWorld.Value = (long)friend.WorldId;
             updateWorldName.Value = friend.World;
             if (updateConv.ExecuteNonQuery() != 0)
                 updatedConversations = true;
+
+            memberCid.Value = cid;
+            memberName.Value = friend.Name;
+            memberWorld.Value = (long)friend.WorldId;
+            memberWorldName.Value = friend.World;
+            if (updateStaticMember.ExecuteNonQuery() != 0)
+                updatedStatics = true;
         }
 
         using (var meta = connection.CreateCommand())
@@ -309,9 +382,246 @@ internal sealed class HistoryStore : IAsyncDisposable
         transaction.Commit();
         if (updatedConversations)
             Interlocked.Increment(ref revision);
+        if (updatedStatics)
+            Interlocked.Increment(ref staticsRevision);
 
         return true;
     });
+
+    public Task SyncChannelNamesAsync(ulong owner, IReadOnlyList<(ConversationKey Key, string Name)> channels) =>
+        Enqueue(owner, connection =>
+        {
+            if (channels.Count == 0)
+                return false;
+
+            using var transaction = connection.BeginTransaction();
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = """
+                UPDATE conversations
+                SET display_name = $name
+                WHERE kind = $kind AND stable_key = $stableKey AND display_name <> $name
+                """;
+            var kindParam = update.Parameters.Add("$kind", SqliteType.Integer);
+            var keyParam = update.Parameters.Add("$stableKey", SqliteType.Text);
+            var nameParam = update.Parameters.Add("$name", SqliteType.Text);
+
+            var changed = false;
+            foreach (var (key, name) in channels)
+            {
+                kindParam.Value = (int)key.Kind;
+                keyParam.Value = key.StableKey;
+                nameParam.Value = name;
+                if (update.ExecuteNonQuery() != 0)
+                    changed = true;
+            }
+
+            transaction.Commit();
+            if (changed)
+                Interlocked.Increment(ref revision);
+
+            return changed;
+        });
+
+    public Task SyncStaticMemberIdentitiesAsync(ulong owner, IReadOnlyList<PlayerIdentity> members) =>
+        Enqueue(owner, connection =>
+        {
+            if (members.Count == 0)
+                return false;
+
+            using var transaction = connection.BeginTransaction();
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = """
+                UPDATE static_members
+                SET display_name = $name, world_id = $world, world_name = $worldName
+                WHERE content_id = $cid
+                  AND (display_name <> $name OR world_id <> $world OR world_name <> $worldName)
+                """;
+            var cidParam = update.Parameters.Add("$cid", SqliteType.Integer);
+            var nameParam = update.Parameters.Add("$name", SqliteType.Text);
+            var worldParam = update.Parameters.Add("$world", SqliteType.Integer);
+            var worldNameParam = update.Parameters.Add("$worldName", SqliteType.Text);
+
+            var changed = false;
+            foreach (var member in members)
+            {
+                if (member.ContentId == 0)
+                    continue;
+
+                cidParam.Value = unchecked((long)member.ContentId);
+                nameParam.Value = member.Name;
+                worldParam.Value = (long)member.WorldId;
+                worldNameParam.Value = member.World;
+                if (update.ExecuteNonQuery() != 0)
+                    changed = true;
+            }
+
+            transaction.Commit();
+            if (changed)
+                Interlocked.Increment(ref staticsRevision);
+
+            return changed;
+        });
+
+    public Task<IReadOnlyList<StaticGroup>> ReadStaticsAsync(ulong owner) =>
+        Enqueue<IReadOnlyList<StaticGroup>>(owner, connection =>
+        {
+            var membersByStatic = new Dictionary<string, List<PlayerIdentity>>(StringComparer.Ordinal);
+            using (var memberCmd = connection.CreateCommand())
+            {
+                memberCmd.CommandText = """
+                    SELECT static_key, content_id, display_name, world_id, world_name
+                    FROM static_members
+                    ORDER BY display_name COLLATE NOCASE, content_id
+                    """;
+                using var reader = memberCmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var key = reader.GetString(0);
+                    if (!membersByStatic.TryGetValue(key, out var list))
+                    {
+                        list = new List<PlayerIdentity>();
+                        membersByStatic.Add(key, list);
+                    }
+
+                    list.Add(new PlayerIdentity(
+                        ReadContentId(reader, 1),
+                        reader.GetString(2),
+                        (uint)reader.GetInt64(3),
+                        reader.GetString(4)));
+                }
+            }
+
+            var groups = new List<StaticGroup>();
+            using (var groupCmd = connection.CreateCommand())
+            {
+                groupCmd.CommandText = "SELECT stable_key, display_name, created_at FROM static_groups ORDER BY created_at";
+                using var reader = groupCmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var key = reader.GetString(0);
+                    var name = reader.GetString(1);
+                    var createdAt = reader.GetInt64(2);
+                    var members = membersByStatic.TryGetValue(key, out var list) ? (IReadOnlyList<PlayerIdentity>)list : [];
+                    groups.Add(new StaticGroup(key, name, createdAt, members));
+                }
+            }
+
+            return groups;
+        });
+
+    public Task<StaticGroup> CreateStaticAsync(ulong owner, StaticGroup group) =>
+        Enqueue(owner, connection =>
+        {
+            using var transaction = connection.BeginTransaction();
+
+            using (var check = connection.CreateCommand())
+            {
+                check.Transaction = transaction;
+                check.CommandText = "SELECT display_name, created_at FROM static_groups WHERE stable_key = $stableKey";
+                check.Parameters.AddWithValue("$stableKey", group.StableKey);
+                using var existing = check.ExecuteReader();
+                if (existing.Read())
+                {
+                    var existingName = existing.GetString(0);
+                    var existingCreated = existing.GetInt64(1);
+                    transaction.Commit();
+                    return group with { Name = existingName, CreatedAt = existingCreated };
+                }
+            }
+
+            using (var insertGroup = connection.CreateCommand())
+            {
+                insertGroup.Transaction = transaction;
+                insertGroup.CommandText = """
+                    INSERT INTO static_groups (stable_key, display_name, created_at)
+                    VALUES ($stableKey, $name, $createdAt)
+                    """;
+                insertGroup.Parameters.AddWithValue("$stableKey", group.StableKey);
+                insertGroup.Parameters.AddWithValue("$name", group.Name);
+                insertGroup.Parameters.AddWithValue("$createdAt", group.CreatedAt);
+                insertGroup.ExecuteNonQuery();
+            }
+
+            using (var insertMember = connection.CreateCommand())
+            {
+                insertMember.Transaction = transaction;
+                insertMember.CommandText = """
+                    INSERT INTO static_members (static_key, content_id, display_name, world_id, world_name)
+                    VALUES ($stableKey, $cid, $name, $world, $worldName)
+                    """;
+                var keyParam = insertMember.Parameters.Add("$stableKey", SqliteType.Text);
+                var cidParam = insertMember.Parameters.Add("$cid", SqliteType.Integer);
+                var nameParam = insertMember.Parameters.Add("$name", SqliteType.Text);
+                var worldParam = insertMember.Parameters.Add("$world", SqliteType.Integer);
+                var worldNameParam = insertMember.Parameters.Add("$worldName", SqliteType.Text);
+
+                foreach (var member in group.Members)
+                {
+                    keyParam.Value = group.StableKey;
+                    cidParam.Value = unchecked((long)member.ContentId);
+                    nameParam.Value = member.Name;
+                    worldParam.Value = (long)member.WorldId;
+                    worldNameParam.Value = member.World;
+                    insertMember.ExecuteNonQuery();
+                }
+            }
+
+            transaction.Commit();
+            Interlocked.Increment(ref staticsRevision);
+            Interlocked.Increment(ref revision);
+            return group;
+        });
+
+    public Task RenameStaticAsync(ulong owner, string stableKey, string newName) =>
+        Enqueue(owner, connection =>
+        {
+            var trimmed = newName.Trim();
+            if (trimmed.Length == 0)
+                return false;
+
+            using var transaction = connection.BeginTransaction();
+            var changed = false;
+
+            using (var updateGroup = connection.CreateCommand())
+            {
+                updateGroup.Transaction = transaction;
+                updateGroup.CommandText = """
+                    UPDATE static_groups
+                    SET display_name = $name
+                    WHERE stable_key = $stableKey AND display_name <> $name
+                    """;
+                updateGroup.Parameters.AddWithValue("$stableKey", stableKey);
+                updateGroup.Parameters.AddWithValue("$name", trimmed);
+                if (updateGroup.ExecuteNonQuery() != 0)
+                    changed = true;
+            }
+
+            using (var updateConv = connection.CreateCommand())
+            {
+                updateConv.Transaction = transaction;
+                updateConv.CommandText = """
+                    UPDATE conversations
+                    SET display_name = $name
+                    WHERE kind = $kind AND stable_key = $stableKey AND display_name <> $name
+                    """;
+                updateConv.Parameters.AddWithValue("$kind", (int)ConversationKind.Static);
+                updateConv.Parameters.AddWithValue("$stableKey", stableKey);
+                updateConv.Parameters.AddWithValue("$name", trimmed);
+                if (updateConv.ExecuteNonQuery() != 0)
+                    changed = true;
+            }
+
+            transaction.Commit();
+            if (changed)
+            {
+                Interlocked.Increment(ref staticsRevision);
+                Interlocked.Increment(ref revision);
+            }
+
+            return changed;
+        });
 
     public Task<IReadOnlyDictionary<ulong, string>> ReadNotesAsync(ulong owner) =>
         Enqueue<IReadOnlyDictionary<ulong, string>>(owner, connection =>
@@ -350,11 +660,11 @@ internal sealed class HistoryStore : IAsyncDisposable
         return true;
     });
 
-    public Task<MessagePage> ReadPageAsync(ulong owner, ulong peerContentId, MessageCursor? before = null) =>
+    public Task<MessagePage> ReadPageAsync(ulong owner, ConversationKey key, MessageCursor? before = null) =>
         Enqueue(owner, connection =>
         {
             using var command = connection.CreateCommand();
-            BindContentId(command, "$peer", peerContentId);
+            BindConversationKey(command, key);
             command.CommandText = SelectMessages;
             if (before is { } cursor)
             {
@@ -374,13 +684,13 @@ internal sealed class HistoryStore : IAsyncDisposable
             return new MessagePage(messages, hasOlder);
         });
 
-    public Task<IReadOnlyList<TellMessage>> ReadUpdatesAsync(ulong owner, ulong peerContentId, long afterId, bool includeRejections) =>
-        Enqueue<IReadOnlyList<TellMessage>>(owner, connection =>
+    public Task<IReadOnlyList<ChatMessage>> ReadUpdatesAsync(ulong owner, ConversationKey key, long afterId, bool includeRejections) =>
+        Enqueue<IReadOnlyList<ChatMessage>>(owner, connection =>
         {
             using var command = connection.CreateCommand();
             var filter = includeRejections ? "AND (m.id > $after OR r.message_id IS NOT NULL)" : "AND m.id > $after";
             command.CommandText = SelectMessages + $"\n{filter}\nORDER BY m.sent_at, m.id";
-            BindContentId(command, "$peer", peerContentId);
+            BindConversationKey(command, key);
             command.Parameters.AddWithValue("$after", afterId);
             return ReadMessages(command);
         });
@@ -477,23 +787,41 @@ internal sealed class HistoryStore : IAsyncDisposable
         }
     }
 
+    private static void BindConversationKey(SqliteCommand command, ConversationKey key)
+    {
+        command.Parameters.AddWithValue("$kind", (int)key.Kind);
+        command.Parameters.AddWithValue("$stableKey", key.StableKey);
+    }
+
     private static void BindContentId(SqliteCommand command, string name, ulong contentId) =>
         command.Parameters.AddWithValue(name, unchecked((long)contentId));
 
     private static ulong ReadContentId(SqliteDataReader reader, int ordinal) =>
         unchecked((ulong)reader.GetInt64(ordinal));
 
-    private static List<TellMessage> ReadMessages(SqliteCommand command)
+    private static List<ChatMessage> ReadMessages(SqliteCommand command)
     {
         using var reader = command.ExecuteReader();
-        var messages = new List<TellMessage>();
+        var messages = new List<ChatMessage>();
         while (reader.Read())
             messages.Add(ReadMessage(reader));
 
         return messages;
     }
 
-    private static TellMessage ReadMessage(SqliteDataReader reader) =>
-        new(reader.GetInt64(0), reader.GetInt64(1), reader.GetBoolean(2), reader.GetString(3),
-            reader.IsDBNull(4) ? null : reader.GetString(4));
+    private static ChatMessage ReadMessage(SqliteDataReader reader)
+    {
+        var sender = new PlayerIdentity(
+            ReadContentId(reader, 3),
+            reader.GetString(4),
+            (uint)reader.GetInt64(5),
+            reader.GetString(6));
+        return new ChatMessage(
+            reader.GetInt64(0),
+            reader.GetInt64(1),
+            reader.GetBoolean(2),
+            sender,
+            reader.GetString(7),
+            reader.IsDBNull(8) ? null : reader.GetString(8));
+    }
 }

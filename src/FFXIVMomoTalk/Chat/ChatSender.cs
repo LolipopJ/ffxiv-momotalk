@@ -10,26 +10,27 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace FFXIVMomoTalk.Chat;
 
-internal sealed record TellWarning(PlayerSession Session, ulong? Peer, string Message)
+internal sealed record SendWarning(PlayerSession Session, ConversationKey? Conversation, string Message)
 {
     public volatile bool AttachedToMessage;
 }
 
-internal sealed class TellSender(
+internal sealed class ChatSender(
     IFramework framework,
     IChatGui chat,
-    FriendDirectory directory,
+    SocialDirectory directory,
     ChatCapture capture,
     IPluginLog log) : IDisposable
 {
     private const int MaxCommandBytes = 500;
     private const uint ErrorMessageLogKind = 60;
-    private const string FallbackRejection = "Failed to send Tell. Check the in-game chat for details.";
+    private const string FallbackTellRejection = "Failed to send Tell. Check the in-game chat for details.";
+    private const string FallbackGroupRejection = "Failed to send message. Check the in-game chat for details.";
     private static readonly TimeSpan ReconciliationWindow = TimeSpan.FromSeconds(5);
 
-    private readonly List<PendingTell> pending = new();
-    private readonly ConcurrentQueue<TellWarning> warnings = new();
-    private PendingTell? submitting;
+    private readonly List<PendingMessage> pending = new();
+    private readonly ConcurrentQueue<SendWarning> warnings = new();
+    private PendingMessage? submitting;
     private bool disposed;
 
     public void Attach()
@@ -48,16 +49,16 @@ internal sealed class TellSender(
         pending.Clear();
     }
 
-    public bool TrySubmit(PlayerSession session, PlayerIdentity peer, string draft, out string error)
+    public bool TrySubmit(PlayerSession session, SendTarget target, string draft, out string error)
     {
-        if (!TryBuildCommand(peer, draft, out var body, out _, out error))
+        if (!TryBuildCommand(target, draft, out var body, out _, out error))
             return false;
 
-        _ = DispatchAsync(new PendingTell(session, peer, body));
+        _ = DispatchAsync(new PendingMessage(session, target, body));
         return true;
     }
 
-    public TellWarning? TakeWarning() => warnings.TryDequeue(out var warning) ? warning : null;
+    public SendWarning? TakeWarning() => warnings.TryDequeue(out var warning) ? warning : null;
 
     public void Update(PlayerSession? session)
     {
@@ -68,20 +69,20 @@ internal sealed class TellSender(
                 continue;
 
             if (ReferenceEquals(request.Session, session) && request.Echo is null && request.Rejection is null)
-                Warn(request, FallbackRejection);
+                Warn(request, FallbackRejection(request.Conversation.Kind));
 
             pending.RemoveAt(index);
         }
     }
 
     internal static bool TryBuildCommand(
-        PlayerIdentity peer, string draft, out string body, out string command, out string error)
+        SendTarget target, string draft, out string body, out string command, out string error)
     {
         body = string.Empty;
         command = string.Empty;
         if (draft.Any(character => char.IsControl(character) || character is '\u2028' or '\u2029'))
         {
-            error = "A Tell must be one line without control characters.";
+            error = "A message must be one line without control characters.";
             return false;
         }
 
@@ -92,10 +93,10 @@ internal sealed class TellSender(
         }
 
         body = NormalizeBody(draft);
-        command = $"/tell {peer.Name}@{peer.World} {body}";
+        command = $"{target.CommandPrefix} {body}";
         if (Encoding.UTF8.GetByteCount(command) > MaxCommandBytes)
         {
-            error = "This Tell exceeds the game's 500-byte input limit.";
+            error = "This message exceeds the game's 500-byte input limit.";
             return false;
         }
 
@@ -103,7 +104,7 @@ internal sealed class TellSender(
         return true;
     }
 
-    private async Task DispatchAsync(PendingTell request)
+    private async Task DispatchAsync(PendingMessage request)
     {
         try
         {
@@ -111,28 +112,29 @@ internal sealed class TellSender(
         }
         catch (Exception exception)
         {
-            log.Error(exception, "The native Tell submission failed.");
-            Warn(request, FallbackRejection);
+            log.Error(exception, "The native chat submission failed.");
+            Warn(request, FallbackRejection(request.Conversation.Kind));
         }
     }
 
-    private unsafe void Dispatch(PendingTell request)
+    private unsafe void Dispatch(PendingMessage request)
     {
         if (disposed)
             return;
 
-        var snapshot = directory.Update(rereadFriends: true);
+        var isTell = request.Conversation.Kind == ConversationKind.Tell;
+        var snapshot = directory.Update(rereadFriends: isTell, rereadSocial: !isTell);
         if (!ReferenceEquals(request.Session, snapshot.Session))
             return;
 
-        if (snapshot.FindRecipient(request.Peer, out var unavailable) is not { } friend)
+        if (snapshot.FindSendTarget(request.Conversation, out var unavailable) is not { } target)
         {
             Warn(request, unavailable!);
             return;
         }
 
-        request.Target = friend;
-        if (!TryBuildCommand(friend, request.Body, out _, out var command, out var error))
+        request.Target = target;
+        if (!TryBuildCommand(target, request.Body, out _, out var command, out var error))
         {
             Warn(request, error);
             return;
@@ -148,7 +150,7 @@ internal sealed class TellSender(
         var input = Utf8String.FromString(command);
         if (input is null)
         {
-            Warn(request, "The game could not prepare this Tell.");
+            Warn(request, "The game could not prepare this message.");
             return;
         }
 
@@ -179,22 +181,28 @@ internal sealed class TellSender(
         }
     }
 
-    private void OnCaptured(CapturedTell tell, Task<long> archive)
+    private void OnCaptured(CapturedMessage captured, Task<long> archive)
     {
-        if (!tell.Outgoing)
+        if (!captured.Outgoing)
             return;
 
-        var body = NormalizeBody(tell.Body);
-        var request = pending.FirstOrDefault(candidate => candidate.Echo is null && IsActive(candidate, tell.Session)
-            && candidate.Peer == tell.Peer.ContentId && candidate.Body == body);
+        var body = NormalizeBody(captured.Body);
+        var request = pending.FirstOrDefault(candidate => candidate.Echo is null && IsActive(candidate, captured.Session)
+            && candidate.Conversation == captured.Conversation.Key && candidate.Body == body);
         if (request is null)
         {
             // Track Tells sent directly from the native in-game chat box so server rejections still attach.
-            pending.Add(new PendingTell(tell.Session, tell.Peer, body)
+            if (captured.Conversation.ToTellPeer() is { } tellPeer)
             {
-                Echo = archive,
-                StartedAt = Stopwatch.GetTimestamp(),
-            });
+                var target = new SendTarget(captured.Conversation.Key, $"/tell {tellPeer.Name}@{tellPeer.World}",
+                    tellPeer.Name, tellPeer);
+                pending.Add(new PendingMessage(captured.Session, target, body)
+                {
+                    Echo = archive,
+                    StartedAt = Stopwatch.GetTimestamp(),
+                });
+            }
+
             return;
         }
 
@@ -208,13 +216,18 @@ internal sealed class TellSender(
             return;
 
         if (message.LogKind is XivChatType.ErrorMessage or XivChatType.SystemError)
-            Reject(current, FallbackRejection);
+        {
+            var reason = current.Conversation.IsGroup
+                ? ExtractErrorReason(message.OriginalMessage.ExtractText(), current.Conversation.Kind)
+                : FallbackTellRejection;
+            Reject(current, reason);
+        }
     }
 
     private void OnLogMessage(ILogMessage message)
     {
         var id = message.LogMessageId;
-        var isKnown = ClassifyLogMessage(id, out var hasRecipient, out var nativeCallOnly);
+        var isKnown = ClassifyTellLogMessage(id, out var hasRecipient, out var nativeCallOnly);
         var isSyncError = submitting is not null && message.GameData.ValueNullable?.LogKind.RowId == ErrorMessageLogKind;
         if (!isKnown && !isSyncError)
             return;
@@ -225,6 +238,14 @@ internal sealed class TellSender(
         var snapshot = directory.Current;
         if (snapshot.Session is not { } session)
             return;
+
+        if (submitting is { Conversation.IsGroup: true } activeGroup)
+        {
+            var groupReason = ReadGroupLogRejection(id);
+            if (framework.IsInFrameworkUpdateThread)
+                Reject(activeGroup, groupReason);
+            return;
+        }
 
         string? rawRecipient = null;
         TellPeer? recipient = null;
@@ -238,11 +259,11 @@ internal sealed class TellSender(
         if (message.TargetEntity is { IsPlayer: true, HomeWorldId: > 0 } target)
         {
             var identity = new TellPeer(target.Name.ExtractText(), target.HomeWorldId, null);
-            if (snapshot.Resolve(identity) is not null)
+            if (snapshot.ResolveTellPeer(identity) is not null)
                 recipient = identity;
         }
 
-        var reason = ReadRejection(id);
+        var reason = ReadTellRejection(id);
         if (framework.IsInFrameworkUpdateThread)
             HandleRejection(session, recipient, rawRecipient, nativeCallOnly, reason);
         else if (!nativeCallOnly)
@@ -260,53 +281,55 @@ internal sealed class TellSender(
         if (disposed || !ReferenceEquals(snapshot.Session, session))
             return;
 
-        var peer = ResolveRejectionPeer(snapshot, session, recipient, rawRecipient);
-        if (submitting is { } current && (peer is null || current.Peer == peer))
+        var peerKey = ResolveRejectionConversation(snapshot, session, recipient, rawRecipient);
+        if (submitting is { } current && (peerKey is null || current.Conversation == peerKey))
         {
             Reject(current, reason);
             return;
         }
 
-        if (nativeCallOnly || (!string.IsNullOrWhiteSpace(rawRecipient) && peer is null))
+        if (nativeCallOnly || (!string.IsNullOrWhiteSpace(rawRecipient) && peerKey is null))
             return;
 
         var candidates = pending.Where(request => request.Rejection is null && IsActive(request, session)
-            && (peer is null || request.Peer == peer)).ToArray();
+            && request.Conversation.Kind == ConversationKind.Tell
+            && (peerKey is null || request.Conversation == peerKey)).ToArray();
         if (candidates.Length == 1)
         {
             Reject(candidates[0], reason);
         }
         else if (candidates.Length > 0)
         {
-            var firstPeer = candidates[0].Peer;
-            ulong? conversation = candidates.All(request => request.Peer == firstPeer) ? firstPeer : null;
-            warnings.Enqueue(new TellWarning(session, conversation, reason));
+            var firstConversation = candidates[0].Conversation;
+            ConversationKey? conversation = candidates.All(request => request.Conversation == firstConversation)
+                ? firstConversation
+                : null;
+            warnings.Enqueue(new SendWarning(session, conversation, reason));
         }
-        else if (peer is { } rejectedPeer)
+        else if (peerKey is { } rejectedKey)
         {
-            warnings.Enqueue(new TellWarning(session, rejectedPeer, reason));
+            warnings.Enqueue(new SendWarning(session, rejectedKey, reason));
         }
     }
 
-    private ulong? ResolveRejectionPeer(
-        FriendSnapshot snapshot,
+    private ConversationKey? ResolveRejectionConversation(
+        SocialSnapshot snapshot,
         PlayerSession session,
         TellPeer? recipient,
         string? rawRecipient)
     {
-        if (recipient is { } target && snapshot.Resolve(target) is { } resolved)
-            return resolved.ContentId;
+        if (recipient is { } target && snapshot.ResolveTellPeer(target) is { } resolved)
+            return ConversationKey.Tell(resolved.ContentId);
 
         if (string.IsNullOrWhiteSpace(rawRecipient))
             return null;
 
-        ulong? matchedPeer = null;
+        ConversationKey? matched = null;
         foreach (var request in pending)
         {
-            if (request.Rejection is not null || !IsActive(request, session))
+            if (request.Rejection is not null || !IsActive(request, session) || request.Target.TellPeer is not { } candidate)
                 continue;
 
-            var candidate = request.Target;
             var matches = StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, candidate.Name)
                 || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}@{candidate.World}")
                 || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}{candidate.World}")
@@ -314,16 +337,16 @@ internal sealed class TellSender(
             if (!matches)
                 continue;
 
-            if (matchedPeer is { } existing && existing != request.Peer)
+            if (matched is { } existing && existing != request.Conversation)
                 return null;
 
-            matchedPeer = request.Peer;
+            matched = request.Conversation;
         }
 
-        return matchedPeer;
+        return matched;
     }
 
-    private static bool ClassifyLogMessage(uint id, out bool hasRecipient, out bool nativeCallOnly)
+    private static bool ClassifyTellLogMessage(uint id, out bool hasRecipient, out bool nativeCallOnly)
     {
         hasRecipient = id is 49 or 50 or 1642 or 7485;
         nativeCallOnly = id is 483 or 484 or 3875 or 3877;
@@ -334,7 +357,17 @@ internal sealed class TellSender(
                 or 5655 or 7382 or 7486 or 7489 or 9743;
     }
 
-    private static string ReadRejection(uint logMessageId) => logMessageId switch
+    private static string ReadGroupLogRejection(uint logMessageId) => logMessageId switch
+    {
+        484 => "Unable to send the message because it contains disallowed text.",
+        749 => "Unable to send the message due to chat rate limiting.",
+        3831 => "Unable to chat right now.",
+        3876 => "Unable to send the message because chat participation is disabled.",
+        7382 => "Unable to send the message because chat is restricted.",
+        _ => FallbackGroupRejection,
+    };
+
+    private static string ReadTellRejection(uint logMessageId) => logMessageId switch
     {
         49 => "Unable to send the Tell because the recipient is busy.",
         50 or 7485 => "Unable to send the Tell. The recipient may be offline or unavailable.",
@@ -362,22 +395,31 @@ internal sealed class TellSender(
         7486 => "Unable to send the Tell because the Party Finder recruitment has ended.",
         7489 => "Unable to send the Tell because the recipient's World is not in this Data Center.",
         9743 => "Unable to send the Tell because the recipient is muted or blocked.",
-        _ => FallbackRejection,
+        _ => FallbackTellRejection,
     };
 
-    private void Reject(PendingTell request, string reason)
+    private static string ExtractErrorReason(string rawText, ConversationKind kind)
+    {
+        var trimmed = rawText.Trim();
+        return trimmed.Length > 0 ? trimmed : FallbackRejection(kind);
+    }
+
+    private static string FallbackRejection(ConversationKind kind) =>
+        kind == ConversationKind.Tell ? FallbackTellRejection : FallbackGroupRejection;
+
+    private void Reject(PendingMessage request, string reason)
     {
         if (request.Rejection is not null)
             return;
 
-        request.Rejection = new TellWarning(request.Session, request.Peer, reason);
+        request.Rejection = new SendWarning(request.Session, request.Conversation, reason);
         if (request.Echo is null)
             warnings.Enqueue(request.Rejection);
         else
             AttachRejection(request);
     }
 
-    private void AttachRejection(PendingTell request)
+    private void AttachRejection(PendingMessage request)
     {
         if (request.Echo is not { } echo || request.Rejection is not { } rejection)
             return;
@@ -386,27 +428,27 @@ internal sealed class TellSender(
         rejection.AttachedToMessage = true;
     }
 
-    private void Warn(PendingTell request, string reason) =>
-        warnings.Enqueue(new TellWarning(request.Session, request.Peer, reason));
+    private void Warn(PendingMessage request, string reason) =>
+        warnings.Enqueue(new SendWarning(request.Session, request.Conversation, reason));
 
-    private static bool IsActive(PendingTell request, PlayerSession? session) =>
+    private static bool IsActive(PendingMessage request, PlayerSession? session) =>
         ReferenceEquals(request.Session, session) && Stopwatch.GetElapsedTime(request.StartedAt) < ReconciliationWindow;
 
     private static string NormalizeBody(string text) => text.Trim().Normalize(NormalizationForm.FormC);
 
-    private sealed class PendingTell(PlayerSession session, PlayerIdentity target, string body)
+    private sealed class PendingMessage(PlayerSession session, SendTarget target, string body)
     {
         public PlayerSession Session { get; } = session;
 
-        public ulong Peer => Target.ContentId;
+        public ConversationKey Conversation => Target.Key;
 
-        public PlayerIdentity Target { get; set; } = target;
+        public SendTarget Target { get; set; } = target;
 
         public string Body { get; } = body;
 
         public Task<long>? Echo { get; set; }
 
-        public TellWarning? Rejection { get; set; }
+        public SendWarning? Rejection { get; set; }
 
         public long StartedAt { get; set; }
     }

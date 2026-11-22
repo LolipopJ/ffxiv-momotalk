@@ -37,6 +37,9 @@ public sealed class Plugin : IAsyncDalamudPlugin
     internal static IChatGui Chat { get; private set; } = null!;
 
     [PluginService]
+    internal static IContextMenu ContextMenu { get; private set; } = null!;
+
+    [PluginService]
     internal static ITextureProvider Textures { get; private set; } = null!;
 
     [PluginService]
@@ -44,11 +47,12 @@ public sealed class Plugin : IAsyncDalamudPlugin
 
     private readonly WindowSystem windows = new("FFXIVMomoTalk");
     private readonly Configuration config;
-    private readonly FriendDirectory directory;
+    private readonly SocialDirectory directory;
     private readonly HistoryStore history;
     private readonly ChatCapture capture;
-    private readonly TellSender sender;
+    private readonly ChatSender sender;
     private readonly AvatarCache avatars;
+    private readonly PartyContextMenu partyContextMenu;
     private readonly MomoTalkWindow mainWindow;
     private readonly FloatingEntryWindow entryWindow;
     private bool attached;
@@ -58,11 +62,16 @@ public sealed class Plugin : IAsyncDalamudPlugin
         var root = PluginInterface.GetPluginConfigDirectory();
         config = Configuration.Load(PluginInterface, Log);
         history = new HistoryStore(Path.Combine(root, "history"));
-        directory = new FriendDirectory(ClientState, PlayerState, Data, Interop, history, Log);
+        directory = new SocialDirectory(ClientState, PlayerState, Data, Interop, history, Log);
         capture = new ChatCapture(Chat, Framework, directory, history, Log);
-        sender = new TellSender(Framework, Chat, directory, capture, Log);
+        sender = new ChatSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);
         mainWindow = new MomoTalkWindow(directory, history, capture, sender, avatars, config, SaveConfig, Textures);
+        partyContextMenu = new PartyContextMenu(
+            ContextMenu,
+            directory,
+            mainWindow.OpenCreateStaticModal,
+            mainWindow.OpenStaticConversation);
         entryWindow = new FloatingEntryWindow(directory, config, SaveConfig, Textures, ToggleMainWindow);
     }
 
@@ -73,6 +82,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         directory.Attach();
         capture.Attach();
         sender.Attach();
+        partyContextMenu.Attach();
         Framework.Update += Update;
 
         windows.AddWindow(entryWindow);
@@ -114,6 +124,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         windows.RemoveAllWindows();
 
         Framework.Update -= Update;
+        partyContextMenu.Dispose();
         sender.Dispose();
         capture.Dispose();
         directory.Dispose();

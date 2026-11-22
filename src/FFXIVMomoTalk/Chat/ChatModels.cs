@@ -1,8 +1,56 @@
+using System.Globalization;
+
 namespace FFXIVMomoTalk.Chat;
+
+internal enum ConversationKind
+{
+    Tell = 0,
+    FreeCompany = 1,
+    Linkshell = 2,
+    CrossWorldLinkshell = 3,
+    Static = 4,
+}
+
+internal readonly record struct ConversationKey(ConversationKind Kind, string StableKey)
+{
+    public bool IsGroup => Kind != ConversationKind.Tell;
+
+    public string StorageId => $"{(int)Kind}:{StableKey}";
+
+    public static ConversationKey Tell(ulong peerContentId) =>
+        new(ConversationKind.Tell, peerContentId.ToString("X16", CultureInfo.InvariantCulture));
+
+    public static ConversationKey FreeCompany(ulong freeCompanyId) =>
+        new(ConversationKind.FreeCompany, freeCompanyId.ToString("X16", CultureInfo.InvariantCulture));
+
+    public static ConversationKey Linkshell(ulong linkshellId) =>
+        new(ConversationKind.Linkshell, linkshellId.ToString("X16", CultureInfo.InvariantCulture));
+
+    public static ConversationKey CrossWorldLinkshell(uint foundationTime) =>
+        new(ConversationKind.CrossWorldLinkshell, foundationTime.ToString(CultureInfo.InvariantCulture));
+
+    public static ConversationKey Static(string rosterKey) =>
+        new(ConversationKind.Static, rosterKey);
+
+    public bool TryGetTellContentId(out ulong contentId)
+    {
+        if (Kind == ConversationKind.Tell
+            && ulong.TryParse(StableKey, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out contentId))
+        {
+            return true;
+        }
+
+        contentId = 0;
+        return false;
+    }
+
+    public static string BuildStaticRosterKey(IEnumerable<ulong> contentIds) =>
+        string.Join('-', contentIds.Distinct().Order().Select(id => id.ToString("X16", CultureInfo.InvariantCulture)));
+}
 
 internal sealed record PlayerIdentity(ulong ContentId, string Name, uint WorldId, string World)
 {
-    public string DisplayName => $"{Name} @ {World}";
+    public string DisplayName => string.IsNullOrEmpty(World) ? Name : $"{Name} @ {World}";
 }
 
 internal sealed class PlayerSession(ulong contentId, PlayerIdentity player)
@@ -12,9 +60,58 @@ internal sealed class PlayerSession(ulong contentId, PlayerIdentity player)
     public PlayerIdentity Player { get; } = player;
 }
 
-internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionary<ulong, PlayerIdentity>? Friends)
+internal sealed record ConversationDescriptor(
+    ConversationKey Key,
+    string DisplayName,
+    uint WorldId = 0,
+    string WorldName = "")
 {
-    public PlayerIdentity? FindRecipient(ulong contentId, out string? unavailable)
+    public static ConversationDescriptor FromFriend(PlayerIdentity peer) =>
+        new(ConversationKey.Tell(peer.ContentId), peer.Name, peer.WorldId, peer.World);
+
+    public PlayerIdentity? ToTellPeer() =>
+        Key.TryGetTellContentId(out var contentId)
+            ? new PlayerIdentity(contentId, DisplayName, WorldId, WorldName)
+            : null;
+}
+
+internal sealed record ChannelInfo(ConversationKey Key, string Name, int? Slot = null, bool HasRealName = true)
+{
+    public ConversationDescriptor ToDescriptor() => new(Key, Name);
+}
+
+internal sealed record StaticGroup(
+    string StableKey,
+    string Name,
+    long CreatedAt,
+    IReadOnlyList<PlayerIdentity> Members)
+{
+    public ConversationKey Key => ConversationKey.Static(StableKey);
+
+    public ConversationDescriptor ToDescriptor() => new(Key, Name);
+}
+
+internal sealed record ActiveParty(string RosterKey, IReadOnlyList<PlayerIdentity> Members);
+
+internal sealed record SendTarget(
+    ConversationKey Key,
+    string CommandPrefix,
+    string DisplayName,
+    PlayerIdentity? TellPeer = null);
+
+internal sealed record SocialSnapshot(
+    PlayerSession? Session,
+    IReadOnlyDictionary<ulong, PlayerIdentity>? Friends,
+    ChannelInfo? FreeCompany,
+    IReadOnlyDictionary<int, ChannelInfo> Linkshells,
+    IReadOnlyDictionary<int, ChannelInfo> CrossWorldLinkshells,
+    IReadOnlyDictionary<string, StaticGroup>? Statics,
+    ActiveParty? Party)
+{
+    public static SocialSnapshot Empty(PlayerSession? session) =>
+        new(session, null, null, new Dictionary<int, ChannelInfo>(), new Dictionary<int, ChannelInfo>(), null, null);
+
+    public PlayerIdentity? FindTellRecipient(ulong contentId, out string? unavailable)
     {
         if (Friends is null)
         {
@@ -27,25 +124,198 @@ internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionar
         return friend;
     }
 
-    public PlayerIdentity? Resolve(TellPeer peer)
+    public SendTarget? FindSendTarget(ConversationKey key, out string? unavailable)
+    {
+        switch (key.Kind)
+        {
+            case ConversationKind.Tell:
+                if (!key.TryGetTellContentId(out var cid))
+                {
+                    unavailable = "This character is unavailable.";
+                    return null;
+                }
+
+                var friend = FindTellRecipient(cid, out unavailable);
+                return friend is null
+                    ? null
+                    : new SendTarget(key, $"/tell {friend.Name}@{friend.World}", friend.Name, friend);
+
+            case ConversationKind.FreeCompany:
+                if (FreeCompany is { } fc && fc.Key == key)
+                {
+                    unavailable = null;
+                    return new SendTarget(key, "/fc", fc.Name);
+                }
+
+                unavailable = "You are no longer a member of this Free Company.";
+                return null;
+
+            case ConversationKind.Linkshell:
+                foreach (var ls in Linkshells.Values)
+                {
+                    if (ls.Key == key && ls.Slot is { } lsSlot)
+                    {
+                        unavailable = null;
+                        return new SendTarget(key, $"/l{lsSlot}", ls.Name);
+                    }
+                }
+
+                unavailable = "You are no longer a member of this Linkshell.";
+                return null;
+
+            case ConversationKind.CrossWorldLinkshell:
+                foreach (var cwls in CrossWorldLinkshells.Values)
+                {
+                    if (cwls.Key == key && cwls.Slot is { } cwSlot)
+                    {
+                        unavailable = null;
+                        return new SendTarget(key, $"/cwl{cwSlot}", cwls.Name);
+                    }
+                }
+
+                unavailable = "You are no longer a member of this Cross-World Linkshell.";
+                return null;
+
+            case ConversationKind.Static:
+                if (Statics is null || !Statics.TryGetValue(key.StableKey, out var group))
+                {
+                    unavailable = "This static group is unavailable.";
+                    return null;
+                }
+
+                if (Party is not { } party || !StringComparer.Ordinal.Equals(party.RosterKey, group.StableKey))
+                {
+                    unavailable = "Form a party with all static members to send messages.";
+                    return null;
+                }
+
+                unavailable = null;
+                return new SendTarget(key, "/p", group.Name);
+
+            default:
+                unavailable = "Unsupported conversation type.";
+                return null;
+        }
+    }
+
+    public int? FindActiveSlot(ConversationKey key)
+    {
+        switch (key.Kind)
+        {
+            case ConversationKind.Linkshell:
+                foreach (var ls in Linkshells.Values)
+                {
+                    if (ls.Key == key)
+                        return ls.Slot;
+                }
+
+                return null;
+
+            case ConversationKind.CrossWorldLinkshell:
+                foreach (var cwls in CrossWorldLinkshells.Values)
+                {
+                    if (cwls.Key == key)
+                        return cwls.Slot;
+                }
+
+                return null;
+
+            default:
+                return null;
+        }
+    }
+
+    public StaticGroup? FindMatchedStatic() =>
+        Party is { } party && Statics is not null && Statics.TryGetValue(party.RosterKey, out var group)
+            ? group
+            : null;
+
+    public bool IsStaticMatched(string stableKey) =>
+        Party is { } party && StringComparer.Ordinal.Equals(party.RosterKey, stableKey);
+
+    public string FormatChannelTag(ConversationDescriptor conversation) => conversation.Key.Kind switch
+    {
+        ConversationKind.Tell => conversation.WorldName,
+        ConversationKind.FreeCompany => "FC",
+        ConversationKind.CrossWorldLinkshell => FindActiveSlot(conversation.Key) is { } cwSlot ? $"CWLS {cwSlot}" : "CWLS",
+        ConversationKind.Linkshell => FindActiveSlot(conversation.Key) is { } lsSlot ? $"LS {lsSlot}" : "LS",
+        ConversationKind.Static => "Static",
+        _ => string.Empty,
+    };
+
+    public ConversationDescriptor RefreshDescriptor(ConversationDescriptor conversation)
+    {
+        switch (conversation.Key.Kind)
+        {
+            case ConversationKind.Tell:
+                if (Friends is not null && conversation.Key.TryGetTellContentId(out var cid)
+                    && Friends.TryGetValue(cid, out var friend))
+                {
+                    return ConversationDescriptor.FromFriend(friend);
+                }
+
+                return conversation;
+
+            case ConversationKind.FreeCompany:
+                return FreeCompany is { HasRealName: true } fc && fc.Key == conversation.Key
+                    ? conversation with { DisplayName = fc.Name }
+                    : conversation;
+
+            case ConversationKind.Linkshell:
+                foreach (var ls in Linkshells.Values)
+                {
+                    if (ls.HasRealName && ls.Key == conversation.Key)
+                        return conversation with { DisplayName = ls.Name };
+                }
+
+                return conversation;
+
+            case ConversationKind.CrossWorldLinkshell:
+                foreach (var cwls in CrossWorldLinkshells.Values)
+                {
+                    if (cwls.HasRealName && cwls.Key == conversation.Key)
+                        return conversation with { DisplayName = cwls.Name };
+                }
+
+                return conversation;
+
+            case ConversationKind.Static:
+                return Statics is not null && Statics.TryGetValue(conversation.Key.StableKey, out var group)
+                    ? conversation with { DisplayName = group.Name }
+                    : conversation;
+
+            default:
+                return conversation;
+        }
+    }
+
+    public PlayerIdentity? ResolveTellPeer(TellPeer peer)
     {
         if (Friends is null)
             return null;
 
+        return MatchPlayer(Friends.Values, peer);
+    }
+
+    public PlayerIdentity? ResolvePartyMember(TellPeer peer) =>
+        Party is null ? null : MatchPlayer(Party.Members, peer);
+
+    private static PlayerIdentity? MatchPlayer(IEnumerable<PlayerIdentity> candidates, TellPeer peer)
+    {
         var targetName = peer.Name.Trim();
         PlayerIdentity? match = null;
-        foreach (var friend in Friends.Values)
+        foreach (var candidate in candidates)
         {
-            if (!StringComparer.OrdinalIgnoreCase.Equals(friend.Name.Trim(), targetName))
+            if (!StringComparer.OrdinalIgnoreCase.Equals(candidate.Name.Trim(), targetName))
                 continue;
 
             if (peer.WorldId != 0)
             {
-                if (friend.WorldId != peer.WorldId)
+                if (candidate.WorldId != peer.WorldId)
                     continue;
             }
             else if (peer.World is not null
-                && !StringComparer.OrdinalIgnoreCase.Equals(peer.World, friend.World))
+                && !StringComparer.OrdinalIgnoreCase.Equals(peer.World, candidate.World))
             {
                 continue;
             }
@@ -53,7 +323,7 @@ internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionar
             if (match is not null)
                 return null;
 
-            match = friend;
+            match = candidate;
         }
 
         return match;
@@ -62,7 +332,13 @@ internal sealed record FriendSnapshot(PlayerSession? Session, IReadOnlyDictionar
 
 internal readonly record struct TellPeer(string Name, uint WorldId, string? World);
 
-internal sealed record CapturedTell(PlayerSession Session, PlayerIdentity Peer, long SentAt, bool Outgoing, string Body);
+internal sealed record CapturedMessage(
+    PlayerSession Session,
+    ConversationDescriptor Conversation,
+    PlayerIdentity Sender,
+    long SentAt,
+    bool Outgoing,
+    string Body);
 
 internal readonly record struct MessageCursor(long SentAt, long Id) : IComparable<MessageCursor>
 {
@@ -73,11 +349,17 @@ internal readonly record struct MessageCursor(long SentAt, long Id) : IComparabl
     }
 }
 
-internal sealed record TellMessage(long Id, long SentAt, bool Outgoing, string Body, string? Rejection)
+internal sealed record ChatMessage(
+    long Id,
+    long SentAt,
+    bool Outgoing,
+    PlayerIdentity Sender,
+    string Body,
+    string? Rejection)
 {
     public MessageCursor Cursor => new(SentAt, Id);
 }
 
-internal sealed record ConversationSummary(PlayerIdentity Peer, TellMessage? Latest);
+internal sealed record ConversationSummary(ConversationDescriptor Conversation, ChatMessage? Latest);
 
-internal sealed record MessagePage(IReadOnlyList<TellMessage> Messages, bool HasOlder);
+internal sealed record MessagePage(IReadOnlyList<ChatMessage> Messages, bool HasOlder);

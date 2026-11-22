@@ -40,6 +40,12 @@ internal static class ChatVisuals
     public static readonly Vector4 BadgeBorder = Hex(0xC2CFD6);
     public static readonly Vector4 AvatarFallbackBg = Hex(0xD5DEE6);
     public static readonly Vector4 AvatarFallbackFg = Hex(0x7B8998);
+    public static readonly Vector4 GroupFcBg = Hex(0xE09258);
+    public static readonly Vector4 GroupCwlsBg = Hex(0x4AA3A8);
+    public static readonly Vector4 GroupLsBg = Hex(0x5EA47C);
+    public static readonly Vector4 GroupStaticBg = Hex(0x4A8AC6);
+    public static readonly Vector4 MatchSuccessBg = Hex(0xE4F2EC);
+    public static readonly Vector4 MatchSuccessText = Hex(0x2F7B58);
     public static readonly Vector4 Shadow = Hex(0x2D2342, 0.16f);
     public static readonly Vector4 WindowBorder = Hex(0x2D2342, 0.20f);
 
@@ -123,6 +129,176 @@ internal static class ChatVisuals
         draw.AddCircleFilled(center - new Vector2(0, size * 0.14f), size * 0.17f, fg, 24);
         draw.AddRectFilled(center + new Vector2(-size * 0.28f, size * 0.06f),
             center + new Vector2(size * 0.28f, size * 0.34f), fg, size * 0.15f);
+    }
+
+    public static void GroupAvatar(ImDrawListPtr draw, ConversationKind kind, Vector2 position, float size,
+        bool dropShadow = false)
+    {
+        var radius = size / 2f;
+        var center = position + new Vector2(radius);
+        if (dropShadow)
+            draw.AddCircleFilled(center + new Vector2(0, 1.5f), radius + 1.5f, Color(Shadow), 36);
+
+        var bg = kind switch
+        {
+            ConversationKind.FreeCompany => GroupFcBg,
+            ConversationKind.CrossWorldLinkshell => GroupCwlsBg,
+            ConversationKind.Linkshell => GroupLsBg,
+            ConversationKind.Static => GroupStaticBg,
+            _ => AvatarFallbackBg,
+        };
+        draw.AddCircleFilled(center, radius, Color(bg), 36);
+
+        var fg = Color(White);
+        var iconSize = size * 0.54f;
+        switch (kind)
+        {
+            case ConversationKind.FreeCompany:
+                DrawShieldIcon(draw, center, iconSize, fg);
+                break;
+            case ConversationKind.CrossWorldLinkshell:
+                DrawCrossWorldPearlIcon(draw, center, iconSize, fg);
+                break;
+            case ConversationKind.Linkshell:
+                DrawLinkshellIcon(draw, center, iconSize, fg);
+                break;
+            case ConversationKind.Static:
+                DrawGroupsIcon(draw, center, iconSize * 1.06f, fg, Color(bg));
+                break;
+        }
+    }
+
+    public static void DrawGroupsIcon(ImDrawListPtr draw, Vector2 center, float size, uint col, uint bgCol)
+    {
+        // Side silhouettes
+        var sideOffsetX = size * 0.31f;
+        var sideHeadR = size * 0.145f;
+        var sideHeadY = center.Y - size * 0.13f;
+        var sideBodyTop = center.Y + size * 0.06f;
+        var sideBodyBottom = center.Y + size * 0.34f;
+        var sideHalfW = size * 0.20f;
+
+        draw.AddCircleFilled(new Vector2(center.X - sideOffsetX, sideHeadY), sideHeadR, col, 18);
+        draw.AddRectFilled(
+            new Vector2(center.X - sideOffsetX - sideHalfW, sideBodyTop),
+            new Vector2(center.X - sideOffsetX + sideHalfW, sideBodyBottom),
+            col, sideHalfW * 0.7f, ImDrawFlags.RoundCornersTop);
+
+        draw.AddCircleFilled(new Vector2(center.X + sideOffsetX, sideHeadY), sideHeadR, col, 18);
+        draw.AddRectFilled(
+            new Vector2(center.X + sideOffsetX - sideHalfW, sideBodyTop),
+            new Vector2(center.X + sideOffsetX + sideHalfW, sideBodyBottom),
+            col, sideHalfW * 0.7f, ImDrawFlags.RoundCornersTop);
+
+        // Background cutout around foreground center silhouette so figures separate cleanly
+        var gap = MathF.Max(1.2f, size * 0.065f);
+        var mainHeadCenter = new Vector2(center.X, center.Y - size * 0.21f);
+        var mainHeadR = size * 0.18f;
+        var mainHalfW = size * 0.27f;
+        var mainBodyTop = center.Y + size * 0.02f;
+        var mainBodyBottom = center.Y + size * 0.38f;
+
+        draw.AddCircleFilled(mainHeadCenter, mainHeadR + gap, bgCol, 22);
+        draw.AddRectFilled(
+            new Vector2(center.X - mainHalfW - gap, mainBodyTop - gap),
+            new Vector2(center.X + mainHalfW + gap, mainBodyBottom),
+            bgCol, (mainHalfW + gap) * 0.7f, ImDrawFlags.RoundCornersTop);
+
+        // Center foreground silhouette
+        draw.AddCircleFilled(mainHeadCenter, mainHeadR, col, 20);
+        draw.AddRectFilled(
+            new Vector2(center.X - mainHalfW, mainBodyTop),
+            new Vector2(center.X + mainHalfW, mainBodyBottom),
+            col, mainHalfW * 0.7f, ImDrawFlags.RoundCornersTop);
+    }
+
+    private static void DrawShieldIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
+    {
+        var halfW = size * 0.38f;
+        var topY = center.Y - size * 0.42f;
+        var midY = center.Y + size * 0.06f;
+        var botY = center.Y + size * 0.46f;
+        draw.AddRectFilled(
+            new Vector2(center.X - halfW, topY),
+            new Vector2(center.X + halfW, midY),
+            col, size * 0.10f, ImDrawFlags.RoundCornersTop);
+        draw.AddTriangleFilled(
+            new Vector2(center.X - halfW, midY - 1f),
+            new Vector2(center.X + halfW, midY - 1f),
+            new Vector2(center.X, botY),
+            col);
+    }
+
+    private static void DrawCrossWorldPearlIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
+    {
+        var r = size * 0.42f;
+        var thickness = MathF.Max(1.5f, size * 0.11f);
+        draw.AddCircle(center, r, col, 28, thickness);
+        draw.AddLine(new Vector2(center.X - r, center.Y), new Vector2(center.X + r, center.Y), col, thickness * 0.85f);
+        draw.AddLine(new Vector2(center.X, center.Y - r), new Vector2(center.X, center.Y + r), col, thickness * 0.85f);
+        draw.AddCircleFilled(center, size * 0.14f, col, 18);
+    }
+
+    private static void DrawLinkshellIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
+    {
+        var thickness = MathF.Max(1.5f, size * 0.11f);
+        draw.AddCircle(center, size * 0.40f, col, 28, thickness);
+        draw.AddCircle(center, size * 0.22f, col, 22, thickness * 0.85f);
+        draw.AddCircleFilled(center, size * 0.09f, col, 14);
+    }
+
+    public static bool DrawModalButton(
+        ImDrawListPtr draw,
+        string id,
+        string label,
+        Vector2 pos,
+        Vector2 size,
+        bool primary,
+        bool enabled,
+        float scale,
+        float alpha = 1f)
+    {
+        var clicked = false;
+        var hovered = false;
+        var active = false;
+        if (enabled)
+        {
+            ImGui.SetCursorScreenPos(pos);
+            clicked = ImGui.InvisibleButton(id, size);
+            hovered = ImGui.IsItemHovered();
+            active = ImGui.IsItemActive();
+        }
+
+        Vector4 fill;
+        Vector4 textCol;
+        if (primary)
+        {
+            fill = !enabled
+                ? SwitchOffBg
+                : active
+                    ? HeaderPinkActive
+                    : hovered
+                        ? HeaderPinkHover
+                        : HeaderPink;
+            textCol = enabled ? White : Muted;
+        }
+        else
+        {
+            fill = active ? Divider : hovered ? ListHover : SystemBg;
+            textCol = Ink;
+        }
+
+        var rounding = 7f * scale;
+        draw.AddRectFilled(pos, pos + size, Color(ScaleAlpha(fill, alpha)), rounding);
+        var fontSize = ImGui.GetFontSize() * 0.96f;
+        var textSize = CalcTextSize(label, fontSize);
+        var textPos = pos + (size - textSize) * 0.5f;
+        if (primary)
+            AddBoldText(draw, textPos, fontSize, Color(ScaleAlpha(textCol, alpha)), label, scale);
+        else
+            AddText(draw, textPos, fontSize, Color(ScaleAlpha(textCol, alpha)), label);
+
+        return clicked;
     }
 
     public static void DrawContactsIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)

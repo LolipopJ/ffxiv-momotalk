@@ -6,26 +6,26 @@ internal sealed class ConversationHistory
 {
     private readonly HistoryStore store;
     private readonly ulong owner;
-    private readonly ulong peer;
-    private readonly List<TellMessage> messages = new();
+    private readonly ConversationKey conversation;
+    private readonly List<ChatMessage> messages = new();
     private readonly HashSet<long> loadedIds = new();
     private Task<MessagePage>? page;
-    private Task<IReadOnlyList<TellMessage>>? updates;
+    private Task<IReadOnlyList<ChatMessage>>? updates;
     private bool initialized;
     private bool updateFailed;
     private long historyRevision;
     private long latestId;
     private long rejectionRevision;
 
-    public ConversationHistory(HistoryStore store, ulong owner, ulong peer)
+    public ConversationHistory(HistoryStore store, ulong owner, ConversationKey conversation)
     {
         this.store = store;
         this.owner = owner;
-        this.peer = peer;
+        this.conversation = conversation;
         LoadPage();
     }
 
-    public IReadOnlyList<TellMessage> Messages => messages;
+    public IReadOnlyList<ChatMessage> Messages => messages;
 
     public bool HasOlder { get; private set; }
 
@@ -52,7 +52,7 @@ internal sealed class ConversationHistory
         }
 
         MessageCursor? before = messages.Count > 0 ? messages[0].Cursor : null;
-        page = store.ReadPageAsync(owner, peer, before);
+        page = store.ReadPageAsync(owner, conversation, before);
     }
 
     public void Update()
@@ -102,7 +102,7 @@ internal sealed class ConversationHistory
         {
             historyRevision = store.Revision;
             var currentRejectionRevision = store.RejectionRevision;
-            updates = store.ReadUpdatesAsync(owner, peer, latestId, currentRejectionRevision != rejectionRevision);
+            updates = store.ReadUpdatesAsync(owner, conversation, latestId, currentRejectionRevision != rejectionRevision);
             rejectionRevision = currentRejectionRevision;
         }
     }
@@ -129,7 +129,7 @@ internal sealed class ConversationHistory
         PrependAnchor = null;
     }
 
-    private void ApplyUpdates(IReadOnlyList<TellMessage> incoming)
+    private void ApplyUpdates(IReadOnlyList<ChatMessage> incoming)
     {
         MessageCursor? earliest = HasOlder && messages.Count > 0 ? messages[0].Cursor : null;
         foreach (var message in incoming)

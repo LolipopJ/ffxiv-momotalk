@@ -20,23 +20,24 @@ internal sealed class MomoTalkWindow : Window
     private const float IntroTotalDuration = 0.84f;
     private const float SettingsTransitionDuration = 0.20f;
 
-    private readonly FriendDirectory directory;
+    private readonly SocialDirectory directory;
     private readonly HistoryStore history;
     private readonly ChatCapture capture;
-    private readonly TellSender sender;
+    private readonly ChatSender sender;
     private readonly AvatarCache avatars;
     private readonly Configuration config;
     private readonly Action saveConfig;
     private readonly ISharedImmediateTexture logoTexture;
     private readonly ISharedImmediateTexture coverTexture;
     private readonly Stopwatch introTimer = new();
-    private readonly Dictionary<ulong, Draft> drafts = new();
+    private readonly Dictionary<ConversationKey, Draft> drafts = new();
     private readonly Dictionary<ulong, string> notes = new();
 
     private PlayerSession? session;
     private NavTab activeTab = NavTab.Chats;
     private PlayerIdentity? inspectedFriend;
-    private PlayerIdentity? selected;
+    private ConversationDescriptor? inspectedGroup;
+    private ConversationDescriptor? selected;
     private ConversationHistory? conversation;
     private IReadOnlyList<ConversationSummary> summaries = [];
     private IReadOnlyList<ConversationSummary> rows = [];
@@ -50,8 +51,9 @@ internal sealed class MomoTalkWindow : Window
     private bool narrowShowingDetail;
     private string contactsSearch = string.Empty;
     private string chatsSearch = string.Empty;
+    private string groupsSearch = string.Empty;
     private float firstMessageY;
-    private TellWarning? unassignedWarning;
+    private SendWarning? unassignedWarning;
     private Vector2 dragWindowOrigin;
     private Vector2 dragMouseOrigin;
     private bool playingIntro;
@@ -63,20 +65,29 @@ internal sealed class MomoTalkWindow : Window
     private float entrySwitchAnim;
     private float introSwitchAnim;
     private float selfAvatarSwitchAnim;
+    private StaticModalMode staticModalMode;
+    private bool staticModalOpenedThisFrame;
+    private bool focusStaticNameInput;
+    private ActiveParty? createStaticParty;
+    private string? renameStaticKey;
+    private string staticNameDraft = string.Empty;
+    private string? staticModalError;
     private ulong? editingNoteFor;
     private string noteDraft = string.Empty;
     private bool focusNoteInput;
-    private PlayerIdentity? contextPeer;
+    private PlayerIdentity? contextFriend;
+    private ConversationDescriptor? contextConversation;
+    private StaticGroup? contextStatic;
     private string? contextMessageBody;
-    private ulong? tellInputFocusedPeer;
-    private bool tellInputFocused;
+    private ConversationKey? inputFocusedConversation;
+    private bool inputFocused;
     private bool wasShowingTyping;
 
     public MomoTalkWindow(
-        FriendDirectory directory,
+        SocialDirectory directory,
         HistoryStore history,
         ChatCapture capture,
-        TellSender sender,
+        ChatSender sender,
         AvatarCache avatars,
         Configuration config,
         Action saveConfig,
@@ -113,6 +124,45 @@ internal sealed class MomoTalkWindow : Window
 
     public void OpenSettings()
     {
+        OpenImmediate();
+        CloseStaticModal();
+        settingsOpen = true;
+        settingsOpenedThisFrame = true;
+    }
+
+    public void OpenCreateStaticModal(ActiveParty party)
+    {
+        OpenImmediate();
+        settingsOpen = false;
+        settingsAnim = 0f;
+        SyncSession(directory.Current.Session);
+        if (session is null)
+            return;
+
+        staticModalMode = StaticModalMode.Create;
+        createStaticParty = party;
+        renameStaticKey = null;
+        staticNameDraft = string.Empty;
+        staticModalError = null;
+        staticModalOpenedThisFrame = true;
+        focusStaticNameInput = true;
+    }
+
+    public void OpenStaticConversation(StaticGroup group)
+    {
+        OpenImmediate();
+        settingsOpen = false;
+        settingsAnim = 0f;
+        CloseStaticModal();
+        SyncSession(directory.Current.Session);
+        if (session is null)
+            return;
+
+        OpenConversation(group.ToDescriptor());
+    }
+
+    private void OpenImmediate()
+    {
         if (!IsOpen)
         {
             suppressNextIntro = true;
@@ -123,8 +173,30 @@ internal sealed class MomoTalkWindow : Window
         playingIntro = false;
         introWaitingCover = false;
         introTimer.Reset();
-        settingsOpen = true;
-        settingsOpenedThisFrame = true;
+    }
+
+    private void OpenRenameStaticModal(string stableKey, string currentName)
+    {
+        settingsOpen = false;
+        settingsAnim = 0f;
+        staticModalMode = StaticModalMode.Rename;
+        createStaticParty = null;
+        renameStaticKey = stableKey;
+        staticNameDraft = currentName;
+        staticModalError = null;
+        staticModalOpenedThisFrame = true;
+        focusStaticNameInput = true;
+    }
+
+    private void CloseStaticModal()
+    {
+        staticModalMode = StaticModalMode.None;
+        staticModalOpenedThisFrame = false;
+        focusStaticNameInput = false;
+        createStaticParty = null;
+        renameStaticKey = null;
+        staticNameDraft = string.Empty;
+        staticModalError = null;
     }
 
     public override void OnOpen()
@@ -154,15 +226,16 @@ internal sealed class MomoTalkWindow : Window
         settingsOpen = false;
         settingsOpenedThisFrame = false;
         settingsAnim = 0f;
+        CloseStaticModal();
         editingNoteFor = null;
-        tellInputFocused = false;
-        tellInputFocusedPeer = null;
+        inputFocused = false;
+        inputFocusedConversation = null;
         wasShowingTyping = false;
     }
 
     public override void PreDraw()
     {
-        RespectCloseHotkey = !settingsOpen && editingNoteFor is null;
+        RespectCloseHotkey = !settingsOpen && staticModalMode == StaticModalMode.None && editingNoteFor is null;
         var scale = ImGuiHelpers.GlobalScale;
         ImGui.PushStyleColor(ImGuiCol.Text, ChatVisuals.Ink);
         ImGui.PushStyleColor(ImGuiCol.TextDisabled, ChatVisuals.Placeholder);
@@ -214,8 +287,8 @@ internal sealed class MomoTalkWindow : Window
         ApplySendWarnings();
         if (session is not null)
         {
-            SyncPeers(snapshot);
-            UpdateSummaries();
+            SyncLiveState(snapshot);
+            UpdateSummaries(snapshot);
             UpdateNotes();
         }
 
@@ -282,6 +355,8 @@ internal sealed class MomoTalkWindow : Window
 
         if (settingsOpen || settingsAnim > 0.001f)
             DrawSettingsOverlay(winPos, winSize, scale);
+        else if (session is not null && staticModalMode != StaticModalMode.None)
+            DrawStaticModalOverlay(winPos, winSize, scale);
     }
 
     private void DrawHeader(ImDrawListPtr draw, Vector2 winPos, float width, float height, float scale)
@@ -320,6 +395,7 @@ internal sealed class MomoTalkWindow : Window
         ImGui.SetCursorScreenPos(settingsPos);
         if (ImGui.InvisibleButton("##window-settings", new Vector2(btnSize)))
         {
+            CloseStaticModal();
             settingsOpen = !settingsOpen;
             settingsOpenedThisFrame = settingsOpen;
         }
@@ -405,7 +481,6 @@ internal sealed class MomoTalkWindow : Window
             Math.Clamp(MathF.Round(rawMax.X), slotMin.X, safeRight),
             Math.Clamp(MathF.Round(rawMax.Y), slotMin.Y, safeBottom));
 
-        // Draw 4 non-overlapping pink strips around the cover slot so alpha never double-blends.
         draw.PushClipRect(winMin, new Vector2(winMax.X, slotMin.Y), true);
         draw.AddRectFilled(winMin, new Vector2(winMax.X, slotMin.Y + 2f), pink, rounding, ImDrawFlags.RoundCornersTop);
         draw.PopClipRect();
@@ -622,6 +697,277 @@ internal sealed class MomoTalkWindow : Window
             settingsOpen = false;
     }
 
+    private void DrawStaticModalOverlay(Vector2 winPos, Vector2 winSize, float scale)
+    {
+        var justOpened = staticModalOpenedThisFrame;
+        staticModalOpenedThisFrame = false;
+
+        if (!justOpened && ImGui.IsKeyPressed(ImGuiKey.Escape))
+        {
+            CloseStaticModal();
+            return;
+        }
+
+        var isCreate = staticModalMode == StaticModalMode.Create;
+        if (isCreate && createStaticParty is null)
+        {
+            CloseStaticModal();
+            return;
+        }
+
+        if (!isCreate && string.IsNullOrEmpty(renameStaticKey))
+        {
+            CloseStaticModal();
+            return;
+        }
+
+        ImGui.SetCursorScreenPos(winPos);
+        using var pad = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        using var spacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
+        using var overlay = ImRaii.Child("##static-modal-overlay", winSize, false,
+            ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
+        if (!overlay)
+            return;
+
+        var draw = ImGui.GetWindowDrawList();
+        draw.AddRectFilled(winPos, winPos + winSize, ChatVisuals.Color(ChatVisuals.ModalBackdrop), 10f * scale);
+
+        var cardWidth = MathF.Min(380f * scale, MathF.Max(270f * scale, winSize.X - 36f * scale));
+        var headerHeight = 50f * scale;
+        var padX = 22f * scale;
+        var padTop = 16f * scale;
+        var padBottom = 20f * scale;
+        var innerW = MathF.Max(80f * scale, cardWidth - padX * 2f);
+
+        var rosterListHeight = 0f;
+        var rosterHeaderHeight = 0f;
+        if (isCreate && createStaticParty is { } partyPreview)
+        {
+            rosterHeaderHeight = ImGui.GetFontSize() * 0.92f + 8f * scale;
+            var rowH = 30f * scale;
+            var rowsCount = (partyPreview.Members.Count + 1) / 2;
+            rosterListHeight = MathF.Min(132f * scale, rowsCount * rowH + 8f * scale) + 12f * scale;
+        }
+
+        var labelHeight = ImGui.GetFontSize() * 0.92f + 6f * scale;
+        var inputHeight = 36f * scale;
+        ChatVisuals.BannerLayout? errorBanner = staticModalError is not null
+            ? ChatVisuals.MeasureSystemBanner(staticModalError, innerW, scale)
+            : null;
+        var errorHeight = errorBanner is { } eb ? eb.Height + 6f * scale : 0f;
+        var buttonsHeight = 34f * scale;
+        var buttonsTopGap = 16f * scale;
+
+        var cardHeight = headerHeight + padTop + rosterHeaderHeight + rosterListHeight
+            + labelHeight + inputHeight + errorHeight + buttonsTopGap + buttonsHeight + padBottom;
+        cardHeight = MathF.Min(cardHeight, MathF.Max(220f * scale, winSize.Y - 28f * scale));
+
+        var cardSize = new Vector2(cardWidth, cardHeight);
+        var cardPos = winPos + (winSize - cardSize) * 0.5f;
+        var cardRounding = 11f * scale;
+
+        draw.AddRectFilled(cardPos + new Vector2(0, 2f * scale), cardPos + cardSize + new Vector2(0, 2f * scale),
+            ChatVisuals.Color(ChatVisuals.Shadow), cardRounding);
+        draw.AddRectFilled(cardPos, cardPos + cardSize, ChatVisuals.Color(ChatVisuals.White), cardRounding);
+        draw.AddRect(cardPos, cardPos + cardSize, ChatVisuals.Color(ChatVisuals.ModalDivider), cardRounding,
+            ImDrawFlags.None, MathF.Max(1f, scale));
+
+        var title = isCreate ? "Create Static Group" : "Rename Group";
+        var titleFontSize = ImGui.GetFontSize() * 1.18f;
+        var titleSize = ChatVisuals.CalcTextSize(title, titleFontSize);
+        var titlePos = new Vector2(cardPos.X + (cardWidth - titleSize.X) * 0.5f,
+            cardPos.Y + (headerHeight - titleSize.Y) * 0.5f);
+        ChatVisuals.AddBoldText(draw, titlePos, titleFontSize, ChatVisuals.Color(ChatVisuals.Ink), title, scale);
+
+        var closeSize = 28f * scale;
+        var closePos = new Vector2(cardPos.X + cardWidth - 14f * scale - closeSize,
+            cardPos.Y + (headerHeight - closeSize) * 0.5f);
+        ImGui.SetCursorScreenPos(closePos);
+        if (ImGui.InvisibleButton("##static-modal-close", new Vector2(closeSize)))
+        {
+            CloseStaticModal();
+            return;
+        }
+
+        var closeHovered = ImGui.IsItemHovered();
+        if (closeHovered)
+            draw.AddRectFilled(closePos, closePos + new Vector2(closeSize), ChatVisuals.Color(ChatVisuals.ListHover), 6f * scale);
+        ChatVisuals.DrawCloseIcon(draw, closePos + new Vector2(closeSize * 0.5f), 14f * scale,
+            ChatVisuals.Color(closeHovered ? ChatVisuals.Ink : ChatVisuals.Muted), MathF.Max(1.6f, 1.8f * scale));
+
+        var dividerY = cardPos.Y + headerHeight;
+        draw.AddLine(new Vector2(cardPos.X, dividerY), new Vector2(cardPos.X + cardWidth, dividerY),
+            ChatVisuals.Color(ChatVisuals.ModalDivider), MathF.Max(1f, scale));
+
+        var cursorY = dividerY + padTop;
+        var leftX = cardPos.X + padX;
+        var labelFontSize = ImGui.GetFontSize() * 0.92f;
+
+        if (isCreate && createStaticParty is { } party)
+        {
+            ChatVisuals.AddBoldText(draw, new Vector2(leftX, cursorY), labelFontSize, ChatVisuals.Color(ChatVisuals.Muted),
+                $"Party Members ({party.Members.Count})", scale);
+            cursorY += rosterHeaderHeight;
+
+            var listBoxH = MathF.Max(34f * scale, rosterListHeight - 12f * scale);
+            var listBoxPos = new Vector2(leftX, cursorY);
+            draw.AddRectFilled(listBoxPos, listBoxPos + new Vector2(innerW, listBoxH), ChatVisuals.Color(ChatVisuals.ListBg),
+                8f * scale);
+            ImGui.SetCursorScreenPos(listBoxPos + new Vector2(8f * scale, 4f * scale));
+            using (var rosterChild = ImRaii.Child("##static-modal-roster",
+                new Vector2(MathF.Max(20f * scale, innerW - 16f * scale), MathF.Max(20f * scale, listBoxH - 8f * scale)), false))
+            {
+                if (rosterChild)
+                    DrawMemberGrid(party.Members, scale);
+            }
+
+            cursorY += rosterListHeight;
+        }
+
+        ChatVisuals.AddBoldText(draw, new Vector2(leftX, cursorY), labelFontSize, ChatVisuals.Color(ChatVisuals.Ink),
+            "Group Name", scale);
+        cursorY += labelHeight;
+
+        var inputPos = new Vector2(leftX, cursorY);
+        var inputSize = new Vector2(innerW, inputHeight);
+        var inputRounding = 8f * scale;
+        draw.AddRectFilled(inputPos, inputPos + inputSize, ChatVisuals.Color(ChatVisuals.White), inputRounding);
+
+        var inputPadY = MathF.Max(2f, (inputHeight - ImGui.GetFontSize()) * 0.5f);
+        ImGui.SetCursorScreenPos(new Vector2(inputPos.X + 10f * scale, inputPos.Y));
+        var enter = false;
+        using (ImRaii.PushColor(ImGuiCol.FrameBg, Vector4.Zero))
+        using (ImRaii.PushColor(ImGuiCol.FrameBgHovered, Vector4.Zero))
+        using (ImRaii.PushColor(ImGuiCol.FrameBgActive, Vector4.Zero))
+        using (ImRaii.PushStyle(ImGuiStyleVar.FrameBorderSize, 0f))
+        using (ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(2f * scale, inputPadY)))
+        {
+            if (focusStaticNameInput)
+            {
+                ImGui.SetKeyboardFocusHere();
+                focusStaticNameInput = false;
+            }
+
+            ImGui.SetNextItemWidth(MathF.Max(40f * scale, innerW - 20f * scale));
+            enter = ImGui.InputTextWithHint("##static-name-input", "Enter group name...", ref staticNameDraft, 64,
+                ImGuiInputTextFlags.EnterReturnsTrue);
+        }
+
+        var inputActive = ImGui.IsItemActive();
+        draw.AddRect(inputPos, inputPos + inputSize,
+            ChatVisuals.Color(inputActive ? ChatVisuals.InputFocus : ChatVisuals.InputBorder),
+            inputRounding, ImDrawFlags.None, MathF.Max(1.5f, 1.8f * scale));
+        cursorY += inputHeight;
+
+        if (staticModalError is not null && errorBanner is { } errLayout)
+        {
+            cursorY += 6f * scale;
+            ChatVisuals.DrawSystemBanner(draw, new Vector2(cardPos.X, cursorY), cardWidth, staticModalError,
+                isAlert: true, scale, errLayout);
+            cursorY += errLayout.Height;
+        }
+
+        cursorY += buttonsTopGap;
+        var btnGap = 10f * scale;
+        var btnWidth = (innerW - btnGap) * 0.5f;
+        var cancelPos = new Vector2(leftX, cursorY);
+        var confirmPos = new Vector2(leftX + btnWidth + btnGap, cursorY);
+        var canSubmit = !string.IsNullOrWhiteSpace(staticNameDraft);
+
+        if (ChatVisuals.DrawModalButton(draw, "##static-modal-cancel", "Cancel", cancelPos,
+            new Vector2(btnWidth, buttonsHeight), primary: false, enabled: true, scale))
+        {
+            CloseStaticModal();
+            return;
+        }
+
+        var confirmClicked = ChatVisuals.DrawModalButton(draw, "##static-modal-confirm",
+            isCreate ? "Create" : "Save", confirmPos, new Vector2(btnWidth, buttonsHeight),
+            primary: true, enabled: canSubmit, scale);
+
+        if (confirmClicked || enter)
+        {
+            if (!canSubmit)
+            {
+                staticModalError = "Enter a group name.";
+            }
+            else if (isCreate && createStaticParty is { } partyToSave)
+            {
+                var created = directory.CreateStatic(session!, partyToSave, staticNameDraft);
+                CloseStaticModal();
+                if (created is not null)
+                    OpenConversation(created.ToDescriptor());
+            }
+            else if (!isCreate && renameStaticKey is { } keyToRename)
+            {
+                var trimmed = staticNameDraft.Trim();
+                if (directory.RenameStatic(session!, keyToRename, trimmed))
+                {
+                    var renamedKey = ConversationKey.Static(keyToRename);
+                    if (selected?.Key == renamedKey)
+                        selected = selected with { DisplayName = trimmed };
+                    if (inspectedGroup?.Key == renamedKey)
+                        inspectedGroup = inspectedGroup with { DisplayName = trimmed };
+                }
+
+                CloseStaticModal();
+            }
+
+            return;
+        }
+
+        var inCard = ImGui.IsMouseHoveringRect(cardPos, cardPos + cardSize);
+        if (!justOpened && !inCard && ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            CloseStaticModal();
+    }
+
+    private void DrawMemberGrid(IReadOnlyList<PlayerIdentity> members, float scale)
+    {
+        var availW = ImGui.GetContentRegionAvail().X;
+        var twoCols = availW >= 240f * scale;
+        var colGap = 10f * scale;
+        var colW = twoCols ? (availW - colGap) * 0.5f : availW;
+        var rowH = 30f * scale;
+        var avatarSize = 22f * scale;
+        var fontSize = ImGui.GetFontSize() * 0.90f;
+        var draw = ImGui.GetWindowDrawList();
+
+        for (var i = 0; i < members.Count; i += twoCols ? 2 : 1)
+        {
+            var origin = ImGui.GetCursorScreenPos();
+            var rowSize = new Vector2(availW, rowH);
+            if (ImGui.IsRectVisible(origin, origin + rowSize))
+            {
+                DrawMemberCell(draw, members[i], origin, colW, rowH, avatarSize, fontSize, scale);
+                if (twoCols && i + 1 < members.Count)
+                    DrawMemberCell(draw, members[i + 1], origin + new Vector2(colW + colGap, 0), colW, rowH, avatarSize, fontSize, scale);
+            }
+
+            ImGui.Dummy(rowSize);
+        }
+    }
+
+    private void DrawMemberCell(
+        ImDrawListPtr draw,
+        PlayerIdentity member,
+        Vector2 origin,
+        float width,
+        float height,
+        float avatarSize,
+        float fontSize,
+        float scale)
+    {
+        var avatarPos = new Vector2(origin.X, origin.Y + (height - avatarSize) * 0.5f);
+        ChatVisuals.Avatar(draw, avatars, member, avatarPos, avatarSize);
+
+        var textX = avatarPos.X + avatarSize + 7f * scale;
+        var maxTextW = MathF.Max(20f * scale, origin.X + width - textX);
+        var label = ChatVisuals.TruncateSingleLine(member.Name, fontSize, maxTextW);
+        var textSize = ChatVisuals.CalcTextSize(label, fontSize);
+        ChatVisuals.AddText(draw, new Vector2(textX, origin.Y + (height - textSize.Y) * 0.5f), fontSize,
+            ChatVisuals.Color(ChatVisuals.Ink), label);
+    }
+
     private static bool DrawSettingToggleRow(
         ImDrawListPtr draw,
         string id,
@@ -654,7 +1000,7 @@ internal sealed class MomoTalkWindow : Window
     {
         draw.AddRectFilled(bodyPos, bodyPos + bodySize, ChatVisuals.Color(ChatVisuals.White), 10f * scale,
             ImDrawFlags.RoundCornersBottom);
-        const string message = "Log in to view your friend conversations.";
+        const string message = "Log in to view your conversations.";
         var fontSize = ImGui.GetFontSize();
         var maxTextWidth = MathF.Max(60f * scale, bodySize.X - 48f * scale);
         var textSize = ChatVisuals.CalcTextSize(message, fontSize, maxTextWidth);
@@ -662,7 +1008,7 @@ internal sealed class MomoTalkWindow : Window
         ChatVisuals.AddText(draw, pos, fontSize, ChatVisuals.Color(ChatVisuals.Muted), message, maxTextWidth);
     }
 
-    private void DrawWideLayout(ImDrawListPtr draw, FriendSnapshot snapshot, Vector2 bodyPos, Vector2 bodySize, float scale)
+    private void DrawWideLayout(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 bodyPos, Vector2 bodySize, float scale)
     {
         var railWidth = 54f * scale;
         var remaining = MathF.Max(1f, bodySize.X - railWidth);
@@ -683,13 +1029,21 @@ internal sealed class MomoTalkWindow : Window
 
         var rightPos = new Vector2(dividerX, bodyPos.Y);
         var rightSize = new Vector2(rightWidth, bodySize.Y);
-        if (activeTab == NavTab.Contacts)
-            DrawContactProfile(draw, snapshot, rightPos, rightSize, narrow: false, scale);
-        else
-            DrawConversationPane(draw, snapshot, rightPos, rightSize, narrow: false, scale);
+        switch (activeTab)
+        {
+            case NavTab.Contacts:
+                DrawContactProfile(draw, snapshot, rightPos, rightSize, narrow: false, scale);
+                break;
+            case NavTab.Groups:
+                DrawGroupDetail(draw, snapshot, rightPos, rightSize, narrow: false, scale);
+                break;
+            default:
+                DrawConversationPane(draw, snapshot, rightPos, rightSize, narrow: false, scale);
+                break;
+        }
     }
 
-    private void DrawNarrowLayout(ImDrawListPtr draw, FriendSnapshot snapshot, Vector2 bodyPos, Vector2 bodySize, float scale)
+    private void DrawNarrowLayout(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 bodyPos, Vector2 bodySize, float scale)
     {
         if (!narrowShowingDetail)
         {
@@ -700,10 +1054,18 @@ internal sealed class MomoTalkWindow : Window
             return;
         }
 
-        if (activeTab == NavTab.Contacts)
-            DrawContactProfile(draw, snapshot, bodyPos, bodySize, narrow: true, scale);
-        else
-            DrawConversationPane(draw, snapshot, bodyPos, bodySize, narrow: true, scale);
+        switch (activeTab)
+        {
+            case NavTab.Contacts:
+                DrawContactProfile(draw, snapshot, bodyPos, bodySize, narrow: true, scale);
+                break;
+            case NavTab.Groups:
+                DrawGroupDetail(draw, snapshot, bodyPos, bodySize, narrow: true, scale);
+                break;
+            default:
+                DrawConversationPane(draw, snapshot, bodyPos, bodySize, narrow: true, scale);
+                break;
+        }
     }
 
     private void DrawLeftNavRail(ImDrawListPtr draw, Vector2 pos, Vector2 size, float scale)
@@ -714,7 +1076,9 @@ internal sealed class MomoTalkWindow : Window
         var tabHeight = 54f * scale;
         DrawNavTabButton(draw, "##nav-contacts", NavTab.Contacts, pos, new Vector2(size.X, tabHeight),
             ImDrawFlags.None, scale);
-        DrawNavTabButton(draw, "##nav-chats", NavTab.Chats, pos + new Vector2(0, tabHeight),
+        DrawNavTabButton(draw, "##nav-groups", NavTab.Groups, pos + new Vector2(0, tabHeight),
+            new Vector2(size.X, tabHeight), ImDrawFlags.None, scale);
+        DrawNavTabButton(draw, "##nav-chats", NavTab.Chats, pos + new Vector2(0, tabHeight * 2f),
             new Vector2(size.X, tabHeight), ImDrawFlags.None, scale);
     }
 
@@ -723,11 +1087,13 @@ internal sealed class MomoTalkWindow : Window
         draw.AddRectFilled(pos, pos + size, ChatVisuals.Color(ChatVisuals.RailBg), 10f * scale,
             ImDrawFlags.RoundCornersBottom);
 
-        var half = size.X * 0.5f;
-        DrawNavTabButton(draw, "##bnav-contacts", NavTab.Contacts, pos, new Vector2(half, size.Y),
+        var third = MathF.Floor(size.X / 3f);
+        DrawNavTabButton(draw, "##bnav-contacts", NavTab.Contacts, pos, new Vector2(third, size.Y),
             ImDrawFlags.RoundCornersBottomLeft, scale);
-        DrawNavTabButton(draw, "##bnav-chats", NavTab.Chats, pos + new Vector2(half, 0), new Vector2(size.X - half, size.Y),
-            ImDrawFlags.RoundCornersBottomRight, scale);
+        DrawNavTabButton(draw, "##bnav-groups", NavTab.Groups, pos + new Vector2(third, 0), new Vector2(third, size.Y),
+            ImDrawFlags.None, scale);
+        DrawNavTabButton(draw, "##bnav-chats", NavTab.Chats, pos + new Vector2(third * 2f, 0),
+            new Vector2(size.X - third * 2f, size.Y), ImDrawFlags.RoundCornersBottomRight, scale);
     }
 
     private void DrawNavTabButton(ImDrawListPtr draw, string id, NavTab tab, Vector2 pos, Vector2 size,
@@ -746,7 +1112,7 @@ internal sealed class MomoTalkWindow : Window
         var bg = selectedTab
             ? ChatVisuals.RailActive
             : hovered
-                ? ChatVisuals.WithAlpha(ChatVisuals.RailActive, 0.55f)
+                ? Vector4.Lerp(ChatVisuals.RailBg, ChatVisuals.RailActive, 0.55f)
                 : ChatVisuals.RailBg;
 
         if (selectedTab || hovered)
@@ -755,25 +1121,43 @@ internal sealed class MomoTalkWindow : Window
             draw.AddRectFilled(pos, pos + size, ChatVisuals.Color(bg), rounding, roundCorners);
         }
 
-        var iconAlpha = selectedTab ? 1f : hovered ? 0.85f : 0.50f;
-        var iconColor = ChatVisuals.Color(ChatVisuals.WithAlpha(ChatVisuals.White, iconAlpha));
+        // Blend an opaque secondary color against bg instead of alpha transparency so overlapping icon primitives render uniformly.
+        var iconStrength = selectedTab ? 1f : hovered ? 0.85f : 0.50f;
+        var iconColor = ChatVisuals.Color(Vector4.Lerp(bg, ChatVisuals.White, iconStrength));
+        var bgCol = ChatVisuals.Color(bg);
         var center = pos + size * 0.5f;
         var iconSize = 24f * scale;
-        if (tab == NavTab.Contacts)
-            ChatVisuals.DrawContactsIcon(draw, center, iconSize, iconColor);
-        else
-            ChatVisuals.DrawChatIcon(draw, center, iconSize, iconColor, ChatVisuals.Color(bg));
+        switch (tab)
+        {
+            case NavTab.Contacts:
+                ChatVisuals.DrawContactsIcon(draw, center, iconSize, iconColor);
+                break;
+            case NavTab.Groups:
+                ChatVisuals.DrawGroupsIcon(draw, center, iconSize, iconColor, bgCol);
+                break;
+            case NavTab.Chats:
+                ChatVisuals.DrawChatIcon(draw, center, iconSize, iconColor, bgCol);
+                break;
+        }
 
         if (hovered)
-            ImGui.SetTooltip(tab == NavTab.Contacts ? "Friends" : "Chats");
+        {
+            ImGui.SetTooltip(tab switch
+            {
+                NavTab.Contacts => "Friends",
+                NavTab.Groups => "Groups",
+                NavTab.Chats => "Chats",
+                _ => string.Empty,
+            });
+        }
     }
 
-    private void DrawListPane(ImDrawListPtr draw, FriendSnapshot snapshot, Vector2 pos, Vector2 size, float scale)
+    private void DrawListPane(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 pos, Vector2 size, float scale)
     {
         draw.AddRectFilled(pos, pos + size, ChatVisuals.Color(ChatVisuals.ListBg));
 
         var headerHeight = 52f * scale;
-        DrawListToolbar(draw, pos, new Vector2(size.X, headerHeight), scale);
+        DrawListToolbar(draw, snapshot, pos, new Vector2(size.X, headerHeight), scale);
 
         var bodyPos = pos + new Vector2(0, headerHeight);
         var bodySize = new Vector2(size.X, MathF.Max(1f, size.Y - headerHeight));
@@ -783,13 +1167,21 @@ internal sealed class MomoTalkWindow : Window
         if (!body)
             return;
 
-        if (activeTab == NavTab.Contacts)
-            DrawContactsList(snapshot, scale);
-        else
-            DrawChatsList(scale);
+        switch (activeTab)
+        {
+            case NavTab.Contacts:
+                DrawContactsList(snapshot, scale);
+                break;
+            case NavTab.Groups:
+                DrawGroupsList(snapshot, scale);
+                break;
+            default:
+                DrawChatsList(snapshot, scale);
+                break;
+        }
     }
 
-    private void DrawListToolbar(ImDrawListPtr draw, Vector2 pos, Vector2 size, float scale)
+    private void DrawListToolbar(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 pos, Vector2 size, float scale)
     {
         var padX = 10f * scale;
         var controlH = 32f * scale;
@@ -802,12 +1194,21 @@ internal sealed class MomoTalkWindow : Window
         var dirGap = showSort ? 5f * scale : 0f;
         var searchWidth = MathF.Max(60f * scale, size.X - padX * 2f - sortWidth - dirWidth - gap - dirGap);
 
-        if (activeTab == NavTab.Contacts)
-            DrawSearchPill(draw, "##contacts-search", "Search friends...", ref contactsSearch,
-                new Vector2(pos.X + padX, controlY), new Vector2(searchWidth, controlH), scale);
-        else
-            DrawSearchPill(draw, "##chats-search", "Search chats...", ref chatsSearch,
-                new Vector2(pos.X + padX, controlY), new Vector2(searchWidth, controlH), scale);
+        switch (activeTab)
+        {
+            case NavTab.Contacts:
+                DrawSearchPill(draw, "##contacts-search", "Search friends...", ref contactsSearch,
+                    new Vector2(pos.X + padX, controlY), new Vector2(searchWidth, controlH), scale);
+                break;
+            case NavTab.Groups:
+                DrawSearchPill(draw, "##groups-search", "Search groups...", ref groupsSearch,
+                    new Vector2(pos.X + padX, controlY), new Vector2(searchWidth, controlH), scale);
+                break;
+            default:
+                DrawSearchPill(draw, "##chats-search", "Search chats...", ref chatsSearch,
+                    new Vector2(pos.X + padX, controlY), new Vector2(searchWidth, controlH), scale);
+                break;
+        }
 
         if (showSort)
         {
@@ -816,7 +1217,7 @@ internal sealed class MomoTalkWindow : Window
             if (ChatVisuals.SkewButton(draw, "##sort-toggle", sortByRecent ? "Recent" : "Name", sortPos, sortSize, scale))
             {
                 sortByRecent = !sortByRecent;
-                Reorder();
+                Reorder(snapshot);
             }
 
             if (ImGui.IsItemHovered())
@@ -827,7 +1228,7 @@ internal sealed class MomoTalkWindow : Window
             if (ChatVisuals.SkewSortOrderButton(draw, "##sort-order", sortAscending, dirPos, dirSize, scale))
             {
                 sortAscending = !sortAscending;
-                Reorder();
+                Reorder(snapshot);
             }
 
             if (ImGui.IsItemHovered())
@@ -868,7 +1269,7 @@ internal sealed class MomoTalkWindow : Window
         draw.AddRect(pos, pos + size, ChatVisuals.Color(borderCol), rounding, ImDrawFlags.None, MathF.Max(1.5f, 1.8f * scale));
     }
 
-    private void DrawContactsList(FriendSnapshot snapshot, float scale)
+    private void DrawContactsList(SocialSnapshot snapshot, float scale)
     {
         if (snapshot.Friends is null)
         {
@@ -883,7 +1284,7 @@ internal sealed class MomoTalkWindow : Window
         }
 
         var filtered = snapshot.Friends.Values
-            .Where(friend => MatchesSearch(friend, contactsSearch, notes.GetValueOrDefault(friend.ContentId)))
+            .Where(friend => MatchesFriendSearch(friend, contactsSearch, notes.GetValueOrDefault(friend.ContentId)))
             .OrderBy(friend => friend.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(friend => friend.World, StringComparer.OrdinalIgnoreCase)
             .ThenBy(friend => friend.WorldId)
@@ -900,17 +1301,17 @@ internal sealed class MomoTalkWindow : Window
         {
             var isSelected = inspectedFriend?.ContentId == friend.ContentId;
             var note = notes.GetValueOrDefault(friend.ContentId);
-            DrawListRow(friend, note, isSelected, $"##contact-{friend.ContentId:X16}",
-                out var clicked, out var doubleClicked, out var rightClicked, scale);
+            DrawListRow(ConversationDescriptor.FromFriend(friend), note, friend.World, isSelected,
+                $"##contact-{friend.ContentId:X16}", out var clicked, out var doubleClicked, out var rightClicked, scale);
             if (rightClicked)
             {
-                contextPeer = friend;
+                contextFriend = friend;
                 ImGui.OpenPopup("##contact-row-menu");
             }
             else if (doubleClicked)
             {
                 CommitActiveNote();
-                OpenConversation(friend);
+                OpenConversation(ConversationDescriptor.FromFriend(friend));
             }
             else if (clicked)
             {
@@ -923,14 +1324,63 @@ internal sealed class MomoTalkWindow : Window
         }
 
         using var contactMenu = ChatVisuals.BeginContextMenu("##contact-row-menu", scale);
-        if (contactMenu.IsOpen && contextPeer is { } menuPeer)
+        if (contactMenu.IsOpen && contextFriend is { } menuPeer)
         {
             if (ChatVisuals.ContextMenuItem("##ctx-contact-lodestone", "Open Lodestone", 156f * scale, scale))
                 Util.OpenLink(avatars.GetLodestoneUrl(menuPeer));
         }
     }
 
-    private void DrawChatsList(float scale)
+    private void DrawGroupsList(SocialSnapshot snapshot, float scale)
+    {
+        var items = BuildActiveGroupItems(snapshot);
+        if (items.Count == 0)
+        {
+            DrawListNotice(
+                "No groups yet. Join an FC or Linkshell, or right-click a party member in-game to create a Static.",
+                scale);
+            return;
+        }
+
+        var anyMatch = false;
+        foreach (var item in items)
+        {
+            if (!MatchesGroupSearch(item, groupsSearch))
+                continue;
+
+            anyMatch = true;
+            var isSelected = inspectedGroup?.Key == item.Conversation.Key;
+            DrawListRow(item.Conversation, item.Subtitle, item.Tag, isSelected,
+                $"##group-{item.Conversation.Key.StorageId}", out var clicked, out var doubleClicked, out var rightClicked, scale);
+
+            if (rightClicked && item.Static is { } rightClickedStatic)
+            {
+                contextStatic = rightClickedStatic;
+                ImGui.OpenPopup("##group-row-menu");
+            }
+            else if (doubleClicked)
+            {
+                OpenConversation(item.Conversation);
+            }
+            else if (clicked)
+            {
+                inspectedGroup = item.Conversation;
+                narrowShowingDetail = true;
+            }
+        }
+
+        if (!anyMatch)
+            DrawListNotice("No matching groups.", scale);
+
+        using var groupMenu = ChatVisuals.BeginContextMenu("##group-row-menu", scale);
+        if (groupMenu.IsOpen && contextStatic is { } menuStatic)
+        {
+            if (ChatVisuals.ContextMenuItem("##ctx-group-rename", "Rename Group", 156f * scale, scale))
+                OpenRenameStaticModal(menuStatic.StableKey, menuStatic.Name);
+        }
+    }
+
+    private void DrawChatsList(SocialSnapshot snapshot, float scale)
     {
         if (summaryFailed)
         {
@@ -949,7 +1399,7 @@ internal sealed class MomoTalkWindow : Window
         if (rows.Count == 0)
         {
             DrawListNotice(summaryQuery is null
-                ? "No conversations yet. Pick a friend in Friends to start chatting."
+                ? "No conversations yet. Pick a friend or group to start chatting."
                 : "Loading conversations...", scale);
             return;
         }
@@ -957,22 +1407,26 @@ internal sealed class MomoTalkWindow : Window
         var anyMatch = false;
         foreach (var row in rows)
         {
-            if (!MatchesSearch(row.Peer, chatsSearch))
+            var conversationDesc = snapshot.RefreshDescriptor(row.Conversation);
+            var tag = snapshot.FormatChannelTag(conversationDesc);
+            if (!MatchesChatSearch(snapshot, conversationDesc, tag, chatsSearch))
                 continue;
 
             anyMatch = true;
-            var isSelected = selected?.ContentId == row.Peer.ContentId;
-            var subtitle = row.Latest is { } latest ? FormatPreview(latest) : "No messages yet";
-            DrawListRow(row.Peer, subtitle, isSelected, $"##chat-{row.Peer.ContentId:X16}",
+            var isSelected = selected?.Key == conversationDesc.Key;
+            var subtitle = row.Latest is { } latest
+                ? FormatPreview(conversationDesc.Key, latest)
+                : "No messages yet";
+            DrawListRow(conversationDesc, subtitle, tag, isSelected, $"##chat-{conversationDesc.Key.StorageId}",
                 out var clicked, out _, out var rightClicked, scale);
             if (rightClicked)
             {
-                contextPeer = row.Peer;
+                contextConversation = conversationDesc;
                 ImGui.OpenPopup("##chat-row-menu");
             }
             else if (clicked)
             {
-                OpenConversation(row.Peer);
+                OpenConversation(conversationDesc);
             }
         }
 
@@ -980,13 +1434,21 @@ internal sealed class MomoTalkWindow : Window
             DrawListNotice("No matching conversations.", scale);
 
         using var chatMenu = ChatVisuals.BeginContextMenu("##chat-row-menu", scale);
-        if (chatMenu.IsOpen && contextPeer is { } menuPeer)
+        if (chatMenu.IsOpen && contextConversation is { } menuConv)
         {
-            if (ChatVisuals.ContextMenuItem("##ctx-chat-lodestone", "Open Lodestone", 156f * scale, scale))
-                Util.OpenLink(avatars.GetLodestoneUrl(menuPeer));
+            if (menuConv.ToTellPeer() is { } tellPeer)
+            {
+                if (ChatVisuals.ContextMenuItem("##ctx-chat-lodestone", "Open Lodestone", 156f * scale, scale))
+                    Util.OpenLink(avatars.GetLodestoneUrl(tellPeer));
+            }
+            else if (menuConv.Key.Kind == ConversationKind.Static)
+            {
+                if (ChatVisuals.ContextMenuItem("##ctx-chat-rename", "Rename Group", 156f * scale, scale))
+                    OpenRenameStaticModal(menuConv.Key.StableKey, menuConv.DisplayName);
+            }
 
             if (ChatVisuals.ContextMenuItem("##ctx-chat-delete", "Delete Chat", 156f * scale, scale, danger: true))
-                DeleteChatFromList(menuPeer);
+                DeleteChatFromList(snapshot, menuConv);
         }
     }
 
@@ -999,8 +1461,8 @@ internal sealed class MomoTalkWindow : Window
         ImGui.PopTextWrapPos();
     }
 
-    private void DrawListRow(PlayerIdentity peer, string? subtitle, bool isSelected, string id,
-        out bool clicked, out bool doubleClicked, out bool rightClicked, float scale)
+    private void DrawListRow(ConversationDescriptor conversationDesc, string? subtitle, string trailingTag,
+        bool isSelected, string id, out bool clicked, out bool doubleClicked, out bool rightClicked, float scale)
     {
         var origin = ImGui.GetCursorScreenPos();
         var width = ImGui.GetContentRegionAvail().X;
@@ -1028,20 +1490,25 @@ internal sealed class MomoTalkWindow : Window
         var padX = 12f * scale;
         var avatarSize = 40f * scale;
         var avatarPos = origin + new Vector2(padX, (rowHeight - avatarSize) * 0.5f);
-        ChatVisuals.Avatar(draw, avatars, peer, avatarPos, avatarSize);
+        if (conversationDesc.ToTellPeer() is { } peer)
+            ChatVisuals.Avatar(draw, avatars, peer, avatarPos, avatarSize);
+        else
+            ChatVisuals.GroupAvatar(draw, conversationDesc.Key.Kind, avatarPos, avatarSize);
 
-        var worldFontSize = ImGui.GetFontSize() * 0.84f;
-        var maxWorldWidth = MathF.Min(96f * scale, width * 0.30f);
-        var worldText = ChatVisuals.TruncateSingleLine(peer.World, worldFontSize, maxWorldWidth);
-        var worldSize = ChatVisuals.CalcTextSize(worldText, worldFontSize);
-        var worldX = origin.X + width - padX - worldSize.X;
-        var worldY = origin.Y + (rowHeight - worldSize.Y) * 0.5f;
-        ChatVisuals.AddText(draw, new Vector2(worldX, worldY), worldFontSize, ChatVisuals.Color(ChatVisuals.Muted), worldText);
+        var tagFontSize = ImGui.GetFontSize() * 0.84f;
+        var maxTagWidth = MathF.Min(96f * scale, width * 0.30f);
+        var tagText = ChatVisuals.TruncateSingleLine(trailingTag, tagFontSize, maxTagWidth);
+        var tagSize = ChatVisuals.CalcTextSize(tagText, tagFontSize);
+        var tagX = origin.X + width - padX - tagSize.X;
+        var tagY = origin.Y + (rowHeight - tagSize.Y) * 0.5f;
+        if (tagText.Length > 0)
+            ChatVisuals.AddText(draw, new Vector2(tagX, tagY), tagFontSize, ChatVisuals.Color(ChatVisuals.Muted), tagText);
 
         var textLeft = avatarPos.X + avatarSize + 10f * scale;
-        var textWidth = MathF.Max(20f * scale, worldX - textLeft - 10f * scale);
+        var rightEdge = tagText.Length > 0 ? tagX - 10f * scale : origin.X + width - padX;
+        var textWidth = MathF.Max(20f * scale, rightEdge - textLeft);
         var nameFontSize = ImGui.GetFontSize() * 1.04f;
-        var nameText = ChatVisuals.TruncateSingleLine(peer.Name, nameFontSize, textWidth);
+        var nameText = ChatVisuals.TruncateSingleLine(conversationDesc.DisplayName, nameFontSize, textWidth);
         var nameSize = ChatVisuals.CalcTextSize(nameText, nameFontSize);
 
         if (!string.IsNullOrEmpty(subtitle))
@@ -1066,7 +1533,7 @@ internal sealed class MomoTalkWindow : Window
         draw.PopClipRect();
     }
 
-    private void DrawContactProfile(ImDrawListPtr draw, FriendSnapshot snapshot, Vector2 pos, Vector2 size, bool narrow,
+    private void DrawContactProfile(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 pos, Vector2 size, bool narrow,
         float scale)
     {
         var bottomCorners = narrow ? ImDrawFlags.RoundCornersBottom : ImDrawFlags.RoundCornersBottomRight;
@@ -1133,7 +1600,7 @@ internal sealed class MomoTalkWindow : Window
         if (ChatVisuals.DrawProfileChatButton(draw, "##profile-start-chat", actionCenter, actionRadius, scale))
         {
             CommitActiveNote();
-            OpenConversation(friend);
+            OpenConversation(ConversationDescriptor.FromFriend(friend));
         }
 
         if (ImGui.IsItemHovered())
@@ -1213,14 +1680,136 @@ internal sealed class MomoTalkWindow : Window
         ChatVisuals.AddText(draw, badgePos + badgePad, badgeFontSize, ChatVisuals.Color(ChatVisuals.BadgeText), worldLabel);
     }
 
-    private void DrawConversationPane(ImDrawListPtr draw, FriendSnapshot snapshot, Vector2 pos, Vector2 size, bool narrow,
+    private void DrawGroupDetail(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 pos, Vector2 size, bool narrow,
+        float scale)
+    {
+        var bottomCorners = narrow ? ImDrawFlags.RoundCornersBottom : ImDrawFlags.RoundCornersBottomRight;
+        draw.AddRectFilled(pos, pos + size, ChatVisuals.Color(ChatVisuals.White), 10f * scale, bottomCorners);
+
+        var contentPos = pos;
+        var contentSize = size;
+        if (narrow)
+        {
+            var subHeaderH = 42f * scale;
+            DrawSubHeader(draw, pos, size.X, subHeaderH, inspectedGroup?.DisplayName ?? "Groups", null, showBack: true, scale);
+            contentPos = pos + new Vector2(0, subHeaderH);
+            contentSize = new Vector2(size.X, MathF.Max(1f, size.Y - subHeaderH));
+        }
+
+        if (inspectedGroup is not { } group)
+        {
+            const string prompt = "Select a group to view details.";
+            var fontSize = ImGui.GetFontSize();
+            var maxW = MathF.Max(60f * scale, contentSize.X - 48f * scale);
+            var textSize = ChatVisuals.CalcTextSize(prompt, fontSize, maxW);
+            ChatVisuals.AddText(draw, contentPos + (contentSize - textSize) * 0.5f, fontSize,
+                ChatVisuals.Color(ChatVisuals.Muted), prompt, maxW);
+            return;
+        }
+
+        StaticGroup? staticInfo = null;
+        if (group.Key.Kind == ConversationKind.Static && snapshot.Statics is not null)
+            snapshot.Statics.TryGetValue(group.Key.StableKey, out staticInfo);
+
+        var avatarSize = staticInfo is not null
+            ? Math.Clamp(MathF.Min(contentSize.X * 0.30f, contentSize.Y * 0.24f), 60f * scale, 92f * scale)
+            : Math.Clamp(MathF.Min(contentSize.X * 0.42f, contentSize.Y * 0.36f), 64f * scale, 112f * scale);
+
+        var maxCardTextWidth = MathF.Max(60f * scale, contentSize.X - 36f * scale);
+        var nameFontSize = ImGui.GetFontSize() * 1.24f;
+        var nameText = ChatVisuals.TruncateSingleLine(group.DisplayName, nameFontSize, maxCardTextWidth);
+        var nameSize = ChatVisuals.CalcTextSize(nameText, nameFontSize);
+
+        var badgeFontSize = ImGui.GetFontSize() * 0.94f;
+        var badgePad = new Vector2(14f, 5f) * scale;
+        var badgeLabel = group.Key.Kind switch
+        {
+            ConversationKind.FreeCompany => "Free Company",
+            ConversationKind.CrossWorldLinkshell => snapshot.FindActiveSlot(group.Key) is { } cwSlot
+                ? $"Cross-World Linkshell · Slot {cwSlot}"
+                : "Cross-World Linkshell",
+            ConversationKind.Linkshell => snapshot.FindActiveSlot(group.Key) is { } lsSlot
+                ? $"Linkshell · Slot {lsSlot}"
+                : "Linkshell",
+            ConversationKind.Static => staticInfo is not null
+                ? $"Static · {staticInfo.Members.Count} members"
+                : "Static",
+            _ => string.Empty,
+        };
+        badgeLabel = ChatVisuals.TruncateSingleLine(badgeLabel, badgeFontSize,
+            MathF.Max(40f * scale, maxCardTextWidth - badgePad.X * 2f));
+        var badgeTextSize = ChatVisuals.CalcTextSize(badgeLabel, badgeFontSize);
+        var badgeSize = badgeTextSize + badgePad * 2f;
+
+        var startY = staticInfo is not null
+            ? contentPos.Y + 24f * scale
+            : contentPos.Y + MathF.Max(24f * scale,
+                (contentSize.Y - (avatarSize + 18f * scale + nameSize.Y + 14f * scale + badgeSize.Y)) * 0.44f);
+        var centerX = contentPos.X + contentSize.X * 0.5f;
+
+        var avatarPos = new Vector2(centerX - avatarSize * 0.5f, startY);
+        ChatVisuals.GroupAvatar(draw, group.Key.Kind, avatarPos, avatarSize, dropShadow: true);
+
+        var actionRadius = MathF.Max(15f * scale, avatarSize * 0.20f);
+        var actionCenter = avatarPos + new Vector2(avatarSize * 0.84f, avatarSize * 0.84f);
+        if (ChatVisuals.DrawProfileChatButton(draw, "##group-start-chat", actionCenter, actionRadius, scale))
+            OpenConversation(group);
+
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Open chat");
+
+        var namePos = new Vector2(centerX - nameSize.X * 0.5f, startY + avatarSize + 16f * scale);
+        ChatVisuals.AddBoldText(draw, namePos, nameFontSize, ChatVisuals.Color(ChatVisuals.Ink), nameText, scale);
+
+        var badgePos = new Vector2(centerX - badgeSize.X * 0.5f, namePos.Y + nameSize.Y + 10f * scale);
+        draw.AddRect(badgePos, badgePos + badgeSize, ChatVisuals.Color(ChatVisuals.BadgeBorder),
+            badgeSize.Y * 0.5f, ImDrawFlags.None, MathF.Max(1.5f, 1.6f * scale));
+        ChatVisuals.AddText(draw, badgePos + badgePad, badgeFontSize, ChatVisuals.Color(ChatVisuals.BadgeText), badgeLabel);
+
+        if (staticInfo is null)
+            return;
+
+        var matched = snapshot.IsStaticMatched(staticInfo.StableKey);
+        var statusLabel = matched ? "Party matched — active in current party" : "Not currently in full static party";
+        var statusFontSize = ImGui.GetFontSize() * 0.88f;
+        var statusPad = new Vector2(12f, 4f) * scale;
+        var statusText = ChatVisuals.TruncateSingleLine(statusLabel, statusFontSize,
+            MathF.Max(40f * scale, maxCardTextWidth - statusPad.X * 2f));
+        var statusTextSize = ChatVisuals.CalcTextSize(statusText, statusFontSize);
+        var statusSize = statusTextSize + statusPad * 2f;
+        var statusPos = new Vector2(centerX - statusSize.X * 0.5f, badgePos.Y + badgeSize.Y + 10f * scale);
+        draw.AddRectFilled(statusPos, statusPos + statusSize,
+            ChatVisuals.Color(matched ? ChatVisuals.MatchSuccessBg : ChatVisuals.SystemBg), statusSize.Y * 0.5f);
+        ChatVisuals.AddText(draw, statusPos + statusPad, statusFontSize,
+            ChatVisuals.Color(matched ? ChatVisuals.MatchSuccessText : ChatVisuals.SystemText), statusText);
+
+        var rosterTop = statusPos.Y + statusSize.Y + 18f * scale;
+        var rosterW = MathF.Min(380f * scale, maxCardTextWidth);
+        var rosterX = centerX - rosterW * 0.5f;
+        var rosterAvailH = contentPos.Y + contentSize.Y - rosterTop - 16f * scale;
+        if (rosterAvailH < 48f * scale)
+            return;
+
+        var rosterBoxPos = new Vector2(rosterX, rosterTop);
+        var rosterBoxSize = new Vector2(rosterW, rosterAvailH);
+        draw.AddRectFilled(rosterBoxPos, rosterBoxPos + rosterBoxSize, ChatVisuals.Color(ChatVisuals.ListBg), 10f * scale);
+
+        ImGui.SetCursorScreenPos(rosterBoxPos + new Vector2(12f * scale, 10f * scale));
+        using var rosterChild = ImRaii.Child("##group-detail-roster",
+            new Vector2(MathF.Max(20f * scale, rosterW - 24f * scale), MathF.Max(20f * scale, rosterAvailH - 20f * scale)),
+            false);
+        if (rosterChild)
+            DrawMemberGrid(staticInfo.Members, scale);
+    }
+
+    private void DrawConversationPane(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 pos, Vector2 size, bool narrow,
         float scale)
     {
         var bottomCorners = narrow ? ImDrawFlags.RoundCornersBottom : ImDrawFlags.RoundCornersBottomRight;
         draw.AddRectFilled(pos, pos + size, ChatVisuals.Color(ChatVisuals.White), 10f * scale, bottomCorners);
 
         var subHeaderH = 42f * scale;
-        if (selected is not { } peer || conversation is not { } view)
+        if (selected is not { } currentConv || conversation is not { } view)
         {
             if (narrow)
                 DrawSubHeader(draw, pos, size.X, subHeaderH, "Chats", null, showBack: true, scale);
@@ -1235,25 +1824,28 @@ internal sealed class MomoTalkWindow : Window
             return;
         }
 
-        DrawSubHeader(draw, pos, size.X, subHeaderH, peer.Name, peer.World, showBack: narrow, scale);
+        var subLabel = currentConv.Key.Kind == ConversationKind.Tell
+            ? (string.IsNullOrEmpty(currentConv.WorldName) ? null : $"@ {currentConv.WorldName}")
+            : snapshot.FormatChannelTag(currentConv);
+        DrawSubHeader(draw, pos, size.X, subHeaderH, currentConv.DisplayName, subLabel, showBack: narrow, scale);
         view.Update();
 
-        var draft = drafts[peer.ContentId];
-        var friend = snapshot.FindRecipient(peer.ContentId, out var unavailable);
+        var draft = drafts[currentConv.Key];
+        var sendTarget = snapshot.FindSendTarget(currentConv.Key, out var unavailable);
         var warning = draft.Warning is { AttachedToMessage: false } local ? local : unassignedWarning;
         var status = unavailable ?? (warning is { AttachedToMessage: false } visible ? visible.Message : null);
         var statusIsAlert = unavailable is null;
         var writeFailed = capture.FailedWriteOwner == session!.ContentId;
-        var showTyping = friend is not null
-            && tellInputFocused
-            && tellInputFocusedPeer == peer.ContentId
+        var showTyping = sendTarget is not null
+            && inputFocused
+            && inputFocusedConversation == currentConv.Key
             && !string.IsNullOrWhiteSpace(draft.Text);
 
         var bannerMaxWidth = MathF.Max(80f * scale, size.X - 36f * scale);
         ChatVisuals.BannerLayout? statusBanner = status is not null
             ? ChatVisuals.MeasureSystemBanner(status, bannerMaxWidth, scale)
             : null;
-        const string writeErrorText = "A Tell could not be saved. See /xllog for details.";
+        const string writeErrorText = "A message could not be saved. See /xllog for details.";
         ChatVisuals.BannerLayout? writeErrorBanner = writeFailed
             ? ChatVisuals.MeasureSystemBanner(writeErrorText, bannerMaxWidth, scale)
             : null;
@@ -1267,13 +1859,13 @@ internal sealed class MomoTalkWindow : Window
 
         var timelineContentWidth = MathF.Max(1f, size.X - ImGui.GetStyle().ScrollbarSize);
 
-        using var peerId = ImRaii.PushId(peer.ContentId.ToString("X16"));
+        using var convId = ImRaii.PushId(currentConv.Key.StorageId);
         ImGui.SetCursorScreenPos(timelinePos);
         using (var spacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero))
         using (var timeline = ImRaii.Child("##messages", new Vector2(size.X, timelineHeight), false))
         {
             if (timeline)
-                DrawTimeline(view, peer, timelineContentWidth, showTyping, scale);
+                DrawTimeline(view, currentConv, timelineContentWidth, showTyping, scale);
         }
 
         wasShowingTyping = showTyping;
@@ -1292,10 +1884,10 @@ internal sealed class MomoTalkWindow : Window
         }
 
         var sendBarPos = pos + new Vector2(0, size.Y - sendBarHeight);
-        DrawSendBar(draw, peer, friend, draft, sendBarPos, new Vector2(size.X, sendBarHeight), bottomCorners, scale);
+        DrawSendBar(draw, currentConv, sendTarget, draft, sendBarPos, new Vector2(size.X, sendBarHeight), bottomCorners, scale);
     }
 
-    private void DrawSubHeader(ImDrawListPtr draw, Vector2 pos, float width, float height, string title, string? world,
+    private void DrawSubHeader(ImDrawListPtr draw, Vector2 pos, float width, float height, string title, string? subtitle,
         bool showBack, float scale)
     {
         var left = pos.X + 14f * scale;
@@ -1319,23 +1911,22 @@ internal sealed class MomoTalkWindow : Window
         var avail = MathF.Max(30f * scale, rightLimit - left);
         var titleFontSize = ImGui.GetFontSize() * 1.06f;
 
-        if (!string.IsNullOrEmpty(world))
+        if (!string.IsNullOrEmpty(subtitle))
         {
-            var worldFontSize = ImGui.GetFontSize() * 0.90f;
-            var worldLabel = $"@ {world}";
-            var worldSize = ChatVisuals.CalcTextSize(worldLabel, worldFontSize);
-            var titleMax = MathF.Max(30f * scale, avail - worldSize.X - 8f * scale);
+            var subFontSize = ImGui.GetFontSize() * 0.90f;
+            var subSize = ChatVisuals.CalcTextSize(subtitle, subFontSize);
+            var titleMax = MathF.Max(30f * scale, avail - subSize.X - 8f * scale);
             var titleText = ChatVisuals.TruncateSingleLine(title, titleFontSize, titleMax);
             var titleSize = ChatVisuals.CalcTextSize(titleText, titleFontSize);
             var titleY = pos.Y + (height - titleSize.Y) * 0.5f;
             ChatVisuals.AddBoldText(draw, new Vector2(left, titleY), titleFontSize, ChatVisuals.Color(ChatVisuals.Ink),
                 titleText, scale);
 
-            var worldX = left + titleSize.X + 8f * scale;
-            var worldY = pos.Y + (height - worldSize.Y) * 0.5f;
-            var clampedWorld = ChatVisuals.TruncateSingleLine(worldLabel, worldFontSize, MathF.Max(0, rightLimit - worldX));
-            ChatVisuals.AddText(draw, new Vector2(worldX, worldY), worldFontSize, ChatVisuals.Color(ChatVisuals.Muted),
-                clampedWorld);
+            var subX = left + titleSize.X + 8f * scale;
+            var subY = pos.Y + (height - subSize.Y) * 0.5f;
+            var clampedSub = ChatVisuals.TruncateSingleLine(subtitle, subFontSize, MathF.Max(0, rightLimit - subX));
+            ChatVisuals.AddText(draw, new Vector2(subX, subY), subFontSize, ChatVisuals.Color(ChatVisuals.Muted),
+                clampedSub);
         }
         else
         {
@@ -1350,7 +1941,8 @@ internal sealed class MomoTalkWindow : Window
             ChatVisuals.Color(ChatVisuals.Divider), 1f);
     }
 
-    private void DrawTimeline(ConversationHistory view, PlayerIdentity peer, float contentWidth, bool showTyping, float scale)
+    private void DrawTimeline(ConversationHistory view, ConversationDescriptor currentConv, float contentWidth,
+        bool showTyping, float scale)
     {
         var atBottom = ImGui.GetScrollY() >= ImGui.GetScrollMaxY() - 2f * scale;
         var followLatest = view.RevealLatest
@@ -1385,14 +1977,21 @@ internal sealed class MomoTalkWindow : Window
         var previousFirstY = firstMessageY;
         var first = true;
         long? previousSentAt = null;
-        bool? previousOutgoing = null;
+        SenderGroupKey? previousSpeaker = null;
         var previousHadRejection = false;
+        var tellPeer = currentConv.ToTellPeer();
 
         foreach (var message in view.Messages)
         {
+            var author = message.Outgoing
+                ? session!.Player
+                : tellPeer ?? message.Sender;
+            var speaker = SenderGroupKey.From(message.Outgoing, author);
             var showTimeDivider = ChatVisuals.ShouldInsertTimeDivider(previousSentAt, message.SentAt);
-            var isGroupStart = previousOutgoing is null || previousOutgoing.Value != message.Outgoing
-                || showTimeDivider || previousHadRejection;
+            var isGroupStart = previousSpeaker is null
+                || !previousSpeaker.Value.Equals(speaker)
+                || showTimeDivider
+                || previousHadRejection;
 
             if (showTimeDivider)
             {
@@ -1419,19 +2018,19 @@ internal sealed class MomoTalkWindow : Window
             if (view.PrependAnchor == message.Id)
                 ImGui.SetScrollY(MathF.Max(0f, ImGui.GetScrollY() + y - previousFirstY));
 
-            DrawMessageBubble(message, message.Outgoing ? session!.Player : peer, isGroupStart, availWidth, scale);
+            DrawMessageBubble(message, author, isGroupStart, availWidth, scale);
 
             if (message.Rejection is { } rejection)
                 DrawTimelineBanner(rejection, isAlert: true, availWidth, scale);
 
             previousSentAt = message.SentAt;
-            previousOutgoing = message.Outgoing;
+            previousSpeaker = speaker;
             previousHadRejection = message.Rejection is not null;
         }
 
         if (showTyping)
         {
-            var typingGroupStart = previousOutgoing is null || !previousOutgoing.Value || previousHadRejection;
+            var typingGroupStart = previousSpeaker is null || !previousSpeaker.Value.Outgoing || previousHadRejection;
             if (typingGroupStart && view.Messages.Count > 0)
                 ImGui.Dummy(new Vector2(availWidth, 6f * scale));
 
@@ -1486,7 +2085,7 @@ internal sealed class MomoTalkWindow : Window
         ImGui.Dummy(new Vector2(availWidth, layout.Height));
     }
 
-    private void DrawMessageBubble(TellMessage message, PlayerIdentity author, bool isGroupStart, float availWidth, float scale)
+    private void DrawMessageBubble(ChatMessage message, PlayerIdentity author, bool isGroupStart, float availWidth, float scale)
     {
         var origin = ImGui.GetCursorScreenPos();
         var sideMargin = 16f * scale;
@@ -1502,7 +2101,7 @@ internal sealed class MomoTalkWindow : Window
         var textSize = ChatVisuals.CalcTextSize(message.Body, fontSize, maxBody);
         var bubbleSize = new Vector2(MathF.Min(maxBody, textSize.X) + padding.X * 2f, textSize.Y + padding.Y * 2f);
 
-        var showName = isGroupStart && !message.Outgoing;
+        var showName = isGroupStart && showAvatarSlot;
         var nameFontSize = fontSize * 0.88f;
         var nameOffset = showName ? nameFontSize + 4f * scale : 0f;
         var bubbleTop = origin.Y + nameOffset;
@@ -1529,9 +2128,13 @@ internal sealed class MomoTalkWindow : Window
 
             if (showName)
             {
-                var nameText = ChatVisuals.TruncateSingleLine(author.Name, nameFontSize,
+                var displayName = message.Outgoing ? "You" : author.Name;
+                var nameText = ChatVisuals.TruncateSingleLine(displayName, nameFontSize,
                     MathF.Max(40f * scale, innerWidth - avatarOffset));
-                ChatVisuals.AddText(draw, new Vector2(bubbleX, origin.Y), nameFontSize,
+                var nameX = message.Outgoing
+                    ? origin.X + availWidth - sideMargin - avatarOffset - ChatVisuals.CalcTextSize(nameText, nameFontSize).X
+                    : bubbleX;
+                ChatVisuals.AddText(draw, new Vector2(nameX, origin.Y), nameFontSize,
                     ChatVisuals.Color(ChatVisuals.Ink), nameText);
             }
 
@@ -1573,10 +2176,15 @@ internal sealed class MomoTalkWindow : Window
         var avatarGap = 11f * scale;
         var showAvatarSlot = config.ShowSelfAvatar;
         var avatarOffset = showAvatarSlot ? avatarSize + avatarGap : 0f;
+        var fontSize = ImGui.GetFontSize();
+        var showName = isGroupStart && showAvatarSlot;
+        var nameFontSize = fontSize * 0.88f;
+        var nameOffset = showName ? nameFontSize + 4f * scale : 0f;
         var bubbleSize = new Vector2(62f, 32f) * scale;
+        var bubbleTop = origin.Y + nameOffset;
         var contentHeight = isGroupStart && showAvatarSlot
-            ? MathF.Max(avatarSize, bubbleSize.Y)
-            : bubbleSize.Y;
+            ? MathF.Max(avatarSize, nameOffset + bubbleSize.Y)
+            : nameOffset + bubbleSize.Y;
         var totalHeight = contentHeight + 4f * scale;
 
         if (ImGui.IsRectVisible(origin, origin + new Vector2(availWidth, totalHeight)))
@@ -1588,16 +2196,23 @@ internal sealed class MomoTalkWindow : Window
                 ChatVisuals.Avatar(draw, avatars, self, new Vector2(avatarX, origin.Y), avatarSize);
             }
 
+            if (showName)
+            {
+                var nameX = origin.X + availWidth - sideMargin - avatarOffset - ChatVisuals.CalcTextSize("You", nameFontSize).X;
+                ChatVisuals.AddText(draw, new Vector2(nameX, origin.Y), nameFontSize,
+                    ChatVisuals.Color(ChatVisuals.Ink), "You");
+            }
+
             var bubbleX = origin.X + availWidth - sideMargin - avatarOffset - bubbleSize.X;
-            ChatVisuals.DrawTypingBubble(draw, new Vector2(bubbleX, origin.Y), bubbleSize,
+            ChatVisuals.DrawTypingBubble(draw, new Vector2(bubbleX, bubbleTop), bubbleSize,
                 (float)ImGui.GetTime(), isGroupStart, scale);
         }
 
         ImGui.Dummy(new Vector2(availWidth, totalHeight));
     }
 
-    private void DrawSendBar(ImDrawListPtr draw, PlayerIdentity peer, PlayerIdentity? friend, Draft draft, Vector2 pos,
-        Vector2 size, ImDrawFlags bottomCorners, float scale)
+    private void DrawSendBar(ImDrawListPtr draw, ConversationDescriptor currentConv, SendTarget? target, Draft draft,
+        Vector2 pos, Vector2 size, ImDrawFlags bottomCorners, float scale)
     {
         draw.AddRectFilled(pos, pos + size, ChatVisuals.Color(ChatVisuals.SendBarBg), 10f * scale, bottomCorners);
         draw.AddLine(pos, pos + new Vector2(size.X, 0), ChatVisuals.Color(ChatVisuals.Divider), 1f);
@@ -1613,6 +2228,16 @@ internal sealed class MomoTalkWindow : Window
 
         draw.AddRectFilled(pillPos, pillPos + new Vector2(pillWidth, pillH), ChatVisuals.Color(ChatVisuals.White), pillRounding);
 
+        var hint = currentConv.Key.Kind switch
+        {
+            ConversationKind.Tell => "Write a Tell...",
+            ConversationKind.FreeCompany => "Message Free Company...",
+            ConversationKind.CrossWorldLinkshell => "Message CWLS...",
+            ConversationKind.Linkshell => "Message Linkshell...",
+            ConversationKind.Static => "Message Static...",
+            _ => "Write a message...",
+        };
+
         var inputPadX = 14f * scale;
         var inputPadY = MathF.Max(2f, (pillH - ImGui.GetFontSize()) * 0.5f);
         var enter = false;
@@ -1624,20 +2249,20 @@ internal sealed class MomoTalkWindow : Window
         using (ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(2f * scale, inputPadY)))
         {
             ImGui.SetNextItemWidth(MathF.Max(20f * scale, pillWidth - inputPadX * 2f));
-            enter = ImGui.InputTextWithHint("##tell", "Write a Tell...", ref draft.Text, 2048,
+            enter = ImGui.InputTextWithHint("##chat-input", hint, ref draft.Text, 2048,
                 ImGuiInputTextFlags.EnterReturnsTrue);
         }
 
         var inputActive = ImGui.IsItemActive();
-        var canSend = friend is not null;
-        if (enter && canSend)
+        var canSend = target is not null;
+        if (enter && target is not null)
         {
-            SubmitDraft(peer, draft);
+            SubmitDraft(target, draft);
             ImGui.SetKeyboardFocusHere(-1);
         }
 
-        tellInputFocused = inputActive;
-        tellInputFocusedPeer = inputActive ? peer.ContentId : null;
+        inputFocused = inputActive;
+        inputFocusedConversation = inputActive ? currentConv.Key : null;
 
         var borderCol = inputActive ? ChatVisuals.InputFocus : ChatVisuals.InputBorder;
         draw.AddRect(pillPos, pillPos + new Vector2(pillWidth, pillH), ChatVisuals.Color(borderCol), pillRounding,
@@ -1658,8 +2283,8 @@ internal sealed class MomoTalkWindow : Window
                 : ChatVisuals.OutgoingBubble;
         ChatVisuals.DrawSendIcon(draw, sendPos + new Vector2(sendSize * 0.5f), 20f * scale, ChatVisuals.Color(iconCol));
 
-        if (clicked && canSend)
-            SubmitDraft(peer, draft);
+        if (clicked && target is not null)
+            SubmitDraft(target, draft);
     }
 
     private void SyncSession(PlayerSession? active)
@@ -1669,6 +2294,7 @@ internal sealed class MomoTalkWindow : Window
 
         session = active;
         inspectedFriend = null;
+        inspectedGroup = null;
         selected = null;
         conversation = null;
         summaryQuery = null;
@@ -1684,43 +2310,64 @@ internal sealed class MomoTalkWindow : Window
         narrowShowingDetail = false;
         contactsSearch = string.Empty;
         chatsSearch = string.Empty;
+        groupsSearch = string.Empty;
         editingNoteFor = null;
         noteDraft = string.Empty;
-        contextPeer = null;
+        contextFriend = null;
+        contextConversation = null;
+        contextStatic = null;
         contextMessageBody = null;
-        tellInputFocused = false;
-        tellInputFocusedPeer = null;
+        inputFocused = false;
+        inputFocusedConversation = null;
         wasShowingTyping = false;
+        CloseStaticModal();
     }
 
-    private void SyncPeers(FriendSnapshot snapshot)
+    private void SyncLiveState(SocialSnapshot snapshot)
     {
-        if (snapshot.Friends is null)
-            return;
+        if (selected is { } currentSelected)
+            selected = snapshot.RefreshDescriptor(currentSelected);
 
-        if (selected is { } currentSelected
-            && snapshot.Friends.TryGetValue(currentSelected.ContentId, out var refreshedSelected))
+        if (inspectedFriend is { } friend && snapshot.Friends is not null)
         {
-            selected = refreshedSelected;
+            if (snapshot.Friends.TryGetValue(friend.ContentId, out var current))
+            {
+                inspectedFriend = current;
+            }
+            else
+            {
+                inspectedFriend = null;
+                editingNoteFor = null;
+                if (activeTab == NavTab.Contacts)
+                    narrowShowingDetail = false;
+            }
         }
 
-        if (inspectedFriend is not { } friend)
-            return;
+        if (inspectedGroup is { } group)
+        {
+            var stillActive = group.Key.Kind switch
+            {
+                ConversationKind.FreeCompany => snapshot.FreeCompany?.Key == group.Key,
+                ConversationKind.Linkshell => snapshot.FindActiveSlot(group.Key) is not null,
+                ConversationKind.CrossWorldLinkshell => snapshot.FindActiveSlot(group.Key) is not null,
+                ConversationKind.Static => snapshot.Statics is null || snapshot.Statics.ContainsKey(group.Key.StableKey),
+                _ => false,
+            };
 
-        if (snapshot.Friends.TryGetValue(friend.ContentId, out var current))
-        {
-            inspectedFriend = current;
-        }
-        else
-        {
-            inspectedFriend = null;
-            editingNoteFor = null;
-            if (activeTab == NavTab.Contacts)
-                narrowShowingDetail = false;
+            if (stillActive)
+            {
+                inspectedGroup = snapshot.RefreshDescriptor(group);
+            }
+            else
+            {
+                inspectedGroup = null;
+                if (activeTab == NavTab.Groups)
+                    narrowShowingDetail = false;
+            }
         }
     }
 
-    private void UpdateSummaries()
+    private void UpdateSummaries(SocialSnapshot snapshot)
     {
         if (summaryQuery is { IsCompleted: true } completed)
         {
@@ -1728,7 +2375,7 @@ internal sealed class MomoTalkWindow : Window
             if (completed.IsCompletedSuccessfully)
             {
                 summaries = completed.Result;
-                Reorder();
+                Reorder(snapshot);
             }
             else
             {
@@ -1791,49 +2438,53 @@ internal sealed class MomoTalkWindow : Window
         _ = history.SaveNoteAsync(session.ContentId, peerContentId, trimmed);
     }
 
-    private void DeleteChatFromList(PlayerIdentity peer)
+    private void DeleteChatFromList(SocialSnapshot snapshot, ConversationDescriptor conversationDesc)
     {
         if (session is null)
             return;
 
-        _ = history.HideConversationAsync(session.ContentId, peer.ContentId);
-        summaries = summaries.Where(summary => summary.Peer.ContentId != peer.ContentId).ToArray();
-        if (selected?.ContentId == peer.ContentId)
+        _ = history.HideConversationAsync(session.ContentId, conversationDesc.Key);
+        summaries = summaries.Where(summary => summary.Conversation.Key != conversationDesc.Key).ToArray();
+        if (selected?.Key == conversationDesc.Key)
         {
             selected = null;
             conversation = null;
             narrowShowingDetail = false;
-            tellInputFocused = false;
-            tellInputFocusedPeer = null;
+            inputFocused = false;
+            inputFocusedConversation = null;
             wasShowingTyping = false;
         }
 
-        Reorder();
+        Reorder(snapshot);
     }
 
-    private void OpenConversation(PlayerIdentity peer)
+    private void OpenConversation(ConversationDescriptor conversationDesc)
     {
         activeTab = NavTab.Chats;
         narrowShowingDetail = true;
-        _ = history.UnhideConversationAsync(session!.ContentId, peer.ContentId);
-        if (selected?.ContentId == peer.ContentId)
+        _ = history.UnhideConversationAsync(session!.ContentId, conversationDesc.Key);
+        if (selected?.Key == conversationDesc.Key)
+        {
+            selected = conversationDesc;
             return;
+        }
 
-        selected = peer;
-        conversation = new ConversationHistory(history, session!.ContentId, peer.ContentId);
+        selected = conversationDesc;
+        conversation = new ConversationHistory(history, session!.ContentId, conversationDesc.Key);
         firstMessageY = 0;
-        tellInputFocused = false;
-        tellInputFocusedPeer = null;
+        inputFocused = false;
+        inputFocusedConversation = null;
         wasShowingTyping = false;
-        drafts.TryAdd(peer.ContentId, new Draft());
-        Reorder();
+        drafts.TryAdd(conversationDesc.Key, new Draft());
+        Reorder(directory.Current);
     }
 
-    private void Reorder()
+    private void Reorder(SocialSnapshot snapshot)
     {
-        IEnumerable<ConversationSummary> visible = summaries;
-        if (selected is { } peer && !summaries.Any(row => row.Peer.ContentId == peer.ContentId))
-            visible = visible.Append(new ConversationSummary(peer, null));
+        IEnumerable<ConversationSummary> visible = summaries
+            .Select(row => row with { Conversation = snapshot.RefreshDescriptor(row.Conversation) });
+        if (selected is { } current && !summaries.Any(row => row.Conversation.Key == current.Key))
+            visible = visible.Append(new ConversationSummary(current, null));
 
         IOrderedEnumerable<ConversationSummary> ranked;
         if (sortByRecent)
@@ -1842,29 +2493,63 @@ internal sealed class MomoTalkWindow : Window
                 ? visible.OrderBy(row => row.Latest is null ? 1 : 0)
                     .ThenBy(row => row.Latest?.SentAt)
                     .ThenBy(row => row.Latest?.Id)
-                    .ThenBy(row => row.Peer.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(row => row.Conversation.DisplayName, StringComparer.OrdinalIgnoreCase)
                 : visible.OrderByDescending(row => row.Latest?.SentAt)
                     .ThenByDescending(row => row.Latest?.Id)
-                    .ThenBy(row => row.Peer.Name, StringComparer.OrdinalIgnoreCase);
+                    .ThenBy(row => row.Conversation.DisplayName, StringComparer.OrdinalIgnoreCase);
         }
         else
         {
             ranked = sortAscending
-                ? visible.OrderBy(row => row.Peer.Name, StringComparer.OrdinalIgnoreCase)
-                : visible.OrderByDescending(row => row.Peer.Name, StringComparer.OrdinalIgnoreCase);
+                ? visible.OrderBy(row => row.Conversation.DisplayName, StringComparer.OrdinalIgnoreCase)
+                : visible.OrderByDescending(row => row.Conversation.DisplayName, StringComparer.OrdinalIgnoreCase);
         }
 
         rows = ranked
-            .ThenBy(row => row.Peer.World, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(row => row.Peer.WorldId)
-            .ThenBy(row => row.Peer.ContentId)
+            .ThenBy(row => row.Conversation.WorldName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(row => row.Conversation.Key.StorageId, StringComparer.Ordinal)
             .ToArray();
     }
 
-    private static string FormatPreview(TellMessage latest) =>
-        latest.Outgoing ? $"You: {latest.Body}" : latest.Body;
+    private static List<GroupListItem> BuildActiveGroupItems(SocialSnapshot snapshot)
+    {
+        var items = new List<GroupListItem>();
+        if (snapshot.FreeCompany is { } fc)
+            items.Add(new GroupListItem(fc.ToDescriptor(), "Free Company", "FC", null));
 
-    private static bool MatchesSearch(PlayerIdentity peer, string query, string? note = null)
+        foreach (var (slot, cwls) in snapshot.CrossWorldLinkshells.OrderBy(pair => pair.Key))
+            items.Add(new GroupListItem(cwls.ToDescriptor(), "Cross-World Linkshell", $"CWLS {slot}", null));
+
+        foreach (var (slot, ls) in snapshot.Linkshells.OrderBy(pair => pair.Key))
+            items.Add(new GroupListItem(ls.ToDescriptor(), "Linkshell", $"LS {slot}", null));
+
+        if (snapshot.Statics is not null)
+        {
+            foreach (var group in snapshot.Statics.Values
+                .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(s => s.CreatedAt))
+            {
+                var subtitle = snapshot.IsStaticMatched(group.StableKey)
+                    ? $"{group.Members.Count} members · Party matched"
+                    : $"{group.Members.Count} members";
+                items.Add(new GroupListItem(group.ToDescriptor(), subtitle, "Static", group));
+            }
+        }
+
+        return items;
+    }
+
+    private static string FormatPreview(ConversationKey key, ChatMessage latest)
+    {
+        if (latest.Outgoing)
+            return $"You: {latest.Body}";
+
+        return key.IsGroup && !string.IsNullOrWhiteSpace(latest.Sender.Name)
+            ? $"{latest.Sender.Name}: {latest.Body}"
+            : latest.Body;
+    }
+
+    private static bool MatchesFriendSearch(PlayerIdentity peer, string query, string? note = null)
     {
         var trimmed = query.Trim();
         if (trimmed.Length == 0)
@@ -1875,11 +2560,47 @@ internal sealed class MomoTalkWindow : Window
             || (!string.IsNullOrEmpty(note) && note.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void SubmitDraft(PlayerIdentity peer, Draft draft)
+    private static bool MatchesGroupSearch(GroupListItem item, string query)
     {
-        if (!sender.TrySubmit(session!, peer, draft.Text, out var error))
+        var trimmed = query.Trim();
+        if (trimmed.Length == 0)
+            return true;
+
+        if (item.Conversation.DisplayName.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || item.Tag.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || item.Subtitle.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
         {
-            draft.Warning = new TellWarning(session!, peer.ContentId, error);
+            return true;
+        }
+
+        return item.Static is { } group
+            && group.Members.Any(member => member.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool MatchesChatSearch(SocialSnapshot snapshot, ConversationDescriptor conversationDesc, string tag, string query)
+    {
+        var trimmed = query.Trim();
+        if (trimmed.Length == 0)
+            return true;
+
+        if (conversationDesc.DisplayName.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || conversationDesc.WorldName.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || tag.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return conversationDesc.Key.Kind == ConversationKind.Static
+            && snapshot.Statics is not null
+            && snapshot.Statics.TryGetValue(conversationDesc.Key.StableKey, out var group)
+            && group.Members.Any(member => member.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void SubmitDraft(SendTarget target, Draft draft)
+    {
+        if (!sender.TrySubmit(session!, target, draft.Text, out var error))
+        {
+            draft.Warning = new SendWarning(session!, target.Key, error);
             return;
         }
 
@@ -1895,12 +2616,12 @@ internal sealed class MomoTalkWindow : Window
             if (!ReferenceEquals(warning.Session, session) || warning.AttachedToMessage)
                 continue;
 
-            if (warning.Peer is { } peer)
+            if (warning.Conversation is { } key)
             {
-                if (!drafts.TryGetValue(peer, out var draft))
+                if (!drafts.TryGetValue(key, out var draft))
                 {
                     draft = new Draft();
-                    drafts.Add(peer, draft);
+                    drafts.Add(key, draft);
                 }
 
                 draft.Warning = warning;
@@ -1915,12 +2636,36 @@ internal sealed class MomoTalkWindow : Window
     private enum NavTab
     {
         Contacts,
+        Groups,
         Chats,
+    }
+
+    private enum StaticModalMode
+    {
+        None,
+        Create,
+        Rename,
+    }
+
+    private sealed record GroupListItem(
+        ConversationDescriptor Conversation,
+        string Subtitle,
+        string Tag,
+        StaticGroup? Static);
+
+    private readonly record struct SenderGroupKey(bool Outgoing, ulong ContentId, uint WorldId, string Name)
+    {
+        public static SenderGroupKey From(bool outgoing, PlayerIdentity author) =>
+            outgoing
+                ? new SenderGroupKey(true, 0, 0, string.Empty)
+                : author.ContentId != 0
+                    ? new SenderGroupKey(false, author.ContentId, 0, string.Empty)
+                    : new SenderGroupKey(false, 0, author.WorldId, author.Name.Trim().ToLowerInvariant());
     }
 
     private sealed class Draft
     {
         public string Text = string.Empty;
-        public TellWarning? Warning;
+        public SendWarning? Warning;
     }
 }
