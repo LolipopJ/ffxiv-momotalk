@@ -41,7 +41,7 @@ openspec list
 openspec validate --all --strict
 ```
 
-依赖变更时更新 `src/FFXIVMomoTalk/packages.lock.json`。Release 构建生成 `src/FFXIVMomoTalk/bin/Release/win-x64/FFXIVMomoTalk/latest.zip`。
+依赖变更时更新 `src/FFXIVMomoTalk/packages.lock.json`。Release 构建生成 `src/FFXIVMomoTalk/bin/Release/FFXIVMomoTalk/latest.zip`。
 
 ## 验证与提交
 

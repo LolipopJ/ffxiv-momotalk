@@ -1,6 +1,6 @@
-# MomoTalk (FFXIV Dalamud Plugin)
+# FFXIV MomoTalk
 
-English | [简体中文](README.zh.md)
+**English** | [简体中文](README.zh.md)
 
 It all came back to me... I'm actually a Sensei who teaches and mentors students in Kivotos, and by some strange twist of fate, I was transported to the continent of Eorzea. Here, those chosen by the god (Hydaelyn) are granted the Blessing of Light to channel the power of aether. Taking on the role of a mysterious figure known as the "Warrior of Light", I travel freely, meeting companions of all personalities and unique abilities, and together we defeat formidable foes and save the fractured world.
 

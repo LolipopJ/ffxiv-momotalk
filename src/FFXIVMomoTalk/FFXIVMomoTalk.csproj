@@ -1,22 +1,23 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <Version>0.1.0</Version>
     <Name>MomoTalk</Name>
-    <Author>FFXIV MomoTalk contributors</Author>
+    <Author>LolipopJ</Author>
     <Punchline>Blue Archive's MomoTalk in Eorzea — Sensei, your friends are messaging!</Punchline>
     <Description>Bring Blue Archive's iconic MomoTalk into FINAL FANTASY XIV! Crafted for every Sensei in Eorzea, MomoTalk turns your in-game friend /tells into a faithful Blue Archive messenger — complete with a draggable floating phone button, the signature bouncy opening splash, grouped chat bubbles, Lodestone avatars, editable friend notes, and per-character local history. Open with /momotalk or tap the floating MomoTalk icon anytime.</Description>
     <RepoUrl>https://github.com/LolipopJ/ffxiv-momotalk</RepoUrl>
-    <IconUrl>https://raw.githubusercontent.com/LolipopJ/ffxiv-momotalk/main/src/Data/icon.png</IconUrl>
     <Tags>social;chat;tell;momotalk;bluearchive</Tags>
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\Data\entry.png" LogicalName="FFXIVMomoTalk.Assets.entry.png" />
-    <EmbeddedResource Include="..\Data\momo-logo.png" LogicalName="FFXIVMomoTalk.Assets.momo-logo.png" />
-    <EmbeddedResource Include="..\Data\momotalk-cover.png" LogicalName="FFXIVMomoTalk.Assets.momotalk-cover.png" />
-    <Content Include="..\Data\icon.png" Link="images\icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="../Data/entry.png" LogicalName="FFXIVMomoTalk.Assets.entry.png" />
+    <EmbeddedResource Include="../Data/momo-logo.png" LogicalName="FFXIVMomoTalk.Assets.momo-logo.png" />
+    <EmbeddedResource Include="../Data/momotalk-cover.png" LogicalName="FFXIVMomoTalk.Assets.momotalk-cover.png" />
+    <Content Include="../Data/icon.png" Link="images/icon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

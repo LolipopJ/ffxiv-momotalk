@@ -130,11 +130,11 @@
 - **THEN** 主窗口跳过封面跳动动画并直接呈现目标界面
 
 ### Requirement: 插件列表封面图标
-插件 SHALL 将 `icon.png` 打包输出至插件运行目录的 `images/icon.png` 并在清单中提供 `IconUrl`，使 Dalamud 插件列表展示自定义封面图标。
+插件 SHALL 将 `icon.png`（256×256 PNG）打包输出至插件运行目录的 `images/icon.png`，以同时支持本地开发插件与 Dalamud 官方 D17 仓库展示自定义封面图标。
 
 #### Scenario: Dalamud 插件列表展示封面图标
-- **WHEN** 玩家在 Dalamud 插件列表中浏览或加载本地开发版与发布包插件
-- **THEN** 插件输出目录包含 `images/icon.png` 且清单包含对应 `IconUrl`，插件列表可读取并显示该封面图标
+- **WHEN** 玩家在 Dalamud 插件列表中浏览或加载本地开发版或官方 D17 发布版插件
+- **THEN** 插件输出与发布目录均包含 `images/icon.png`，插件列表可读取并显示该封面图标
 
 ### Requirement: MomoTalk 风格设置弹窗与配置持久化
 插件 SHALL 在珊瑚粉顶栏关闭按钮左侧提供设置齿轮按钮，点击后于主窗口内带打开/关闭过渡动画叠加显示参考 `u1805/momotalk` 风格的半透明遮罩与居中白底圆角设置弹窗，允许开关全局入口、入场动画与本人右侧头像（默认关闭）并持久化配置；在 Dalamud 中点击「设置」时自动打开主窗口并展开设置弹窗。
