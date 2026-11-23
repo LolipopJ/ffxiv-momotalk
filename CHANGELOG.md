@@ -31,6 +31,7 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Use an ID index for live message updates and reuse bubble measurements until their text, width, or font changes.
 - Retry AI requests only when the provider reports that it cannot use `response_format`.
 - Verify the published ZIP before updating the plugin catalog and resume interrupted releases for the same tag and commit.
+- Inject `IconUrl` into the packaged plugin manifest during custom repository releases so installed plugins display the MomoTalk icon in Dalamud.
 
 ## [v0.2.0.0] - 2026-11-23
 

@@ -164,11 +164,13 @@ jobs:
 
       - name: Restore and build Release
         if: steps.release.outputs.upload == 'true'
+        env:
+          ICON_URL: https://raw.githubusercontent.com/${{ github.repository }}/main/src/Data/icon.png
         shell: bash
         run: |
           set -euo pipefail
           dotnet restore ./FFXIVMomoTalk.slnx --locked-mode
-          dotnet build "${CSPROJ_PATH}" -c Release -p:ContinuousIntegrationBuild=true
+          dotnet build "${CSPROJ_PATH}" -c Release -p:ContinuousIntegrationBuild=true -p:IconUrl="${ICON_URL}"
           unzip -tq "${ZIP_PATH}"
 
       - name: Upload and publish GitHub Release
