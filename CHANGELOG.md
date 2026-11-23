@@ -4,6 +4,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [v1.0.0.2] - 2026-11-23
+
 ### Changed
 - Automatically roll `CHANGELOG.md` `[Unreleased]` entries into the released version section and update compare links in the release workflow.
 
@@ -69,7 +71,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Attached native in-game outgoing Tell rejection errors to matching message bubbles or conversation banners.
 - Hidden the floating entry button while logged out or on the title/character select screens.
 
-[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.1...main
+[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.2...main
+[v1.0.0.2]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.1...v1.0.0.2
 [v1.0.0.1]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.0...v1.0.0.1
 [v1.0.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v0.2.0.0...v1.0.0.0
 [v0.2.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v0.1.0.0...v0.2.0.0
