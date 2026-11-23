@@ -2691,12 +2691,16 @@ internal sealed class MomoTalkWindow : Window
     {
         var origin = ImGui.GetCursorScreenPos();
         var sideMargin = 16f * scale;
-        var avatarSize = 36f * scale;
+        var fontSize = ImGui.GetFontSize();
+        var padding = new Vector2(11f, 7f) * scale;
+        var nameFontSize = fontSize * 0.88f;
+        var nameTopInset = MathF.Round(nameFontSize * 0.14f);
+        var groupNameOffset = nameFontSize - nameTopInset + 4f * scale;
+        var singleLineBubbleHeight = fontSize + padding.Y * 2f;
+        var avatarSize = groupNameOffset + singleLineBubbleHeight;
         var avatarGap = 11f * scale;
         var showAvatarSlot = !message.Outgoing || config.ShowSelfAvatar;
         var avatarOffset = showAvatarSlot ? avatarSize + avatarGap : 0f;
-        var fontSize = ImGui.GetFontSize();
-        var padding = new Vector2(11f, 7f) * scale;
         var innerWidth = MathF.Max(80f * scale, availWidth - sideMargin * 2f);
         var maxBody = MathF.Max(36f * scale,
             MathF.Min(420f * scale, innerWidth * 0.78f - avatarOffset - padding.X * 2f));
@@ -2704,8 +2708,7 @@ internal sealed class MomoTalkWindow : Window
         var bubbleSize = new Vector2(MathF.Min(maxBody, textSize.X) + padding.X * 2f, textSize.Y + padding.Y * 2f);
 
         var showName = isGroupStart && showAvatarSlot;
-        var nameFontSize = fontSize * 0.88f;
-        var nameOffset = showName ? nameFontSize + 4f * scale : 0f;
+        var nameOffset = showName ? groupNameOffset : 0f;
         var bubbleTop = origin.Y + nameOffset;
         var contentHeight = isGroupStart && showAvatarSlot
             ? MathF.Max(avatarSize, nameOffset + bubbleSize.Y)
@@ -2736,7 +2739,7 @@ internal sealed class MomoTalkWindow : Window
                 var nameX = message.Outgoing
                     ? origin.X + availWidth - sideMargin - avatarOffset - ChatVisuals.CalcTextSize(nameText, nameFontSize).X
                     : bubbleX;
-                ChatVisuals.AddText(draw, new Vector2(nameX, origin.Y), nameFontSize,
+                ChatVisuals.AddText(draw, new Vector2(nameX, origin.Y - nameTopInset), nameFontSize,
                     ChatVisuals.Color(ChatVisuals.Ink), nameText);
             }
 
@@ -2774,15 +2777,18 @@ internal sealed class MomoTalkWindow : Window
     {
         var origin = ImGui.GetCursorScreenPos();
         var sideMargin = 16f * scale;
-        var avatarSize = 36f * scale;
+        var fontSize = ImGui.GetFontSize();
+        var nameFontSize = fontSize * 0.88f;
+        var nameTopInset = MathF.Round(nameFontSize * 0.14f);
+        var groupNameOffset = nameFontSize - nameTopInset + 4f * scale;
+        var singleLineBubbleHeight = fontSize + 14f * scale;
+        var avatarSize = groupNameOffset + singleLineBubbleHeight;
         var avatarGap = 11f * scale;
         var showAvatarSlot = config.ShowSelfAvatar;
         var avatarOffset = showAvatarSlot ? avatarSize + avatarGap : 0f;
-        var fontSize = ImGui.GetFontSize();
         var showName = isGroupStart && showAvatarSlot;
-        var nameFontSize = fontSize * 0.88f;
-        var nameOffset = showName ? nameFontSize + 4f * scale : 0f;
-        var bubbleSize = new Vector2(62f, 32f) * scale;
+        var nameOffset = showName ? groupNameOffset : 0f;
+        var bubbleSize = new Vector2(62f * scale, singleLineBubbleHeight);
         var bubbleTop = origin.Y + nameOffset;
         var contentHeight = isGroupStart && showAvatarSlot
             ? MathF.Max(avatarSize, nameOffset + bubbleSize.Y)
@@ -2801,7 +2807,7 @@ internal sealed class MomoTalkWindow : Window
             if (showName)
             {
                 var nameX = origin.X + availWidth - sideMargin - avatarOffset - ChatVisuals.CalcTextSize("You", nameFontSize).X;
-                ChatVisuals.AddText(draw, new Vector2(nameX, origin.Y), nameFontSize,
+                ChatVisuals.AddText(draw, new Vector2(nameX, origin.Y - nameTopInset), nameFontSize,
                     ChatVisuals.Color(ChatVisuals.Ink), "You");
             }
 
@@ -3070,17 +3076,19 @@ internal sealed class MomoTalkWindow : Window
                 summaries = completed.Result;
                 if (summariesLoaded && hidden.Count > 0)
                 {
-                    var previousLatest = new Dictionary<ConversationKey, long>(previous.Count);
+                    var previousLatest = new Dictionary<ConversationKey, ChatMessage>(previous.Count);
                     foreach (var row in previous)
                     {
                         if (row.Latest is { } prevLatest)
-                            previousLatest[row.Conversation.Key] = prevLatest.Id;
+                            previousLatest[row.Conversation.Key] = prevLatest;
                     }
 
                     foreach (var row in summaries)
                     {
                         if (row.Latest is { } latest && hidden.Contains(row.Conversation.Key)
-                            && (!previousLatest.TryGetValue(row.Conversation.Key, out var oldId) || latest.Id > oldId))
+                            && (!previousLatest.TryGetValue(row.Conversation.Key, out var oldLatest)
+                                || latest.Id > oldLatest.Id
+                                || !StringComparer.Ordinal.Equals(latest.Body, oldLatest.Body)))
                         {
                             hidden.Remove(row.Conversation.Key);
                         }

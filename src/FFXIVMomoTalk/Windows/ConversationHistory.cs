@@ -144,10 +144,10 @@ internal sealed class ConversationHistory
                 messages.Add(message);
                 AddedMessages = true;
             }
-            else if (message.Rejection is not null)
+            else
             {
                 var index = messages.FindIndex(existing => existing.Id == message.Id);
-                if (messages[index].Rejection == message.Rejection)
+                if (index < 0 || messages[index] == message)
                     continue;
 
                 messages[index] = message;

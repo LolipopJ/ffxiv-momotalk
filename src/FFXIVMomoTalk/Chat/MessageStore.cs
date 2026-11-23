@@ -5,6 +5,7 @@ namespace FFXIVMomoTalk.Chat;
 internal sealed class MessageStore(string charactersDirectory)
     : CharacterSqliteStore(charactersDirectory, "messages.sqlite3", "message history", SchemaVersion, Schema)
 {
+    internal const long MergeIntervalMs = 500;
     private const int PageSize = 40;
     private const int SchemaVersion = 1;
 
@@ -61,31 +62,39 @@ internal sealed class MessageStore(string charactersDirectory)
         Enqueue(captured.Session.ContentId, connection =>
         {
             using var transaction = connection.BeginTransaction();
-            using var conversation = connection.CreateCommand();
-            conversation.Transaction = transaction;
-            conversation.CommandText = updateDisplayName
-                ? """
-                    INSERT INTO conversations (kind, stable_key, display_name, world_id, world_name)
-                    VALUES ($kind, $stableKey, $name, $world, $worldName)
-                    ON CONFLICT (kind, stable_key) DO UPDATE SET
-                        display_name = excluded.display_name,
-                        world_id = excluded.world_id,
-                        world_name = excluded.world_name
-                    RETURNING id
-                    """
-                : """
-                    INSERT INTO conversations (kind, stable_key, display_name, world_id, world_name)
-                    VALUES ($kind, $stableKey, $name, $world, $worldName)
-                    ON CONFLICT (kind, stable_key) DO UPDATE SET
-                        world_id = excluded.world_id,
-                        world_name = excluded.world_name
-                    RETURNING id
-                    """;
-            BindConversationKey(conversation, captured.Conversation.Key);
-            conversation.Parameters.AddWithValue("$name", captured.Conversation.DisplayName);
-            conversation.Parameters.AddWithValue("$world", (long)captured.Conversation.WorldId);
-            conversation.Parameters.AddWithValue("$worldName", captured.Conversation.WorldName);
-            var conversationId = (long)conversation.ExecuteScalar()!;
+            var (conversationId, lastMessageId, lastSentAt) =
+                UpsertConversation(connection, transaction, captured, updateDisplayName);
+
+            if (lastMessageId is { } mergeTargetId
+                && lastSentAt is { } previousSentAt
+                && ShouldMergeInterval(previousSentAt, captured.SentAt)
+                && CanMergeIntoMessage(connection, transaction, mergeTargetId, captured))
+            {
+                using var append = connection.CreateCommand();
+                append.Transaction = transaction;
+                append.CommandText = "UPDATE messages SET body = body || $append WHERE id = $id";
+                append.Parameters.AddWithValue("$append", "\n" + captured.Body);
+                append.Parameters.AddWithValue("$id", mergeTargetId);
+                append.ExecuteNonQuery();
+
+                if (captured.SentAt > previousSentAt)
+                {
+                    using var updateLatest = connection.CreateCommand();
+                    updateLatest.Transaction = transaction;
+                    updateLatest.CommandText = """
+                        UPDATE conversations SET last_sent_at = $time
+                        WHERE id = $conversation AND last_message_id = $id
+                        """;
+                    updateLatest.Parameters.AddWithValue("$conversation", conversationId);
+                    updateLatest.Parameters.AddWithValue("$time", captured.SentAt);
+                    updateLatest.Parameters.AddWithValue("$id", mergeTargetId);
+                    updateLatest.ExecuteNonQuery();
+                }
+
+                transaction.Commit();
+                Interlocked.Increment(ref revision);
+                return mergeTargetId;
+            }
 
             using var message = connection.CreateCommand();
             message.Transaction = transaction;
@@ -215,7 +224,7 @@ internal sealed class MessageStore(string charactersDirectory)
         Enqueue<IReadOnlyList<ChatMessage>>(owner, connection =>
         {
             using var command = connection.CreateCommand();
-            var filter = includeRejections ? "AND (m.id > $after OR r.message_id IS NOT NULL)" : "AND m.id > $after";
+            var filter = includeRejections ? "AND (m.id >= $after OR r.message_id IS NOT NULL)" : "AND m.id >= $after";
             command.CommandText = SelectMessages + $"\n{filter}\nORDER BY m.sent_at, m.id";
             BindConversationKey(command, key);
             command.Parameters.AddWithValue("$after", afterId);
@@ -334,6 +343,111 @@ internal sealed class MessageStore(string charactersDirectory)
 
             return changed;
         });
+    }
+
+    internal static bool ShouldMergeInterval(long previousSentAt, long currentSentAt)
+    {
+        var interval = currentSentAt - previousSentAt;
+        return interval >= 0 && interval < MergeIntervalMs;
+    }
+
+    internal static bool IsSameSender(
+        bool previousOutgoing,
+        ulong previousContentId,
+        string previousName,
+        uint previousWorldId,
+        string previousWorldName,
+        bool currentOutgoing,
+        PlayerIdentity currentSender)
+    {
+        if (previousOutgoing != currentOutgoing)
+            return false;
+
+        if (currentOutgoing)
+            return true;
+
+        if (previousContentId != 0 && currentSender.ContentId != 0)
+            return previousContentId == currentSender.ContentId;
+
+        if (previousWorldId != currentSender.WorldId)
+            return false;
+
+        if (previousWorldId == 0
+            && !StringComparer.OrdinalIgnoreCase.Equals(previousWorldName.Trim(), currentSender.World.Trim()))
+        {
+            return false;
+        }
+
+        return StringComparer.OrdinalIgnoreCase.Equals(previousName.Trim(), currentSender.Name.Trim());
+    }
+
+    private static (long ConversationId, long? LastMessageId, long? LastSentAt) UpsertConversation(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CapturedMessage captured,
+        bool updateDisplayName)
+    {
+        using var conversation = connection.CreateCommand();
+        conversation.Transaction = transaction;
+        conversation.CommandText = updateDisplayName
+            ? """
+                INSERT INTO conversations (kind, stable_key, display_name, world_id, world_name)
+                VALUES ($kind, $stableKey, $name, $world, $worldName)
+                ON CONFLICT (kind, stable_key) DO UPDATE SET
+                    display_name = excluded.display_name,
+                    world_id = excluded.world_id,
+                    world_name = excluded.world_name
+                RETURNING id, last_message_id, last_sent_at
+                """
+            : """
+                INSERT INTO conversations (kind, stable_key, display_name, world_id, world_name)
+                VALUES ($kind, $stableKey, $name, $world, $worldName)
+                ON CONFLICT (kind, stable_key) DO UPDATE SET
+                    world_id = excluded.world_id,
+                    world_name = excluded.world_name
+                RETURNING id, last_message_id, last_sent_at
+                """;
+        BindConversationKey(conversation, captured.Conversation.Key);
+        conversation.Parameters.AddWithValue("$name", captured.Conversation.DisplayName);
+        conversation.Parameters.AddWithValue("$world", (long)captured.Conversation.WorldId);
+        conversation.Parameters.AddWithValue("$worldName", captured.Conversation.WorldName);
+
+        using var reader = conversation.ExecuteReader();
+        reader.Read();
+        return (
+            reader.GetInt64(0),
+            reader.IsDBNull(1) ? null : reader.GetInt64(1),
+            reader.IsDBNull(2) ? null : reader.GetInt64(2));
+    }
+
+    private static bool CanMergeIntoMessage(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long messageId,
+        CapturedMessage captured)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT m.outgoing, m.sender_content_id, m.sender_name, m.sender_world_id, m.sender_world_name, r.message_id
+            FROM messages m
+            LEFT JOIN message_rejections r ON r.message_id = m.id
+            WHERE m.id = $id
+            """;
+        command.Parameters.AddWithValue("$id", messageId);
+
+        using var reader = command.ExecuteReader();
+        if (!reader.Read() || !reader.IsDBNull(5))
+            return false;
+
+        return IsSameSender(
+            reader.GetBoolean(0),
+            ReadContentId(reader, 1),
+            reader.GetString(2),
+            (uint)reader.GetInt64(3),
+            reader.GetString(4),
+            captured.Outgoing,
+            captured.Sender);
     }
 
     private static List<ChatMessage> ReadMessages(SqliteCommand command)
