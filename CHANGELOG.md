@@ -4,6 +4,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [v1.0.0.0] - 2026-11-24
+
 ### Added
 - Group consecutive messages from the same sender within 500 ms into a single timeline bubble.
 - OpenAI-compatible AI reply suggestions via a conditional sparkle button in the chat send bar, generating 1–3 single-line replies from timestamped recent conversation context (defaulting to the last 10 minutes, up to 100 messages, minimum 5) and notes into an in-timeline MomoTalk-styled `Reply` card with click-to-send and automatic dismissal when sending manually.
@@ -58,6 +60,7 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Attached native in-game outgoing Tell rejection errors to matching message bubbles or conversation banners.
 - Hidden the floating entry button while logged out or on the title/character select screens.
 
-[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v0.2.0.0...main
+[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.0...main
+[v1.0.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v0.2.0.0...v1.0.0.0
 [v0.2.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v0.1.0.0...v0.2.0.0
 [v0.1.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/commits/v0.1.0.0

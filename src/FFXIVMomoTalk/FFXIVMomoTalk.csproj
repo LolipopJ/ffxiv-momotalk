@@ -7,10 +7,10 @@
     <Version>0.2.0.0</Version>
     <Name>MomoTalk</Name>
     <Author>LolipopJ</Author>
-    <Punchline>Blue Archive's MomoTalk in Eorzea — [Hayase Yuuka] Sensei! I need you to work harder!</Punchline>
-    <Description>Bring Blue Archive's iconic MomoTalk into FINAL FANTASY XIV! Crafted for every Sensei in Eorzea, MomoTalk turns your in-game friend /tells into a faithful Blue Archive messenger — complete with a draggable floating phone button, the signature bouncy opening splash, grouped chat bubbles, Lodestone avatars, editable friend notes, and per-character local history. Open with /momotalk or tap the floating MomoTalk icon anytime.</Description>
+    <Punchline>Blue Archive's MomoTalk in Eorzea — [Yuuka] Sen--se--i! I need you to work harder!</Punchline>
+    <Description>Bring Blue Archive's iconic MomoTalk into FINAL FANTASY XIV! Crafted for every Sensei in Eorzea, MomoTalk turns your in-game friend /tells, Free Company, Linkshells, Cross-world Linkshells, and Static party chats into a faithful Blue Archive messenger — complete with a draggable floating phone button, the signature bouncy opening splash, grouped chat bubbles, Lodestone avatars, editable friend and group notes, optional AI reply suggestions, and per-character local history. Open with /momotalk or tap the floating MomoTalk icon anytime.</Description>
     <RepoUrl>https://github.com/LolipopJ/ffxiv-momotalk</RepoUrl>
-    <Tags>social;chat;tell;momotalk;bluearchive</Tags>
+    <Tags>social;chat;tell;linkshell;party;ai;momotalk;bluearchive</Tags>
   </PropertyGroup>
 
   <ItemGroup>
