@@ -50,11 +50,21 @@ jobs:
           TAG="v${VERSION}"
           if TAG_COMMIT="$(git rev-parse --verify --quiet "refs/tags/${TAG}^{commit}")"; then
             if [[ "${TAG_COMMIT}" != "${GITHUB_SHA}" ]]; then
-              # A completed release adds a catalog commit on top of the tagged source.
-              if [[ "${TAG_COMMIT}" != "$(git rev-parse --verify --quiet HEAD^ || true)" ||
-                    "$(git log -1 --format=%s)" != "chore(release): ${TAG}" ]] ||
-                 ! git diff --quiet "${TAG_COMMIT}" HEAD -- . \
+              # A completed release places the catalog commit on top of GITHUB_SHA;
+              # an interrupted run may still have the tag on HEAD^ before moving it.
+              TAG_PARENT="$(git rev-parse --verify --quiet "${TAG_COMMIT}^" || true)"
+              HEAD_PARENT="$(git rev-parse --verify --quiet HEAD^ || true)"
+              if [[ "${TAG_PARENT}" == "${GITHUB_SHA}" &&
+                    "$(git log -1 --format=%s "${TAG_COMMIT}")" == "chore(release): ${TAG}" ]] &&
+                 git diff --quiet "${GITHUB_SHA}" "${TAG_COMMIT}" -- . \
                     ':(exclude)pluginmaster.json' ":(exclude)${CSPROJ_PATH}"; then
+                :
+              elif [[ "${TAG_COMMIT}" == "${HEAD_PARENT}" &&
+                      "$(git log -1 --format=%s)" == "chore(release): ${TAG}" ]] &&
+                   git diff --quiet "${TAG_COMMIT}" HEAD -- . \
+                      ':(exclude)pluginmaster.json' ":(exclude)${CSPROJ_PATH}"; then
+                :
+              else
                 echo "::error::Tag '${TAG}' already points to a different source commit (${TAG_COMMIT})."
                 exit 1
               fi
@@ -219,9 +229,20 @@ jobs:
              }]' \
              "${PUBLISHED_MANIFEST}" > "${CATALOG}"
 
+          point_tag_to() {
+            local target_commit="$1"
+            git tag -f "${TAG}" "${target_commit}"
+            git push --force origin "refs/tags/${TAG}"
+            gh release edit "${TAG}" --target "${target_commit}" --verify-tag
+          }
+
           git fetch origin refs/heads/main
           MAIN_COMMIT="$(git rev-parse FETCH_HEAD)"
           if git show "${MAIN_COMMIT}:pluginmaster.json" | cmp -s - "${CATALOG}"; then
+            if [[ "$(git log -1 --format=%s "${MAIN_COMMIT}")" == "chore(release): ${TAG}" &&
+                  "$(git rev-parse --verify --quiet "refs/tags/${TAG}^{commit}" || true)" != "${MAIN_COMMIT}" ]]; then
+              point_tag_to "${MAIN_COMMIT}"
+            fi
             echo "The public catalog already points to the verified release."
             exit 0
           fi
@@ -236,4 +257,6 @@ jobs:
           cp "${CATALOG}" pluginmaster.json
           git add "${CSPROJ_PATH}" pluginmaster.json
           git commit -m "chore(release): ${TAG}"
+          RELEASE_COMMIT="$(git rev-parse HEAD)"
           git push origin HEAD:refs/heads/main
+          point_tag_to "${RELEASE_COMMIT}"

@@ -4,6 +4,9 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed
+- Move the release tag and GitHub Release target to the `chore(release)` commit created by the release workflow instead of leaving it on the previous commit.
+
 ## [v1.0.0.0] - 2026-11-24
 
 ### Added
