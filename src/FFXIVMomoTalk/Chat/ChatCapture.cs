@@ -25,6 +25,9 @@ internal sealed class ChatCapture(
 
     public ulong FailedWriteOwner => Volatile.Read(ref failedWriteOwner);
 
+    public void ClearFailedWrite(ulong contentId) =>
+        Interlocked.CompareExchange(ref failedWriteOwner, 0, contentId);
+
     public void RecordRejection(PlayerSession session, Task<long> echo, string reason) =>
         _ = ObserveWriteAsync(session.ContentId, messages.RecordRejectionAsync(session.ContentId, echo, reason));
 
@@ -66,7 +69,7 @@ internal sealed class ChatCapture(
         {
             return string.IsNullOrWhiteSpace(player.PlayerName)
                 ? null
-                : new TellPeer(player.PlayerName, player.World.RowId, null);
+                : new TellPeer(player.PlayerName, player.World.RowId, null, HasPlayerPayload: true);
         }
 
         var raw = sender.TextValue.Replace(SeIconChar.CrossWorld.ToIconString(), "@");
@@ -76,8 +79,8 @@ internal sealed class ChatCapture(
 
         var separator = text.IndexOf('@');
         return separator < 0
-            ? new TellPeer(text, 0, null)
-            : new TellPeer(text[..separator].Trim(), 0, text[(separator + 1)..].Trim());
+            ? new TellPeer(text, 0, null, HasPlayerPayload: false)
+            : new TellPeer(text[..separator].Trim(), 0, text[(separator + 1)..].Trim(), HasPlayerPayload: false);
     }
 
     private static string StripPrivateUse(string value)

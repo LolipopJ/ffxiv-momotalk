@@ -10,6 +10,7 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
     private readonly string storeName;
     private readonly int schemaVersion;
     private readonly string schemaSql;
+    private readonly string? indexSql;
     private readonly Channel<Action> requests = Channel.CreateUnbounded<Action>(
         new UnboundedChannelOptions { SingleReader = true });
     private readonly Task worker;
@@ -23,13 +24,15 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
         string fileName,
         string storeName,
         int schemaVersion,
-        string schemaSql)
+        string schemaSql,
+        string? indexSql = null)
     {
         this.charactersDirectory = charactersDirectory;
         this.fileName = fileName;
         this.storeName = storeName;
         this.schemaVersion = schemaVersion;
         this.schemaSql = schemaSql;
+        this.indexSql = indexSql;
         worker = Task.Run(ProcessRequestsAsync);
     }
 
@@ -132,13 +135,20 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
                     throw new InvalidDataException(
                         $"Unrecognized {storeName} database schema version {version} at '{path}' (expected {schemaVersion}). Existing file was preserved.");
                 }
+
+                if (indexSql is not null)
+                {
+                    using var indexes = next.CreateCommand();
+                    indexes.CommandText = indexSql;
+                    indexes.ExecuteNonQuery();
+                }
             }
             else
             {
                 using var transaction = next.BeginTransaction();
                 using var command = next.CreateCommand();
                 command.Transaction = transaction;
-                command.CommandText = $"{schemaSql}\nPRAGMA user_version = {schemaVersion};";
+                command.CommandText = $"{schemaSql}\n{indexSql}\nPRAGMA user_version = {schemaVersion};";
                 command.ExecuteNonQuery();
                 transaction.Commit();
             }

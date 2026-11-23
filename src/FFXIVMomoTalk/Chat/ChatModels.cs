@@ -104,8 +104,16 @@ internal sealed record ActiveParty(string RosterKey, IReadOnlyList<PlayerIdentit
 internal sealed record SendTarget(
     ConversationKey Key,
     string CommandPrefix,
-    string DisplayName,
     PlayerIdentity? TellPeer = null);
+
+[Flags]
+internal enum ChannelAvailability
+{
+    None = 0,
+    FreeCompany = 1 << 0,
+    Linkshells = 1 << 1,
+    CrossWorldLinkshells = 1 << 2,
+}
 
 internal sealed record SocialSnapshot(
     PlayerSession? Session,
@@ -114,7 +122,8 @@ internal sealed record SocialSnapshot(
     IReadOnlyDictionary<int, ChannelInfo> Linkshells,
     IReadOnlyDictionary<int, ChannelInfo> CrossWorldLinkshells,
     IReadOnlyDictionary<string, StaticGroup>? Statics,
-    ActiveParty? Party)
+    ActiveParty? Party,
+    ChannelAvailability LiveChannels = ChannelAvailability.None)
 {
     public static SocialSnapshot Empty(PlayerSession? session) =>
         new(session, null, null, new Dictionary<int, ChannelInfo>(), new Dictionary<int, ChannelInfo>(), null, null);
@@ -146,39 +155,51 @@ internal sealed record SocialSnapshot(
                 var friend = FindTellRecipient(cid, out unavailable);
                 return friend is null
                     ? null
-                    : new SendTarget(key, $"/tell {friend.Name}@{friend.World}", friend.Name, friend);
+                    : new SendTarget(key, $"/tell {friend.Name}@{friend.World}", friend);
 
             case ConversationKind.FreeCompany:
-                if (FreeCompany is { } fc && fc.Key == key)
+                if ((LiveChannels & ChannelAvailability.FreeCompany) == 0)
+                {
+                    unavailable = "Free Company chat is unavailable right now.";
+                    return null;
+                }
+
+                if (FreeCompany?.Key == key)
                 {
                     unavailable = null;
-                    return new SendTarget(key, "/fc", fc.Name);
+                    return new SendTarget(key, "/fc");
                 }
 
                 unavailable = "You are no longer a member of this Free Company.";
                 return null;
 
             case ConversationKind.Linkshell:
-                foreach (var ls in Linkshells.Values)
+                if ((LiveChannels & ChannelAvailability.Linkshells) == 0)
                 {
-                    if (ls.Key == key && ls.Slot is { } lsSlot)
-                    {
-                        unavailable = null;
-                        return new SendTarget(key, $"/l{lsSlot}", ls.Name);
-                    }
+                    unavailable = "Linkshell chat is unavailable right now.";
+                    return null;
+                }
+
+                if (FindActiveSlot(key) is int lsSlot and >= 1 and <= 8)
+                {
+                    unavailable = null;
+                    return new SendTarget(key, $"/l{lsSlot}");
                 }
 
                 unavailable = "You are no longer a member of this Linkshell.";
                 return null;
 
             case ConversationKind.CrossWorldLinkshell:
-                foreach (var cwls in CrossWorldLinkshells.Values)
+                if ((LiveChannels & ChannelAvailability.CrossWorldLinkshells) == 0)
                 {
-                    if (cwls.Key == key && cwls.Slot is { } cwSlot)
-                    {
-                        unavailable = null;
-                        return new SendTarget(key, $"/cwl{cwSlot}", cwls.Name);
-                    }
+                    unavailable = "Cross-World Linkshell chat is unavailable right now.";
+                    return null;
+                }
+
+                if (FindActiveSlot(key) is int cwSlot and >= 1 and <= 8)
+                {
+                    unavailable = null;
+                    return new SendTarget(key, $"/cwl{cwSlot}");
                 }
 
                 unavailable = "You are no longer a member of this Cross-World Linkshell.";
@@ -198,7 +219,7 @@ internal sealed record SocialSnapshot(
                 }
 
                 unavailable = null;
-                return new SendTarget(key, "/p", group.Name);
+                return new SendTarget(key, "/p");
 
             default:
                 unavailable = "Unsupported conversation type.";
@@ -308,13 +329,68 @@ internal sealed record SocialSnapshot(
     public PlayerIdentity? ResolvePartyMember(TellPeer peer) =>
         Party is null ? null : MatchPlayer(Party.Members, peer);
 
-    private static PlayerIdentity? MatchPlayer(IEnumerable<PlayerIdentity> candidates, TellPeer peer)
+    internal static bool MatchesCharacterName(string fullName, string observedName, bool allowAbbreviation)
+    {
+        var target = observedName.AsSpan().Trim();
+        var candidate = fullName.AsSpan().Trim();
+        if (target.IsEmpty || candidate.IsEmpty)
+            return false;
+
+        if (candidate.Equals(target, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!allowAbbreviation)
+            return false;
+
+        return TrySplitTwoPartName(candidate, out var candFirst, out var candLast)
+            && TrySplitTwoPartName(target, out var obsFirst, out var obsLast)
+            && MatchesNameToken(candFirst, obsFirst)
+            && MatchesNameToken(candLast, obsLast);
+    }
+
+    private static bool TrySplitTwoPartName(ReadOnlySpan<char> value, out ReadOnlySpan<char> first, out ReadOnlySpan<char> last)
+    {
+        first = default;
+        last = default;
+        var space = value.IndexOf(' ');
+        if (space > 0)
+        {
+            first = value[..space].Trim();
+            last = value[(space + 1)..].Trim();
+            return !first.IsEmpty && !last.IsEmpty && !last.Contains(' ');
+        }
+
+        if (value.Length >= 3 && value[1] == '.')
+        {
+            first = value[..2];
+            last = value[2..].Trim();
+            return !last.IsEmpty && !last.Contains(' ');
+        }
+
+        return false;
+    }
+
+    private static bool MatchesNameToken(ReadOnlySpan<char> fullToken, ReadOnlySpan<char> observedToken) =>
+        fullToken.Equals(observedToken, StringComparison.OrdinalIgnoreCase)
+        || (observedToken.Length == 2
+            && observedToken[1] == '.'
+            && !fullToken.IsEmpty
+            && char.ToUpperInvariant(fullToken[0]) == char.ToUpperInvariant(observedToken[0]));
+
+    private static PlayerIdentity? MatchPlayer(IEnumerable<PlayerIdentity> candidates, TellPeer peer) =>
+        MatchPlayerCore(candidates, peer, allowAbbreviation: false)
+        ?? (!peer.HasPlayerPayload ? MatchPlayerCore(candidates, peer, allowAbbreviation: true) : null);
+
+    private static PlayerIdentity? MatchPlayerCore(
+        IEnumerable<PlayerIdentity> candidates,
+        TellPeer peer,
+        bool allowAbbreviation)
     {
         var targetName = peer.Name.Trim();
         PlayerIdentity? match = null;
         foreach (var candidate in candidates)
         {
-            if (!StringComparer.OrdinalIgnoreCase.Equals(candidate.Name.Trim(), targetName))
+            if (!MatchesCharacterName(candidate.Name, targetName, allowAbbreviation))
                 continue;
 
             if (peer.WorldId != 0)
@@ -338,7 +414,7 @@ internal sealed record SocialSnapshot(
     }
 }
 
-internal readonly record struct TellPeer(string Name, uint WorldId, string? World);
+internal readonly record struct TellPeer(string Name, uint WorldId, string? World, bool HasPlayerPayload = false);
 
 internal sealed record CapturedMessage(
     PlayerSession Session,
@@ -368,6 +444,6 @@ internal sealed record ChatMessage(
     public MessageCursor Cursor => new(SentAt, Id);
 }
 
-internal sealed record ConversationSummary(ConversationDescriptor Conversation, ChatMessage? Latest);
+internal sealed record ConversationSummary(ConversationDescriptor Conversation, ChatMessage? Latest, long? LastSentAt);
 
 internal sealed record MessagePage(IReadOnlyList<ChatMessage> Messages, bool HasOlder);

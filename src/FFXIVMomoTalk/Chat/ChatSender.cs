@@ -49,12 +49,16 @@ internal sealed class ChatSender(
         pending.Clear();
     }
 
-    public bool TrySubmit(PlayerSession session, SendTarget target, string draft, out string error)
+    public bool TrySubmit(
+        PlayerSession session, SendTarget target, string draft, out Task<bool> submission, out string error)
     {
         if (!TryBuildCommand(target, draft, out var body, out _, out error))
+        {
+            submission = Task.FromResult(false);
             return false;
+        }
 
-        _ = DispatchAsync(new PendingMessage(session, target, body));
+        submission = DispatchAsync(new PendingMessage(session, target, body));
         return true;
     }
 
@@ -104,7 +108,7 @@ internal sealed class ChatSender(
         return true;
     }
 
-    private async Task DispatchAsync(PendingMessage request)
+    private async Task<bool> DispatchAsync(PendingMessage request)
     {
         try
         {
@@ -115,6 +119,8 @@ internal sealed class ChatSender(
             log.Error(exception, "The native chat submission failed.");
             Warn(request, FallbackRejection(request.Conversation.Kind));
         }
+
+        return request.StartedAt != 0;
     }
 
     private unsafe void Dispatch(PendingMessage request)
@@ -126,6 +132,12 @@ internal sealed class ChatSender(
         var snapshot = directory.Update(rereadFriends: isTell, rereadSocial: !isTell);
         if (!ReferenceEquals(request.Session, snapshot.Session))
             return;
+
+        if (isTell && !directory.HasLiveFriendList)
+        {
+            Warn(request, "Open the in-game Friend List so MomoTalk can verify the recipient.");
+            return;
+        }
 
         if (snapshot.FindSendTarget(request.Conversation, out var unavailable) is not { } target)
         {
@@ -164,9 +176,9 @@ internal sealed class ChatSender(
                 return;
             }
 
-            request.StartedAt = Stopwatch.GetTimestamp();
             pending.Add(request);
             submitting = request;
+            request.StartedAt = Stopwatch.GetTimestamp();
             ui->ProcessChatBoxEntry(input);
         }
         catch
@@ -195,7 +207,7 @@ internal sealed class ChatSender(
             if (captured.Conversation.ToTellPeer() is { } tellPeer)
             {
                 var target = new SendTarget(captured.Conversation.Key, $"/tell {tellPeer.Name}@{tellPeer.World}",
-                    tellPeer.Name, tellPeer);
+                    tellPeer);
                 pending.Add(new PendingMessage(captured.Session, target, body)
                 {
                     Echo = archive,
@@ -265,13 +277,14 @@ internal sealed class ChatSender(
 
         var reason = ReadTellRejection(id);
         if (framework.IsInFrameworkUpdateThread)
-            HandleRejection(session, recipient, rawRecipient, nativeCallOnly, reason);
+            HandleRejection(session, id, recipient, rawRecipient, nativeCallOnly, reason);
         else if (!nativeCallOnly)
-            _ = framework.RunOnFrameworkThread(() => HandleRejection(session, recipient, rawRecipient, false, reason));
+            _ = framework.RunOnFrameworkThread(() => HandleRejection(session, id, recipient, rawRecipient, false, reason));
     }
 
     private void HandleRejection(
         PlayerSession session,
+        uint logMessageId,
         TellPeer? recipient,
         string? rawRecipient,
         bool nativeCallOnly,
@@ -291,12 +304,14 @@ internal sealed class ChatSender(
         if (nativeCallOnly || (!string.IsNullOrWhiteSpace(rawRecipient) && peerKey is null))
             return;
 
+        var mayBeGroupRejection = peerKey is null && IsGroupRejectionLogMessage(logMessageId);
         var candidates = pending.Where(request => request.Rejection is null && IsActive(request, session)
-            && request.Conversation.Kind == ConversationKind.Tell
+            && (request.Conversation.Kind == ConversationKind.Tell || mayBeGroupRejection)
             && (peerKey is null || request.Conversation == peerKey)).ToArray();
         if (candidates.Length == 1)
         {
-            Reject(candidates[0], reason);
+            var target = candidates[0];
+            Reject(target, target.Conversation.IsGroup ? ReadGroupLogRejection(logMessageId) : reason);
         }
         else if (candidates.Length > 0)
         {
@@ -304,7 +319,8 @@ internal sealed class ChatSender(
             ConversationKey? conversation = candidates.All(request => request.Conversation == firstConversation)
                 ? firstConversation
                 : null;
-            warnings.Enqueue(new SendWarning(session, conversation, reason));
+            var warning = mayBeGroupRejection ? ReadGroupLogRejection(logMessageId) : reason;
+            warnings.Enqueue(new SendWarning(session, conversation, warning));
         }
         else if (peerKey is { } rejectedKey)
         {
@@ -324,13 +340,19 @@ internal sealed class ChatSender(
         if (string.IsNullOrWhiteSpace(rawRecipient))
             return null;
 
+        var separator = rawRecipient.IndexOf('@');
+        var rawName = (separator < 0 ? rawRecipient : rawRecipient[..separator]).Trim();
+        var rawWorld = separator < 0 ? null : rawRecipient[(separator + 1)..].Trim();
+
         ConversationKey? matched = null;
         foreach (var request in pending)
         {
             if (request.Rejection is not null || !IsActive(request, session) || request.Target.TellPeer is not { } candidate)
                 continue;
 
-            var matches = StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, candidate.Name)
+            var worldMatches = string.IsNullOrEmpty(rawWorld)
+                || StringComparer.OrdinalIgnoreCase.Equals(rawWorld, candidate.World);
+            var matches = (worldMatches && SocialSnapshot.MatchesCharacterName(candidate.Name, rawName, allowAbbreviation: true))
                 || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}@{candidate.World}")
                 || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}{candidate.World}")
                 || rawRecipient.Contains(candidate.Name, StringComparison.OrdinalIgnoreCase);
@@ -345,6 +367,9 @@ internal sealed class ChatSender(
 
         return matched;
     }
+
+    private static bool IsGroupRejectionLogMessage(uint id) =>
+        id is 484 or 749 or 3831 or 3876 or 7382;
 
     private static bool ClassifyTellLogMessage(uint id, out bool hasRecipient, out bool nativeCallOnly)
     {

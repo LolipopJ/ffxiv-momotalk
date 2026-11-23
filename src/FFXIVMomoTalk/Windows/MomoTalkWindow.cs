@@ -37,7 +37,11 @@ internal sealed class MomoTalkWindow : Window
     private readonly Stopwatch introTimer = new();
     private readonly Dictionary<ConversationKey, Draft> drafts = new();
     private readonly Dictionary<ConversationKey, string> notes = new();
+    private readonly Dictionary<ConversationKey, NoteEdit> noteEdits = new();
     private readonly HashSet<ConversationKey> hidden = new();
+    private readonly Dictionary<long, (string Body, float WrapWidth, Vector2 TextSize)> bubbleMeasurements = new();
+    private nint bubbleFont;
+    private float bubbleFontSize;
 
     private PlayerSession? session;
     private NavTab activeTab = NavTab.Chats;
@@ -84,8 +88,9 @@ internal sealed class MomoTalkWindow : Window
     private string? renameStaticKey;
     private string staticNameDraft = string.Empty;
     private string? staticModalError;
+    private Task<StaticGroup?>? staticSave;
+    private IReadOnlyDictionary<string, StaticGroup>? lastStatics;
     private ConversationKey? editingNoteFor;
-    private string noteDraft = string.Empty;
     private bool focusNoteInput;
     private PlayerIdentity? contextFriend;
     private ConversationDescriptor? contextConversation;
@@ -97,6 +102,7 @@ internal sealed class MomoTalkWindow : Window
     private ConversationKey? lastReplyStateConv;
     private AiReplyStatus lastReplyStatus;
     private long lastReplyGenerationId;
+    private string? dismissedStorageError;
 
     public MomoTalkWindow(
         SocialDirectory directory,
@@ -163,7 +169,7 @@ internal sealed class MomoTalkWindow : Window
         OpenImmediate();
         CloseSettings(immediate: true);
         SyncSession(directory.Current.Session);
-        if (session is null)
+        if (session is null || staticSave is not null)
             return;
 
         staticModalMode = StaticModalMode.Create;
@@ -204,6 +210,9 @@ internal sealed class MomoTalkWindow : Window
 
     private void OpenRenameStaticModal(string stableKey, string currentName)
     {
+        if (staticSave is not null)
+            return;
+
         CommitActiveNote();
         CloseSettings(immediate: true);
         staticModalMode = StaticModalMode.Rename;
@@ -226,6 +235,9 @@ internal sealed class MomoTalkWindow : Window
 
     private void CloseStaticModal()
     {
+        if (staticSave is not null)
+            return;
+
         staticModalMode = StaticModalMode.None;
         staticModalOpenedThisFrame = false;
         focusStaticNameInput = false;
@@ -261,8 +273,9 @@ internal sealed class MomoTalkWindow : Window
         introTimer.Reset();
         CloseSettings(immediate: true);
         settingsOpenedThisFrame = false;
-        CloseStaticModal();
-        editingNoteFor = null;
+        if (staticModalError is null)
+            CloseStaticModal();
+        CommitActiveNote();
         inputFocused = false;
         inputFocusedConversation = null;
         wasShowingTyping = false;
@@ -369,9 +382,18 @@ internal sealed class MomoTalkWindow : Window
         {
             if (FormatStorageError(session.ContentId) is { } storageError)
             {
-                var barHeight = DrawStorageErrorBar(draw, bodyPos, bodySize.X, storageError, scale);
-                bodyPos.Y += barHeight;
-                bodySize.Y = MathF.Max(1f, bodySize.Y - barHeight);
+                if (!StringComparer.Ordinal.Equals(storageError, dismissedStorageError))
+                {
+                    var barHeight = DrawStorageErrorBar(draw, bodyPos, bodySize.X, storageError, scale, out var dismissed);
+                    if (dismissed)
+                        dismissedStorageError = storageError;
+                    bodyPos.Y += barHeight;
+                    bodySize.Y = MathF.Max(1f, bodySize.Y - barHeight);
+                }
+            }
+            else
+            {
+                dismissedStorageError = null;
             }
 
             var narrow = bodySize.X < NarrowThreshold * scale;
@@ -1207,14 +1229,29 @@ internal sealed class MomoTalkWindow : Window
     {
         var justOpened = staticModalOpenedThisFrame;
         staticModalOpenedThisFrame = false;
+        var isCreate = staticModalMode == StaticModalMode.Create;
+        if (staticSave is { IsCompleted: true } completed)
+        {
+            staticSave = null;
+            if (completed.IsCompletedSuccessfully && completed.Result is { } saved)
+            {
+                CloseStaticModal();
+                if (isCreate)
+                    OpenConversation(saved.ToDescriptor());
+                return;
+            }
 
-        if (!justOpened && ImGui.IsKeyPressed(ImGuiKey.Escape))
+            staticModalError = "Could not save the static group. Try again.";
+            focusStaticNameInput = true;
+        }
+
+        var isSaving = staticSave is not null;
+        if (!isSaving && !justOpened && ImGui.IsKeyPressed(ImGuiKey.Escape))
         {
             CloseStaticModal();
             return;
         }
 
-        var isCreate = staticModalMode == StaticModalMode.Create;
         if (isCreate && createStaticParty is null)
         {
             CloseStaticModal();
@@ -1289,7 +1326,10 @@ internal sealed class MomoTalkWindow : Window
         var closePos = new Vector2(cardPos.X + cardWidth - 14f * scale - closeSize,
             cardPos.Y + (headerHeight - closeSize) * 0.5f);
         ImGui.SetCursorScreenPos(closePos);
-        if (ImGui.InvisibleButton("##static-modal-close", new Vector2(closeSize)))
+        bool closeClicked;
+        using (ImRaii.Disabled(isSaving))
+            closeClicked = ImGui.InvisibleButton("##static-modal-close", new Vector2(closeSize));
+        if (closeClicked)
         {
             CloseStaticModal();
             return;
@@ -1342,6 +1382,7 @@ internal sealed class MomoTalkWindow : Window
         var inputPadY = MathF.Max(2f, (inputHeight - ImGui.GetFontSize()) * 0.5f);
         ImGui.SetCursorScreenPos(new Vector2(inputPos.X + 10f * scale, inputPos.Y));
         var enter = false;
+        using (ImRaii.Disabled(isSaving))
         using (ImRaii.PushColor(ImGuiCol.FrameBg, Vector4.Zero))
         using (ImRaii.PushColor(ImGuiCol.FrameBgHovered, Vector4.Zero))
         using (ImRaii.PushColor(ImGuiCol.FrameBgActive, Vector4.Zero))
@@ -1378,65 +1419,31 @@ internal sealed class MomoTalkWindow : Window
         var btnWidth = (innerW - btnGap) * 0.5f;
         var cancelPos = new Vector2(leftX, cursorY);
         var confirmPos = new Vector2(leftX + btnWidth + btnGap, cursorY);
-        var canSubmit = !string.IsNullOrWhiteSpace(staticNameDraft);
+        var canSubmit = !isSaving && !string.IsNullOrWhiteSpace(staticNameDraft);
 
         if (ChatVisuals.DrawModalButton(draw, "##static-modal-cancel", "Cancel", cancelPos,
-            new Vector2(btnWidth, buttonsHeight), primary: false, enabled: true, scale))
+            new Vector2(btnWidth, buttonsHeight), primary: false, enabled: !isSaving, scale))
         {
             CloseStaticModal();
             return;
         }
 
         var confirmClicked = ChatVisuals.DrawModalButton(draw, "##static-modal-confirm",
-            isCreate ? "Create" : "Save", confirmPos, new Vector2(btnWidth, buttonsHeight),
+            isSaving ? "Saving..." : isCreate ? "Create" : "Save", confirmPos, new Vector2(btnWidth, buttonsHeight),
             primary: true, enabled: canSubmit, scale);
 
-        if (confirmClicked || enter)
+        if (canSubmit && (confirmClicked || enter))
         {
-            if (!canSubmit)
-            {
-                staticModalError = "Enter a group name.";
-            }
-            else if (isCreate && createStaticParty is { } partyToSave)
-            {
-                if (staticsStore.IncompatibleOwner == session!.ContentId)
-                {
-                    staticModalError = "Unable to save static group (statics.sqlite3 error). See /xllog.";
-                    return;
-                }
-
-                var created = directory.CreateStatic(session!, partyToSave, staticNameDraft);
-                CloseStaticModal();
-                if (created is not null)
-                    OpenConversation(created.ToDescriptor());
-            }
-            else if (!isCreate && renameStaticKey is { } keyToRename)
-            {
-                if (staticsStore.IncompatibleOwner == session!.ContentId)
-                {
-                    staticModalError = "Unable to rename static group (statics.sqlite3 error). See /xllog.";
-                    return;
-                }
-
-                var trimmed = staticNameDraft.Trim();
-                if (directory.RenameStatic(session!, keyToRename, trimmed))
-                {
-                    var renamedKey = ConversationKey.Static(keyToRename);
-                    if (selected?.Key == renamedKey)
-                        selected = selected with { DisplayName = trimmed };
-                    if (inspectedGroup?.Key == renamedKey)
-                        inspectedGroup = inspectedGroup with { DisplayName = trimmed };
-                    Reorder(directory.Current);
-                }
-
-                CloseStaticModal();
-            }
-
+            staticModalError = null;
+            staticSave = isCreate
+                ? directory.CreateStaticAsync(session!, createStaticParty!, staticNameDraft)
+                : directory.RenameStaticAsync(session!, renameStaticKey!, staticNameDraft);
+            ObserveStoreTask(staticSave, "Failed to save static group.");
             return;
         }
 
         var inCard = ImGui.IsMouseHoveringRect(cardPos, cardPos + cardSize);
-        if (!justOpened && !inCard && ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+        if (!isSaving && !justOpened && !inCard && ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
             CloseStaticModal();
     }
 
@@ -2107,7 +2114,7 @@ internal sealed class MomoTalkWindow : Window
         var badgeTextSize = ChatVisuals.CalcTextSize(worldLabel, badgeFontSize);
         var badgeSize = badgeTextSize + badgePad * 2f;
 
-        var totalHeight = avatarSize + 18f * scale + nameSize.Y + 10f * scale + noteLayout.BoxSize.Y + 14f * scale + badgeSize.Y;
+        var totalHeight = avatarSize + 18f * scale + nameSize.Y + 10f * scale + noteLayout.Height + 14f * scale + badgeSize.Y;
         var startY = contentPos.Y + MathF.Max(24f * scale, (contentSize.Y - totalHeight) * 0.44f);
         var centerX = contentPos.X + contentSize.X * 0.5f;
 
@@ -2131,7 +2138,7 @@ internal sealed class MomoTalkWindow : Window
         var notePos = new Vector2(centerX - noteLayout.BoxSize.X * 0.5f, namePos.Y + nameSize.Y + 10f * scale);
         DrawProfileNote(draw, friendKey, notePos, noteLayout, scale);
 
-        var badgePos = new Vector2(centerX - badgeSize.X * 0.5f, notePos.Y + noteLayout.BoxSize.Y + 14f * scale);
+        var badgePos = new Vector2(centerX - badgeSize.X * 0.5f, notePos.Y + noteLayout.Height + 14f * scale);
         draw.AddRect(badgePos, badgePos + badgeSize, ChatVisuals.Color(ChatVisuals.BadgeBorder),
             badgeSize.Y * 0.5f, ImDrawFlags.None, MathF.Max(1.5f, 1.6f * scale));
         ChatVisuals.AddText(draw, badgePos + badgePad, badgeFontSize, ChatVisuals.Color(ChatVisuals.BadgeText), worldLabel);
@@ -2203,7 +2210,7 @@ internal sealed class MomoTalkWindow : Window
         var nameGap = staticInfo is not null ? 14f * scale : 18f * scale;
         var noteGap = staticInfo is not null ? 8f * scale : 10f * scale;
         var badgeGap = staticInfo is not null ? 10f * scale : 14f * scale;
-        var totalHeight = avatarSize + nameGap + nameSize.Y + noteGap + noteLayout.BoxSize.Y + badgeGap + badgeSize.Y;
+        var totalHeight = avatarSize + nameGap + nameSize.Y + noteGap + noteLayout.Height + badgeGap + badgeSize.Y;
         var startY = staticInfo is not null
             ? contentPos.Y + 20f * scale
             : contentPos.Y + MathF.Max(24f * scale, (contentSize.Y - totalHeight) * 0.44f);
@@ -2229,7 +2236,7 @@ internal sealed class MomoTalkWindow : Window
         var notePos = new Vector2(centerX - noteLayout.BoxSize.X * 0.5f, namePos.Y + nameSize.Y + noteGap);
         DrawProfileNote(draw, group.Key, notePos, noteLayout, scale);
 
-        var badgePos = new Vector2(centerX - badgeSize.X * 0.5f, notePos.Y + noteLayout.BoxSize.Y + badgeGap);
+        var badgePos = new Vector2(centerX - badgeSize.X * 0.5f, notePos.Y + noteLayout.Height + badgeGap);
         draw.AddRect(badgePos, badgePos + badgeSize, ChatVisuals.Color(ChatVisuals.BadgeBorder),
             badgeSize.Y * 0.5f, ImDrawFlags.None, MathF.Max(1.5f, 1.6f * scale));
         ChatVisuals.AddText(draw, badgePos + badgePad, badgeFontSize, ChatVisuals.Color(ChatVisuals.BadgeText), badgeLabel);
@@ -2283,7 +2290,11 @@ internal sealed class MomoTalkWindow : Window
         var noteBoxSize = isEditing
             ? new Vector2(MathF.Min(260f * scale, maxCardTextWidth), 32f * scale)
             : new Vector2(MathF.Min(maxNoteWidth, noteTextSize.X + notePad.X * 2f), noteTextSize.Y + notePad.Y * 2f);
-        return new ProfileNoteLayout(note, displayNote, noteFontSize, wrapWidth, noteTextSize, noteBoxSize, isEditing);
+        var edit = noteEdits.GetValueOrDefault(key);
+        var status = edit?.Write is not null ? "Saving..." : edit?.Failed == true ? "Save failed" : null;
+        var height = noteBoxSize.Y + (status is null ? 0f : noteFontSize + 2f * scale);
+        return new ProfileNoteLayout(note, displayNote, noteFontSize, wrapWidth, noteTextSize, noteBoxSize, isEditing,
+            status, height);
     }
 
     private void DrawProfileNote(
@@ -2294,13 +2305,25 @@ internal sealed class MomoTalkWindow : Window
         float scale)
     {
         var noteBoxSize = layout.BoxSize;
+        var edit = noteEdits.GetValueOrDefault(key);
+        if (layout.Status is { } status)
+        {
+            var statusSize = ChatVisuals.CalcTextSize(status, layout.FontSize);
+            var statusPos = notePos + new Vector2((noteBoxSize.X - statusSize.X) * 0.5f, noteBoxSize.Y + 2f * scale);
+            var color = edit?.Failed == true ? ChatVisuals.AlertText : ChatVisuals.Muted;
+            ChatVisuals.AddText(draw, statusPos, layout.FontSize, ChatVisuals.Color(color), status);
+        }
+
         if (layout.IsEditing)
         {
+            var activeEdit = noteEdits[key];
+            var saving = activeEdit.Write is not null;
             var inputRounding = 8f * scale;
             draw.AddRectFilled(notePos, notePos + noteBoxSize, ChatVisuals.Color(ChatVisuals.White), inputRounding);
             var inputPadY = MathF.Max(2f, (noteBoxSize.Y - ImGui.GetFontSize()) * 0.5f);
             ImGui.SetCursorScreenPos(new Vector2(notePos.X + 8f * scale, notePos.Y));
             var enter = false;
+            using (ImRaii.Disabled(saving))
             using (ImRaii.PushColor(ImGuiCol.FrameBg, Vector4.Zero))
             using (ImRaii.PushColor(ImGuiCol.FrameBgHovered, Vector4.Zero))
             using (ImRaii.PushColor(ImGuiCol.FrameBgActive, Vector4.Zero))
@@ -2314,23 +2337,27 @@ internal sealed class MomoTalkWindow : Window
                 }
 
                 ImGui.SetNextItemWidth(MathF.Max(40f * scale, noteBoxSize.X - 16f * scale));
-                enter = ImGui.InputTextWithHint($"##note-input-{key.StorageId}", "Add a note...", ref noteDraft, 160,
+                enter = ImGui.InputTextWithHint($"##note-input-{key.StorageId}", "Add a note...", ref activeEdit.Text, 160,
                     ImGuiInputTextFlags.EnterReturnsTrue);
             }
 
             var inputActive = ImGui.IsItemActive();
+            var deactivated = ImGui.IsItemDeactivated();
             draw.AddRect(notePos, notePos + noteBoxSize,
                 ChatVisuals.Color(inputActive ? ChatVisuals.InputFocus : ChatVisuals.InputBorder),
                 inputRounding, ImDrawFlags.None, MathF.Max(1.5f, 1.8f * scale));
 
-            if (ImGui.IsKeyPressed(ImGuiKey.Escape))
+            if (activeEdit.Failed && ImGui.IsItemHovered())
+                ImGui.SetTooltip("Press Enter to retry saving the note.");
+
+            if (!saving && ImGui.IsKeyPressed(ImGuiKey.Escape))
             {
+                noteEdits.Remove(key);
                 editingNoteFor = null;
             }
-            else if (enter || ImGui.IsItemDeactivated())
+            else if (!saving && (enter || (deactivated && !activeEdit.Failed)))
             {
-                SaveNote(key, noteDraft);
-                editingNoteFor = null;
+                SaveNote(key, activeEdit);
             }
 
             return;
@@ -2340,15 +2367,15 @@ internal sealed class MomoTalkWindow : Window
         if (ImGui.InvisibleButton($"##note-btn-{key.StorageId}", noteBoxSize))
         {
             CommitActiveNote();
+            noteEdits.TryAdd(key, new NoteEdit(layout.Note ?? string.Empty));
             editingNoteFor = key;
-            noteDraft = layout.Note ?? string.Empty;
             focusNoteInput = true;
         }
 
         if (ImGui.IsItemHovered())
         {
             draw.AddRectFilled(notePos, notePos + noteBoxSize, ChatVisuals.Color(ChatVisuals.ListBg), 8f * scale);
-            ImGui.SetTooltip("Click to edit note");
+            ImGui.SetTooltip(edit?.Failed == true ? "Click to retry saving the note" : "Click to edit note");
         }
 
         var noteColor = string.IsNullOrEmpty(layout.Note) ? ChatVisuals.Placeholder : ChatVisuals.Muted;
@@ -2388,14 +2415,21 @@ internal sealed class MomoTalkWindow : Window
         view.Update();
 
         var draft = drafts[currentConv.Key];
+        if (draft.Pending is { Submission.IsCompleted: true } pending)
+        {
+            if (pending.Submission.IsCompletedSuccessfully && pending.Submission.Result
+                && draft.Revision == pending.Revision)
+                draft.Text = string.Empty;
+
+            draft.Pending = null;
+        }
+
         var sendTarget = snapshot.FindSendTarget(currentConv.Key, out var unavailable);
         var replyState = config.IsAiReplyConfigured ? aiReply.GetState(currentConv.Key) : AiReplySnapshot.Idle;
         var warning = draft.Warning is { AttachedToMessage: false } local ? local : unassignedWarning;
+        var warningText = warning is { AttachedToMessage: false } visible ? visible.Message : null;
         var aiError = replyState.Status == AiReplyStatus.Error ? replyState.ErrorMessage : null;
-        var status = unavailable
-            ?? (warning is { AttachedToMessage: false } visible ? visible.Message : null)
-            ?? aiError;
-        var statusIsAlert = unavailable is null;
+        var errorStatus = warningText ?? aiError;
         var writeFailed = capture.FailedWriteOwner == session!.ContentId;
         var showTyping = sendTarget is not null
             && inputFocused
@@ -2403,18 +2437,23 @@ internal sealed class MomoTalkWindow : Window
             && !string.IsNullOrWhiteSpace(draft.Text);
 
         var bannerMaxWidth = MathF.Max(80f * scale, size.X - 36f * scale);
-        ChatVisuals.BannerLayout? statusBanner = status is not null
-            ? ChatVisuals.MeasureSystemBanner(status, bannerMaxWidth, scale)
+        ChatVisuals.BannerLayout? infoBanner = unavailable is not null
+            ? ChatVisuals.MeasureSystemBanner(unavailable, bannerMaxWidth, scale, closable: false)
+            : null;
+        ChatVisuals.BannerLayout? errorBanner = errorStatus is not null
+            ? ChatVisuals.MeasureSystemBanner(errorStatus, bannerMaxWidth, scale, closable: true)
             : null;
         const string writeErrorText = "A message could not be saved. See /xllog for details.";
         ChatVisuals.BannerLayout? writeErrorBanner = writeFailed
-            ? ChatVisuals.MeasureSystemBanner(writeErrorText, bannerMaxWidth, scale)
+            ? ChatVisuals.MeasureSystemBanner(writeErrorText, bannerMaxWidth, scale, closable: true)
             : null;
 
-        var statusHeight = statusBanner?.Height ?? 0f;
+        var infoHeight = infoBanner?.Height ?? 0f;
+        var errorHeight = errorBanner?.Height ?? 0f;
         var writeErrHeight = writeErrorBanner?.Height ?? 0f;
+        var bannersHeight = infoHeight + errorHeight + writeErrHeight;
         var sendBarHeight = 52f * scale;
-        var composerHeight = sendBarHeight + statusHeight + writeErrHeight + (statusHeight + writeErrHeight > 0 ? 4f * scale : 0f);
+        var composerHeight = sendBarHeight + bannersHeight + (bannersHeight > 0 ? 4f * scale : 0f);
         var timelinePos = pos + new Vector2(0, subHeaderH);
         var timelineHeight = MathF.Max(1f, size.Y - subHeaderH - composerHeight);
 
@@ -2427,8 +2466,8 @@ internal sealed class MomoTalkWindow : Window
         using (var timeline = ImRaii.Child("##messages", new Vector2(size.X, timelineHeight), false))
         {
             if (timeline)
-                selectedReplyOption = DrawTimeline(view, currentConv, timelineContentWidth, showTyping, replyState,
-                    sendTarget is not null, scale);
+                selectedReplyOption = DrawTimeline(snapshot, view, currentConv, timelineContentWidth, showTyping, replyState,
+                    sendTarget is not null && draft.Pending is null, scale);
         }
 
         wasShowingTyping = showTyping;
@@ -2440,21 +2479,47 @@ internal sealed class MomoTalkWindow : Window
             SubmitReplyOption(sendTarget, draft, selectedReplyOption);
 
         var footerPos = timelinePos + new Vector2(0, timelineHeight);
-        if (status is not null && statusBanner is { } sb)
+        if (unavailable is not null && infoBanner is { } ib)
         {
-            ChatVisuals.DrawSystemBanner(draw, footerPos, size.X, status, statusIsAlert, scale, sb);
-            footerPos.Y += sb.Height;
+            ChatVisuals.DrawSystemBanner(draw, footerPos, size.X, unavailable, isAlert: false, scale, ib);
+            footerPos.Y += ib.Height;
+        }
+
+        if (errorStatus is not null && errorBanner is { } eb)
+        {
+            if (ChatVisuals.DrawSystemBanner(draw, footerPos, size.X, errorStatus, isAlert: true, scale, eb,
+                closeButtonId: "##dismiss-chat-error"))
+            {
+                if (warningText is not null)
+                {
+                    if (ReferenceEquals(draft.Warning, warning))
+                        draft.Warning = null;
+                    if (ReferenceEquals(unassignedWarning, warning))
+                        unassignedWarning = null;
+                }
+                else
+                {
+                    aiReply.Clear(currentConv.Key);
+                }
+            }
+
+            footerPos.Y += eb.Height;
         }
 
         if (writeErrorBanner is { } wb)
         {
-            ChatVisuals.DrawSystemBanner(draw, footerPos, size.X, writeErrorText, isAlert: true, scale, wb);
+            if (ChatVisuals.DrawSystemBanner(draw, footerPos, size.X, writeErrorText, isAlert: true, scale, wb,
+                closeButtonId: "##dismiss-write-error"))
+            {
+                capture.ClearFailedWrite(session!.ContentId);
+            }
+
             footerPos.Y += wb.Height;
         }
 
         var sendBarPos = pos + new Vector2(0, size.Y - sendBarHeight);
-        DrawSendBar(draw, snapshot, currentConv, view, sendTarget, draft, sendBarPos, new Vector2(size.X, sendBarHeight),
-            bottomCorners, scale);
+        DrawSendBar(draw, snapshot, currentConv, view, sendTarget, draft, replyState, sendBarPos,
+            new Vector2(size.X, sendBarHeight), bottomCorners, scale);
     }
 
     private void DrawSubHeader(ImDrawListPtr draw, Vector2 pos, float width, float height, string title, string? subtitle,
@@ -2514,8 +2579,8 @@ internal sealed class MomoTalkWindow : Window
             ChatVisuals.Color(ChatVisuals.Divider), 1f);
     }
 
-    private string? DrawTimeline(ConversationHistory view, ConversationDescriptor currentConv, float contentWidth,
-        bool showTyping, AiReplySnapshot replyState, bool canSend, float scale)
+    private unsafe string? DrawTimeline(SocialSnapshot snapshot, ConversationHistory view, ConversationDescriptor currentConv,
+        float contentWidth, bool showTyping, AiReplySnapshot replyState, bool canSend, float scale)
     {
         var hasReplyCard = replyState.Status == AiReplyStatus.Loading
             || (replyState.Status == AiReplyStatus.Ready && replyState.Options.Count > 0);
@@ -2547,11 +2612,11 @@ internal sealed class MomoTalkWindow : Window
         else if (view.Messages.Count == 0 && !showTyping && !hasReplyCard)
         {
             var label = view.IsLoading ? "Loading history..." : "No messages yet.";
-            var fontSize = ImGui.GetFontSize();
-            var textSize = ChatVisuals.CalcTextSize(label, fontSize);
+            var placeholderFontSize = ImGui.GetFontSize();
+            var textSize = ChatVisuals.CalcTextSize(label, placeholderFontSize);
             var origin = ImGui.GetCursorScreenPos();
             ChatVisuals.AddText(ImGui.GetWindowDrawList(), origin + new Vector2((availWidth - textSize.X) * 0.5f, 12f * scale),
-                fontSize, ChatVisuals.Color(ChatVisuals.Muted), label);
+                placeholderFontSize, ChatVisuals.Color(ChatVisuals.Muted), label);
             ImGui.Dummy(new Vector2(availWidth, textSize.Y + 24f * scale));
         }
 
@@ -2561,12 +2626,27 @@ internal sealed class MomoTalkWindow : Window
         SenderGroupKey? previousSpeaker = null;
         var previousHadRejection = false;
         var tellPeer = currentConv.ToTellPeer();
+        var staticGroup = currentConv.Key.Kind == ConversationKind.Static && snapshot.Statics is not null
+            && snapshot.Statics.TryGetValue(currentConv.Key.StableKey, out var foundStatic)
+                ? foundStatic
+                : null;
+        var font = (nint)ImGui.GetFont().Handle;
+        var fontSize = ImGui.GetFontSize();
+        if (font != bubbleFont || fontSize != bubbleFontSize)
+        {
+            bubbleFont = font;
+            bubbleFontSize = fontSize;
+            bubbleMeasurements.Clear();
+        }
 
         foreach (var message in view.Messages)
         {
             var author = message.Outgoing
                 ? session!.Player
-                : tellPeer ?? message.Sender;
+                : tellPeer
+                    ?? (staticGroup is not null && message.Sender.ContentId != 0
+                        ? staticGroup.Members.FirstOrDefault(member => member.ContentId == message.Sender.ContentId) ?? message.Sender
+                        : message.Sender);
             var speaker = SenderGroupKey.From(message.Outgoing, author);
             var showTimeDivider = ChatVisuals.ShouldInsertTimeDivider(previousSentAt, message.SentAt);
             var isGroupStart = previousSpeaker is null
@@ -2599,7 +2679,7 @@ internal sealed class MomoTalkWindow : Window
             if (view.PrependAnchor == message.Id)
                 ImGui.SetScrollY(MathF.Max(0f, ImGui.GetScrollY() + y - previousFirstY));
 
-            DrawMessageBubble(message, author, isGroupStart, availWidth, scale);
+            DrawMessageBubble(message, author, isGroupStart, availWidth, fontSize, scale);
 
             if (message.Rejection is { } rejection)
                 DrawTimelineBanner(rejection, isAlert: true, availWidth, scale);
@@ -2687,11 +2767,11 @@ internal sealed class MomoTalkWindow : Window
         ImGui.Dummy(new Vector2(availWidth, layout.Height));
     }
 
-    private void DrawMessageBubble(ChatMessage message, PlayerIdentity author, bool isGroupStart, float availWidth, float scale)
+    private void DrawMessageBubble(ChatMessage message, PlayerIdentity author, bool isGroupStart, float availWidth,
+        float fontSize, float scale)
     {
         var origin = ImGui.GetCursorScreenPos();
         var sideMargin = 16f * scale;
-        var fontSize = ImGui.GetFontSize();
         var padding = new Vector2(11f, 7f) * scale;
         var nameFontSize = fontSize * 0.88f;
         var nameTopInset = MathF.Round(nameFontSize * 0.14f);
@@ -2704,7 +2784,14 @@ internal sealed class MomoTalkWindow : Window
         var innerWidth = MathF.Max(80f * scale, availWidth - sideMargin * 2f);
         var maxBody = MathF.Max(36f * scale,
             MathF.Min(420f * scale, innerWidth * 0.78f - avatarOffset - padding.X * 2f));
-        var textSize = ChatVisuals.CalcTextSize(message.Body, fontSize, maxBody);
+        if (!bubbleMeasurements.TryGetValue(message.Id, out var measured)
+            || measured.WrapWidth != maxBody || measured.Body != message.Body)
+        {
+            measured = (message.Body, maxBody, ChatVisuals.CalcTextSize(message.Body, fontSize, maxBody));
+            bubbleMeasurements[message.Id] = measured;
+        }
+
+        var textSize = measured.TextSize;
         var bubbleSize = new Vector2(MathF.Min(maxBody, textSize.X) + padding.X * 2f, textSize.Y + padding.Y * 2f);
 
         var showName = isGroupStart && showAvatarSlot;
@@ -2820,7 +2907,7 @@ internal sealed class MomoTalkWindow : Window
     }
 
     private void DrawSendBar(ImDrawListPtr draw, SocialSnapshot snapshot, ConversationDescriptor currentConv,
-        ConversationHistory view, SendTarget? target, Draft draft, Vector2 pos, Vector2 size,
+        ConversationHistory view, SendTarget? target, Draft draft, AiReplySnapshot replyState, Vector2 pos, Vector2 size,
         ImDrawFlags bottomCorners, float scale)
     {
         draw.AddRectFilled(pos, pos + size, ChatVisuals.Color(ChatVisuals.SendBarBg), 10f * scale, bottomCorners);
@@ -2852,6 +2939,7 @@ internal sealed class MomoTalkWindow : Window
 
         var inputPadX = 14f * scale;
         var inputPadY = MathF.Max(2f, (pillH - ImGui.GetFontSize()) * 0.5f);
+        var previousText = draft.Text;
         var enter = false;
         ImGui.SetCursorScreenPos(new Vector2(pillPos.X + inputPadX, pillPos.Y));
         using (ImRaii.PushColor(ImGuiCol.FrameBg, Vector4.Zero))
@@ -2865,9 +2953,11 @@ internal sealed class MomoTalkWindow : Window
                 ImGuiInputTextFlags.EnterReturnsTrue);
         }
 
+        if (draft.Text != previousText)
+            draft.Revision++;
+
         var inputActive = ImGui.IsItemActive();
-        var canSend = target is not null;
-        if (enter && target is not null)
+        if (enter && target is not null && draft.Pending is null)
         {
             SubmitDraft(target, draft);
             ImGui.SetKeyboardFocusHere(-1);
@@ -2885,8 +2975,8 @@ internal sealed class MomoTalkWindow : Window
         {
             var aiPos = sendPos;
             sendPos = new Vector2(aiPos.X + aiSize + aiGap, pillY);
-            var aiLoading = aiReply.IsLoading(currentConv.Key);
-            var canGenerate = canSend && !aiLoading;
+            var aiLoading = replyState.Status == AiReplyStatus.Loading;
+            var canGenerate = target is not null && draft.Pending is null && !aiLoading;
 
             ImGui.SetCursorScreenPos(aiPos);
             bool aiClicked;
@@ -2913,7 +3003,7 @@ internal sealed class MomoTalkWindow : Window
             {
                 ImGui.SetTooltip(aiLoading
                     ? "Generating replies..."
-                    : !canSend
+                    : !canGenerate
                         ? "Cannot generate replies right now"
                         : "Generate AI replies");
             }
@@ -2930,6 +3020,7 @@ internal sealed class MomoTalkWindow : Window
         }
 
         ImGui.SetCursorScreenPos(sendPos);
+        var canSend = target is not null && draft.Pending is null;
         var clicked = false;
         using (ImRaii.Disabled(!canSend))
             clicked = ImGui.InvisibleButton("##send", new Vector2(sendSize));
@@ -2961,6 +3052,7 @@ internal sealed class MomoTalkWindow : Window
         inspectedGroup = null;
         selected = null;
         conversation = null;
+        bubbleMeasurements.Clear();
         summaryQuery = null;
         notesQuery = null;
         hiddenQuery = null;
@@ -2973,15 +3065,18 @@ internal sealed class MomoTalkWindow : Window
         summaries = [];
         rows = [];
         notes.Clear();
+        noteEdits.Clear();
+        lastStatics = null;
         hidden.Clear();
         drafts.Clear();
         unassignedWarning = null;
+        dismissedStorageError = null;
         narrowShowingDetail = false;
         contactsSearch = string.Empty;
         chatsSearch = string.Empty;
         groupsSearch = string.Empty;
         editingNoteFor = null;
-        noteDraft = string.Empty;
+        focusNoteInput = false;
         contextFriend = null;
         contextConversation = null;
         contextStatic = null;
@@ -2989,6 +3084,7 @@ internal sealed class MomoTalkWindow : Window
         inputFocused = false;
         inputFocusedConversation = null;
         wasShowingTyping = false;
+        staticSave = null;
         CloseStaticModal();
     }
 
@@ -2996,6 +3092,12 @@ internal sealed class MomoTalkWindow : Window
     {
         if (selected is { } currentSelected)
             selected = snapshot.RefreshDescriptor(currentSelected);
+
+        if (!ReferenceEquals(lastStatics, snapshot.Statics))
+        {
+            lastStatics = snapshot.Statics;
+            Reorder(snapshot);
+        }
 
         if (inspectedFriend is { } friend && snapshot.Friends is not null)
         {
@@ -3130,7 +3232,35 @@ internal sealed class MomoTalkWindow : Window
             }
         }
 
-        if (notesQuery is null && notesRevision != notesStore.Revision)
+        if (notesQuery is not null)
+            return;
+
+        foreach (var (key, edit) in noteEdits)
+        {
+            if (edit.Write is not { IsCompleted: true } write)
+                continue;
+
+            edit.Write = null;
+            if (!write.IsCompletedSuccessfully)
+            {
+                edit.Failed = true;
+                if (editingNoteFor == key)
+                    focusNoteInput = true;
+                continue;
+            }
+
+            var saved = edit.Text.Trim();
+            if (saved.Length == 0)
+                notes.Remove(key);
+            else
+                notes[key] = saved;
+
+            noteEdits.Remove(key);
+            if (editingNoteFor == key)
+                editingNoteFor = null;
+        }
+
+        if (notesRevision != notesStore.Revision)
         {
             notesRevision = notesStore.Revision;
             notesQuery = notesStore.ReadNotesAsync(session!.ContentId);
@@ -3142,22 +3272,29 @@ internal sealed class MomoTalkWindow : Window
         if (editingNoteFor is not { } noteKey)
             return;
 
-        SaveNote(noteKey, noteDraft);
+        var edit = noteEdits[noteKey];
+        if (!edit.Failed)
+            SaveNote(noteKey, edit);
         editingNoteFor = null;
     }
 
-    private void SaveNote(ConversationKey key, string rawNote)
+    private void SaveNote(ConversationKey key, NoteEdit edit)
     {
-        if (session is null || notesStore.IncompatibleOwner == session.ContentId)
+        if (session is null || edit.Write is not null)
             return;
 
-        var trimmed = rawNote.Trim();
-        if (trimmed.Length == 0)
-            notes.Remove(key);
-        else
-            notes[key] = trimmed;
+        var trimmed = edit.Text.Trim();
+        if (trimmed == (notes.GetValueOrDefault(key) ?? string.Empty))
+        {
+            noteEdits.Remove(key);
+            if (editingNoteFor == key)
+                editingNoteFor = null;
+            return;
+        }
 
-        ObserveStoreTask(notesStore.SaveNoteAsync(session.ContentId, key, trimmed), "Failed to save note.");
+        edit.Failed = false;
+        edit.Write = notesStore.SaveNoteAsync(session.ContentId, key, trimmed);
+        ObserveStoreTask(edit.Write, "Failed to save note.");
     }
 
     private void DeleteChatFromList(SocialSnapshot snapshot, ConversationDescriptor conversationDesc)
@@ -3176,6 +3313,7 @@ internal sealed class MomoTalkWindow : Window
         {
             selected = null;
             conversation = null;
+            bubbleMeasurements.Clear();
             narrowShowingDetail = false;
             inputFocused = false;
             inputFocusedConversation = null;
@@ -3203,6 +3341,7 @@ internal sealed class MomoTalkWindow : Window
 
         selected = conversationDesc;
         conversation = new ConversationHistory(messages, session!.ContentId, conversationDesc.Key);
+        bubbleMeasurements.Clear();
         firstMessageY = 0;
         inputFocused = false;
         inputFocusedConversation = null;
@@ -3233,18 +3372,50 @@ internal sealed class MomoTalkWindow : Window
         return $"Database error ({string.Join(", ", failed)}). Existing files were preserved; see /xllog.";
     }
 
-    private static float DrawStorageErrorBar(ImDrawListPtr draw, Vector2 pos, float width, string text, float scale)
+    private static float DrawStorageErrorBar(
+        ImDrawListPtr draw,
+        Vector2 pos,
+        float width,
+        string text,
+        float scale,
+        out bool dismissed)
     {
         var fontSize = ImGui.GetFontSize() * 0.90f;
         var pad = new Vector2(12f * scale, 6f * scale);
-        var maxTextWidth = MathF.Max(40f * scale, width - pad.X * 2f);
+        var closeBtnSize = 18f * scale;
+        var closeGap = 8f * scale;
+        var maxTextWidth = MathF.Max(40f * scale, width - pad.X * 2f - closeBtnSize - closeGap);
         var textSize = ChatVisuals.CalcTextSize(text, fontSize, maxTextWidth);
-        var height = textSize.Y + pad.Y * 2f;
+        var height = MathF.Max(closeBtnSize + pad.Y, textSize.Y + pad.Y * 2f);
 
         draw.AddRectFilled(pos, pos + new Vector2(width, height), ChatVisuals.Color(ChatVisuals.SystemBg));
         draw.AddLine(new Vector2(pos.X, pos.Y + height - 1f), new Vector2(pos.X + width, pos.Y + height - 1f),
             ChatVisuals.Color(ChatVisuals.Divider), 1f);
-        ChatVisuals.AddText(draw, pos + pad, fontSize, ChatVisuals.Color(ChatVisuals.AlertText), text, maxTextWidth);
+        ChatVisuals.AddText(draw, new Vector2(pos.X + pad.X, pos.Y + (height - textSize.Y) * 0.5f), fontSize,
+            ChatVisuals.Color(ChatVisuals.AlertText), text, maxTextWidth);
+
+        var btnPos = new Vector2(pos.X + width - pad.X - closeBtnSize, pos.Y + (height - closeBtnSize) * 0.5f);
+        var cursorBackup = ImGui.GetCursorScreenPos();
+        ImGui.SetCursorScreenPos(btnPos);
+        dismissed = ImGui.InvisibleButton("##dismiss-storage-error", new Vector2(closeBtnSize));
+        var hovered = ImGui.IsItemHovered();
+        var active = ImGui.IsItemActive();
+        if (hovered)
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+        ImGui.SetCursorScreenPos(cursorBackup);
+
+        if (hovered || active)
+        {
+            var hoverCol = ChatVisuals.WithAlpha(ChatVisuals.AlertText, active ? 0.20f : 0.12f);
+            draw.AddRectFilled(btnPos, btnPos + new Vector2(closeBtnSize), ChatVisuals.Color(hoverCol), 5f * scale);
+        }
+
+        ChatVisuals.DrawCloseIcon(
+            draw,
+            btnPos + new Vector2(closeBtnSize * 0.5f),
+            10f * scale,
+            ChatVisuals.Color(ChatVisuals.WithAlpha(ChatVisuals.AlertText, hovered || active ? 1f : 0.72f)),
+            MathF.Max(1.3f, 1.5f * scale));
         return height;
     }
 
@@ -3260,7 +3431,7 @@ internal sealed class MomoTalkWindow : Window
         if (!hiddenLoaded)
         {
             rows = selected is { } activeSelected
-                ? [new ConversationSummary(snapshot.RefreshDescriptor(activeSelected), null)]
+                ? [new ConversationSummary(snapshot.RefreshDescriptor(activeSelected), null, null)]
                 : [];
             return;
         }
@@ -3269,17 +3440,17 @@ internal sealed class MomoTalkWindow : Window
             .Where(row => !hidden.Contains(row.Conversation.Key))
             .Select(row => row with { Conversation = snapshot.RefreshDescriptor(row.Conversation) });
         if (selected is { } current && !visible.Any(row => row.Conversation.Key == current.Key))
-            visible = visible.Append(new ConversationSummary(current, null));
+            visible = visible.Append(new ConversationSummary(current, null, null));
 
         IOrderedEnumerable<ConversationSummary> ranked;
         if (sortByRecent)
         {
             ranked = sortAscending
-                ? visible.OrderBy(row => row.Latest is null ? 1 : 0)
-                    .ThenBy(row => row.Latest?.SentAt)
+                ? visible.OrderBy(row => row.LastSentAt is null ? 1 : 0)
+                    .ThenBy(row => row.LastSentAt)
                     .ThenBy(row => row.Latest?.Id)
                     .ThenBy(row => row.Conversation.DisplayName, StringComparer.OrdinalIgnoreCase)
-                : visible.OrderByDescending(row => row.Latest?.SentAt)
+                : visible.OrderByDescending(row => row.LastSentAt)
                     .ThenByDescending(row => row.Latest?.Id)
                     .ThenBy(row => row.Conversation.DisplayName, StringComparer.OrdinalIgnoreCase);
         }
@@ -3398,25 +3569,25 @@ internal sealed class MomoTalkWindow : Window
 
     private void SubmitDraft(SendTarget target, Draft draft)
     {
-        if (SubmitText(target, draft, draft.Text))
-            draft.Text = string.Empty;
+        if (draft.Pending is null && SubmitText(target, draft, draft.Text) is { } submission)
+            draft.Pending = (draft.Revision, submission);
     }
 
     private void SubmitReplyOption(SendTarget target, Draft draft, string replyText) =>
         SubmitText(target, draft, replyText);
 
-    private bool SubmitText(SendTarget target, Draft draft, string text)
+    private Task<bool>? SubmitText(SendTarget target, Draft draft, string text)
     {
-        if (!sender.TrySubmit(session!, target, text, out var error))
+        if (!sender.TrySubmit(session!, target, text, out var submission, out var error))
         {
             draft.Warning = new SendWarning(session!, target.Key, error);
-            return false;
+            return null;
         }
 
         aiReply.Clear(target.Key);
         draft.Warning = null;
         unassignedWarning = null;
-        return true;
+        return submission;
     }
 
     private void ApplySendWarnings()
@@ -3476,7 +3647,16 @@ internal sealed class MomoTalkWindow : Window
         float WrapWidth,
         Vector2 TextSize,
         Vector2 BoxSize,
-        bool IsEditing);
+        bool IsEditing,
+        string? Status,
+        float Height);
+
+    private sealed class NoteEdit(string text)
+    {
+        public string Text = text;
+        public Task? Write;
+        public bool Failed;
+    }
 
     private readonly record struct SenderGroupKey(bool Outgoing, ulong ContentId, uint WorldId, string Name)
     {
@@ -3491,6 +3671,8 @@ internal sealed class MomoTalkWindow : Window
     private sealed class Draft
     {
         public string Text = string.Empty;
+        public long Revision;
+        public (long Revision, Task<bool> Submission)? Pending;
         public SendWarning? Warning;
     }
 }

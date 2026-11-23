@@ -28,6 +28,9 @@ public sealed class Plugin : IAsyncDalamudPlugin
     internal static IPlayerState PlayerState { get; private set; } = null!;
 
     [PluginService]
+    internal static ICondition Condition { get; private set; } = null!;
+
+    [PluginService]
     internal static IDataManager Data { get; private set; } = null!;
 
     [PluginService]
@@ -70,7 +73,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         notes = new NotesStore(charactersRoot);
         statics = new StaticStore(charactersRoot);
         cache = new CacheStore(charactersRoot);
-        directory = new SocialDirectory(ClientState, PlayerState, Data, Interop, cache, statics, messages, Log);
+        directory = new SocialDirectory(ClientState, PlayerState, Condition, Data, Interop, cache, statics, messages, Log);
         capture = new ChatCapture(Chat, Framework, directory, messages, cache, Log);
         sender = new ChatSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);

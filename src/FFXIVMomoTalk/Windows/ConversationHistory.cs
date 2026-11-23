@@ -1,3 +1,4 @@
+using System.Text;
 using FFXIVMomoTalk.Chat;
 
 namespace FFXIVMomoTalk.Windows;
@@ -8,6 +9,7 @@ internal sealed class ConversationHistory
     private readonly ulong owner;
     private readonly ConversationKey conversation;
     private readonly List<ChatMessage> messages = new();
+    private readonly List<ChatMessage> bubbles = new();
     private readonly HashSet<long> loadedIds = new();
     private Task<MessagePage>? page;
     private Task<IReadOnlyList<ChatMessage>>? updates;
@@ -25,7 +27,7 @@ internal sealed class ConversationHistory
         LoadPage();
     }
 
-    public IReadOnlyList<ChatMessage> Messages => messages;
+    public IReadOnlyList<ChatMessage> Messages => bubbles;
 
     public bool HasOlder { get; private set; }
 
@@ -69,6 +71,7 @@ internal sealed class ConversationHistory
                     RevealLatest = true;
 
                 messages.InsertRange(0, result.Messages.Where(message => loadedIds.Add(message.Id)));
+                RebuildBubbles();
                 HasOlder = result.HasOlder;
 
                 if (!initialized && messages.Count > 0)
@@ -102,7 +105,9 @@ internal sealed class ConversationHistory
         {
             historyRevision = store.Revision;
             var currentRejectionRevision = store.RejectionRevision;
-            updates = store.ReadUpdatesAsync(owner, conversation, latestId, currentRejectionRevision != rejectionRevision);
+            var latestDisplayedId = bubbles.Count == 0 ? 0 : bubbles[^1].Id;
+            updates = store.ReadUpdatesAsync(owner, conversation, latestId, latestDisplayedId,
+                currentRejectionRevision != rejectionRevision);
             rejectionRevision = currentRejectionRevision;
         }
     }
@@ -132,6 +137,7 @@ internal sealed class ConversationHistory
     private void ApplyUpdates(IReadOnlyList<ChatMessage> incoming)
     {
         MessageCursor? earliest = HasOlder && messages.Count > 0 ? messages[0].Cursor : null;
+        var changed = false;
         foreach (var message in incoming)
         {
             latestId = Math.Max(latestId, message.Id);
@@ -142,7 +148,6 @@ internal sealed class ConversationHistory
             if (loadedIds.Add(message.Id))
             {
                 messages.Add(message);
-                AddedMessages = true;
             }
             else
             {
@@ -151,11 +156,41 @@ internal sealed class ConversationHistory
                     continue;
 
                 messages[index] = message;
-                AddedMessages = true;
             }
+
+            changed = true;
         }
 
-        if (AddedMessages)
+        if (changed)
+        {
+            AddedMessages = true;
             messages.Sort((left, right) => left.Cursor.CompareTo(right.Cursor));
+            RebuildBubbles();
+        }
+    }
+
+    private void RebuildBubbles()
+    {
+        bubbles.Clear();
+        for (var index = 0; index < messages.Count; index++)
+        {
+            var first = messages[index];
+            StringBuilder? mergedBody = null;
+            if (first is { Outgoing: true, Rejection: null })
+            {
+                while (index + 1 < messages.Count
+                       && messages[index + 1] is { Outgoing: true, Rejection: null } next
+                       && MessageStore.ShouldMergeInterval(messages[index].SentAt, next.SentAt))
+                {
+                    mergedBody ??= new StringBuilder(first.Body);
+                    mergedBody.Append('\n').Append(next.Body);
+                    if (PrependAnchor == next.Id)
+                        PrependAnchor = first.Id;
+                    index++;
+                }
+            }
+
+            bubbles.Add(mergedBody is null ? first : first with { Body = mergedBody.ToString() });
+        }
     }
 }

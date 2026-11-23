@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Hooking;
@@ -14,6 +16,7 @@ namespace FFXIVMomoTalk.Chat;
 internal sealed unsafe class SocialDirectory(
     IClientState clientState,
     IPlayerState playerState,
+    ICondition condition,
     IDataManager data,
     IGameInteropProvider interop,
     CacheStore cache,
@@ -37,6 +40,7 @@ internal sealed unsafe class SocialDirectory(
     private PlayerSession? staticsQueryFor;
     private Task<IReadOnlyList<StaticGroup>>? staticsQuery;
     private long staticsRevision = -1;
+    private readonly ConcurrentQueue<(PlayerSession Owner, StaticGroup Group)> confirmedStatics = new();
     private InfoProxyInterface* friendProxy;
     private Hook<InfoProxyInterface.Delegates.RequestData>? requestHook;
     private Hook<InfoProxyInterface.Delegates.EndRequest>? endHook;
@@ -48,6 +52,8 @@ internal sealed unsafe class SocialDirectory(
     private readonly Dictionary<ulong, PlayerIdentity> syncedPartyMembers = new();
 
     public SocialSnapshot Current => Volatile.Read(ref current);
+
+    public bool HasLiveFriendList { get; private set; }
 
     public void Attach()
     {
@@ -74,8 +80,17 @@ internal sealed unsafe class SocialDirectory(
         PollCachedChannels(session);
         PollStatics(session);
 
-        if (!playerState.IsLoaded)
+        if (!playerState.IsLoaded || playerState.ContentId != session.ContentId
+            || condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51])
+        {
+            HasLiveFriendList = false;
+            var snapshot = Current;
+            if (snapshot.LiveChannels != ChannelAvailability.None || snapshot.Party is not null)
+                Publish(snapshot with { LiveChannels = ChannelAvailability.None, Party = null });
+
+            lastSocialRead = 0;
             return Current;
+        }
 
         var proxy = (InfoProxyInterface*)InfoProxyFriendList.Instance();
         if (proxy != friendProxy)
@@ -84,6 +99,9 @@ internal sealed unsafe class SocialDirectory(
         var shouldReadFriends = rereadFriends
             || lastFriendsRead == 0
             || Stopwatch.GetElapsedTime(lastFriendsRead) >= TimeSpan.FromMilliseconds(500);
+        if (shouldReadFriends)
+            HasLiveFriendList = false;
+
         if (shouldReadFriends && !IsInCrossWorldDuty() && friendProxy is not null)
         {
             if (ReferenceEquals(loadedFor, session))
@@ -106,15 +124,15 @@ internal sealed unsafe class SocialDirectory(
         return Current;
     }
 
-    public StaticGroup? CreateStatic(PlayerSession owner, ActiveParty party, string rawName)
+    public Task<StaticGroup?> CreateStaticAsync(PlayerSession owner, ActiveParty party, string rawName)
     {
         var trimmed = rawName.Trim();
-        if (trimmed.Length == 0 || !ReferenceEquals(Current.Session, owner) || statics.IncompatibleOwner == owner.ContentId)
-            return null;
+        var snapshot = Current;
+        if (trimmed.Length == 0 || !ReferenceEquals(snapshot.Session, owner))
+            return Task.FromResult<StaticGroup?>(null);
 
-        var existingStatics = Current.Statics ?? new Dictionary<string, StaticGroup>(StringComparer.Ordinal);
-        if (existingStatics.TryGetValue(party.RosterKey, out var existing))
-            return existing;
+        if (snapshot.Statics?.GetValueOrDefault(party.RosterKey) is { } existing)
+            return Task.FromResult<StaticGroup?>(existing);
 
         var group = new StaticGroup(
             party.RosterKey,
@@ -122,55 +140,36 @@ internal sealed unsafe class SocialDirectory(
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             party.Members);
 
-        var nextStatics = new Dictionary<string, StaticGroup>(existingStatics, StringComparer.Ordinal)
-        {
-            [group.StableKey] = group,
-        };
-        Publish(Current with { Statics = nextStatics });
-
-        var createTask = statics.CreateStaticAsync(owner.ContentId, group);
-        ObserveTask(createTask, "Failed to save static group.");
-        _ = createTask.ContinueWith(
-            completed => ObserveTask(
-                messages.RenameConversationAsync(owner.ContentId, completed.Result.Key, completed.Result.Name),
-                "Failed to update static conversation name."),
+        return statics.CreateStaticAsync(owner.ContentId, group).ContinueWith<StaticGroup?>(
+            completed => ConfirmStaticWrite(owner, completed.GetAwaiter().GetResult()),
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnRanToCompletion,
+            TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
-
-        return group;
     }
 
-    public bool RenameStatic(PlayerSession owner, string stableKey, string rawName)
+    public Task<StaticGroup?> RenameStaticAsync(PlayerSession owner, string stableKey, string rawName)
     {
         var trimmed = rawName.Trim();
-        if (trimmed.Length == 0 || !ReferenceEquals(Current.Session, owner) || statics.IncompatibleOwner == owner.ContentId)
-            return false;
+        var snapshot = Current;
+        if (trimmed.Length == 0 || !ReferenceEquals(snapshot.Session, owner)
+            || snapshot.Statics?.GetValueOrDefault(stableKey) is not { } existing)
+            return Task.FromResult<StaticGroup?>(null);
 
-        if (Current.Statics is null || !Current.Statics.TryGetValue(stableKey, out var existing))
-            return false;
-
-        if (StringComparer.Ordinal.Equals(existing.Name, trimmed))
-            return true;
-
-        var updated = existing with { Name = trimmed };
-        var nextStatics = new Dictionary<string, StaticGroup>(Current.Statics, StringComparer.Ordinal)
-        {
-            [stableKey] = updated,
-        };
-        Publish(Current with { Statics = nextStatics });
-
-        var renameTask = statics.RenameStaticAsync(owner.ContentId, stableKey, trimmed);
-        ObserveTask(renameTask, "Failed to rename static group.");
-        _ = renameTask.ContinueWith(
-            _ => ObserveTask(
-                messages.RenameConversationAsync(owner.ContentId, ConversationKey.Static(stableKey), trimmed),
-                "Failed to update static conversation name."),
+        return statics.RenameStaticAsync(owner.ContentId, stableKey, trimmed).ContinueWith(
+            completed => completed.GetAwaiter().GetResult()
+                ? ConfirmStaticWrite(owner, existing with { Name = trimmed })
+                : null,
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnRanToCompletion,
+            TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
+    }
 
-        return true;
+    private StaticGroup ConfirmStaticWrite(PlayerSession owner, StaticGroup group)
+    {
+        confirmedStatics.Enqueue((owner, group));
+        ObserveTask(messages.RenameConversationAsync(owner.ContentId, group.Key, group.Name),
+            "Failed to update static conversation name.");
+        return group;
     }
 
     // Must be called on the Dalamud framework thread.
@@ -213,8 +212,17 @@ internal sealed unsafe class SocialDirectory(
             }
         }
 
+        // The game omits PlayerPayload for the local player's own chat lines and may abbreviate the display name.
+        if (!parsed.HasPlayerPayload
+            && (worldId == 0 || worldId == session.Player.WorldId)
+            && SocialSnapshot.MatchesCharacterName(session.Player.Name, name, allowAbbreviation: true))
+        {
+            outgoing = true;
+            return session.Player;
+        }
+
         // In Static/Party, match against current party first before defaulting world.
-        var lookupPeer = new TellPeer(name, worldId, worldName.Length > 0 ? worldName : null);
+        var lookupPeer = new TellPeer(name, worldId, worldName.Length > 0 ? worldName : null, parsed.HasPlayerPayload);
         if (kind == ConversationKind.Static && snapshot.ResolvePartyMember(lookupPeer) is { } partyMember)
         {
             outgoing = partyMember.ContentId == session.ContentId;
@@ -225,10 +233,10 @@ internal sealed unsafe class SocialDirectory(
         {
             worldId = session.Player.WorldId;
             worldName = session.Player.World;
-            lookupPeer = new TellPeer(name, worldId, worldName);
+            lookupPeer = new TellPeer(name, worldId, worldName, parsed.HasPlayerPayload);
         }
 
-        if (StringComparer.OrdinalIgnoreCase.Equals(name, session.Player.Name.Trim())
+        if (SocialSnapshot.MatchesCharacterName(session.Player.Name, name, allowAbbreviation: !parsed.HasPlayerPayload)
             && (worldId == 0 || worldId == session.Player.WorldId))
         {
             outgoing = true;
@@ -236,17 +244,48 @@ internal sealed unsafe class SocialDirectory(
         }
 
         if (snapshot.ResolvePartyMember(lookupPeer) is { } activePartyMatch)
-            return activePartyMatch;
+        {
+            outgoing = activePartyMatch.ContentId == session.ContentId;
+            return outgoing ? session.Player : activePartyMatch;
+        }
 
         if (snapshot.ResolveTellPeer(lookupPeer) is { } friendMatch)
             return friendMatch;
 
         var proxyCid = LookupMemberProxyContentId(kind, name, worldId);
         if (proxyCid != 0)
-            return new PlayerIdentity(proxyCid, name, worldId, worldName);
+            return ResolveIdentityByContentId(snapshot, session, proxyCid, name, worldId, worldName, out outgoing);
 
         var logCid = LookupLogSourceContentId(chatType, name, worldId);
-        return new PlayerIdentity(logCid, name, worldId, worldName);
+        if (logCid != 0)
+            return ResolveIdentityByContentId(snapshot, session, logCid, name, worldId, worldName, out outgoing);
+
+        return new PlayerIdentity(0, name, worldId, worldName);
+    }
+
+    private static PlayerIdentity ResolveIdentityByContentId(
+        SocialSnapshot snapshot,
+        PlayerSession session,
+        ulong contentId,
+        string fallbackName,
+        uint worldId,
+        string worldName,
+        out bool outgoing)
+    {
+        if (contentId == session.ContentId)
+        {
+            outgoing = true;
+            return session.Player;
+        }
+
+        outgoing = false;
+        if (snapshot.Party?.Members.FirstOrDefault(member => member.ContentId == contentId) is { } partyMember)
+            return partyMember;
+
+        if (snapshot.Friends is not null && snapshot.Friends.TryGetValue(contentId, out var friend))
+            return friend;
+
+        return new PlayerIdentity(contentId, fallbackName, worldId, worldName);
     }
 
     private PlayerSession? UpdateSession()
@@ -373,20 +412,19 @@ internal sealed unsafe class SocialDirectory(
                 });
             }
 
-            if (fcLoadedLive && nextFc is not null && (!fcCachedInStore || cached.FreeCompany != nextFc))
+            if (fcLoadedLive && (!fcCachedInStore || cached.FreeCompany != nextFc))
             {
                 fcCachedInStore = true;
-                PersistChannels(session.ContentId, ConversationKind.FreeCompany, [nextFc]);
+                PersistChannels(session.ContentId, ConversationKind.FreeCompany, nextFc is null ? [] : [nextFc]);
             }
 
-            if (lsLoadedLive && nextLs.Count > 0 && (!lsCachedInStore || ChannelsChanged(cached.Linkshells, nextLs)))
+            if (lsLoadedLive && (!lsCachedInStore || ChannelsChanged(cached.Linkshells, nextLs)))
             {
                 lsCachedInStore = true;
                 PersistChannels(session.ContentId, ConversationKind.Linkshell, nextLs.Values.ToArray());
             }
 
-            if (cwlsLoadedLive && nextCwls.Count > 0
-                && (!cwlsCachedInStore || ChannelsChanged(cached.CrossWorldLinkshells, nextCwls)))
+            if (cwlsLoadedLive && (!cwlsCachedInStore || ChannelsChanged(cached.CrossWorldLinkshells, nextCwls)))
             {
                 cwlsCachedInStore = true;
                 PersistChannels(session.ContentId, ConversationKind.CrossWorldLinkshell, nextCwls.Values.ToArray());
@@ -428,7 +466,7 @@ internal sealed unsafe class SocialDirectory(
 
             if (ReferenceEquals(owner, session))
             {
-                if (completed.IsCompletedSuccessfully)
+                if (completed.IsCompletedSuccessfully && staticsRevision == statics.Revision)
                 {
                     var loadedStatics = new Dictionary<string, StaticGroup>(completed.Result.Count, StringComparer.Ordinal);
                     foreach (var group in completed.Result)
@@ -441,6 +479,22 @@ internal sealed unsafe class SocialDirectory(
                     log.Error(exception, "Failed to read static groups.");
                 }
             }
+        }
+
+        while (confirmedStatics.TryDequeue(out var confirmed))
+        {
+            if (!ReferenceEquals(confirmed.Owner, session))
+                continue;
+
+            var snapshot = Current;
+            var next = snapshot.Statics is { } groups
+                ? new Dictionary<string, StaticGroup>(groups, StringComparer.Ordinal)
+                : new Dictionary<string, StaticGroup>(StringComparer.Ordinal);
+            var group = confirmed.Group;
+            next[group.StableKey] = next.TryGetValue(group.StableKey, out var currentGroup)
+                ? currentGroup with { Name = group.Name }
+                : group;
+            Publish(snapshot with { Statics = next });
         }
 
         if (staticsQuery is null && staticsRevision != statics.Revision)
@@ -459,7 +513,6 @@ internal sealed unsafe class SocialDirectory(
         var onHomeWorld = !inCrossWorldDuty && IsOnHomeWorld();
         var onHomeDataCenter = !inCrossWorldDuty && IsOnHomeDataCenter();
 
-        var liveFc = onHomeWorld ? ReadFreeCompany() : null;
         var liveLs = onHomeWorld ? ReadLinkshells() : null;
         var liveCwls = onHomeDataCenter ? ReadCrossWorldLinkshells() : null;
         var party = ReadActiveParty(owner);
@@ -468,34 +521,39 @@ internal sealed unsafe class SocialDirectory(
         if (!ReferenceEquals(snapshot.Session, owner))
             return;
 
+        var liveChannels = ChannelAvailability.None;
         var nextFc = snapshot.FreeCompany;
         var persistFc = false;
-        if (liveFc is not null)
+        if (onHomeWorld && TryReadFreeCompany(out var liveFc))
         {
             nextFc = MergeChannelName(liveFc, snapshot.FreeCompany);
+            liveChannels |= ChannelAvailability.FreeCompany;
             fcLoadedLive = true;
             persistFc = snapshot.FreeCompany != nextFc || !fcCachedInStore;
         }
 
         var nextLs = snapshot.Linkshells;
         var persistLs = false;
-        if (liveLs is { Count: > 0 })
+        if (liveLs is not null)
         {
             nextLs = MergeChannelNames(liveLs, snapshot.Linkshells);
+            liveChannels |= ChannelAvailability.Linkshells;
             lsLoadedLive = true;
             persistLs = ChannelsChanged(snapshot.Linkshells, nextLs) || !lsCachedInStore;
         }
 
         var nextCwls = snapshot.CrossWorldLinkshells;
         var persistCwls = false;
-        if (liveCwls is { Count: > 0 })
+        if (liveCwls is not null)
         {
             nextCwls = MergeChannelNames(liveCwls, snapshot.CrossWorldLinkshells);
+            liveChannels |= ChannelAvailability.CrossWorldLinkshells;
             cwlsLoadedLive = true;
             persistCwls = ChannelsChanged(snapshot.CrossWorldLinkshells, nextCwls) || !cwlsCachedInStore;
         }
 
-        if (snapshot.FreeCompany != nextFc
+        if (snapshot.LiveChannels != liveChannels
+            || snapshot.FreeCompany != nextFc
             || ChannelsChanged(snapshot.Linkshells, nextLs)
             || ChannelsChanged(snapshot.CrossWorldLinkshells, nextCwls)
             || PartyChanged(snapshot.Party, party))
@@ -506,24 +564,25 @@ internal sealed unsafe class SocialDirectory(
                 Linkshells = nextLs,
                 CrossWorldLinkshells = nextCwls,
                 Party = party,
+                LiveChannels = liveChannels,
             });
         }
 
         if (cachedChannelsQuery is null)
         {
-            if (persistFc && nextFc is not null)
+            if (persistFc)
             {
                 fcCachedInStore = true;
-                PersistChannels(owner.ContentId, ConversationKind.FreeCompany, [nextFc]);
+                PersistChannels(owner.ContentId, ConversationKind.FreeCompany, nextFc is null ? [] : [nextFc]);
             }
 
-            if (persistLs && nextLs.Count > 0)
+            if (persistLs)
             {
                 lsCachedInStore = true;
                 PersistChannels(owner.ContentId, ConversationKind.Linkshell, nextLs.Values.ToArray());
             }
 
-            if (persistCwls && nextCwls.Count > 0)
+            if (persistCwls)
             {
                 cwlsCachedInStore = true;
                 PersistChannels(owner.ContentId, ConversationKind.CrossWorldLinkshell, nextCwls.Values.ToArray());
@@ -534,28 +593,34 @@ internal sealed unsafe class SocialDirectory(
             SyncPartyMembers(owner, party);
     }
 
-    private static ChannelInfo? ReadFreeCompany()
+    private static bool TryReadFreeCompany(out ChannelInfo? channel)
     {
+        channel = null;
         var fc = InfoProxyFreeCompany.Instance();
-        if (fc is null || fc->Id == 0)
-            return null;
+        if (fc is null)
+            return false;
 
-        var name = fc->NameString.Trim();
-        var hasRealName = name.Length > 0;
-        return new ChannelInfo(
-            ConversationKey.FreeCompany(fc->Id),
-            hasRealName ? name : "Free Company",
-            Slot: null,
-            HasRealName: hasRealName);
+        if (fc->Id != 0)
+        {
+            var name = fc->NameString.Trim();
+            var hasRealName = name.Length > 0;
+            channel = new ChannelInfo(
+                ConversationKey.FreeCompany(fc->Id),
+                hasRealName ? name : "Free Company",
+                Slot: null,
+                HasRealName: hasRealName);
+        }
+
+        return true;
     }
 
-    private static Dictionary<int, ChannelInfo> ReadLinkshells()
+    private static Dictionary<int, ChannelInfo>? ReadLinkshells()
     {
-        var result = new Dictionary<int, ChannelInfo>();
         var proxy = InfoProxyLinkshell.Instance();
         if (proxy is null)
-            return result;
+            return null;
 
+        var result = new Dictionary<int, ChannelInfo>();
         var chatProxy = InfoProxyChat.Instance();
         var shells = proxy->LinkShells;
         for (var i = 0; i < shells.Length; i++)
@@ -585,13 +650,13 @@ internal sealed unsafe class SocialDirectory(
         return result;
     }
 
-    private static Dictionary<int, ChannelInfo> ReadCrossWorldLinkshells()
+    private static Dictionary<int, ChannelInfo>? ReadCrossWorldLinkshells()
     {
-        var result = new Dictionary<int, ChannelInfo>();
         var proxy = InfoProxyCrossWorldLinkshell.Instance();
         if (proxy is null)
-            return result;
+            return null;
 
+        var result = new Dictionary<int, ChannelInfo>();
         var shells = proxy->CrossWorldLinkshells;
         for (var i = 0; i < shells.Length; i++)
         {
@@ -904,8 +969,11 @@ internal sealed unsafe class SocialDirectory(
                 && rawSender.Length > 0)
             {
                 var parsed = ChatCapture.ReadPeer(SeString.Parse(rawSender));
-                if (parsed is null || !StringComparer.OrdinalIgnoreCase.Equals(parsed.Value.Name.Trim(), senderName))
+                if (parsed is null
+                    || !SocialSnapshot.MatchesCharacterName(parsed.Value.Name, senderName, allowAbbreviation: true))
+                {
                     continue;
+                }
             }
 
             bestIndex = entry.LogMessageIndex;
@@ -1063,6 +1131,7 @@ internal sealed unsafe class SocialDirectory(
 
         var previous = Current.Friends;
         Publish(Current with { Friends = friends });
+        HasLiveFriendList = true;
 
         if (forcePersist || FriendsChanged(previous, friends))
             PersistFriends(owner.ContentId, friends.Values.ToArray());

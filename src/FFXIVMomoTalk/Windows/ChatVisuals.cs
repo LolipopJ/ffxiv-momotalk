@@ -761,18 +761,19 @@ internal static class ChatVisuals
         AddText(draw, textPos, layout.FontSize, Color(SystemText), label);
     }
 
-    public static BannerLayout MeasureSystemBanner(string text, float maxBannerWidth, float scale)
+    public static BannerLayout MeasureSystemBanner(string text, float maxBannerWidth, float scale, bool closable = false)
     {
         var fontSize = ImGui.GetFontSize() * 0.92f;
         var padding = new Vector2(14f, 6f) * scale;
-        var maxTextWidth = MathF.Max(40f * scale, maxBannerWidth - padding.X * 2f);
+        var closeSlot = closable ? 22f * scale : 0f;
+        var maxTextWidth = MathF.Max(40f * scale, maxBannerWidth - padding.X * 2f - closeSlot);
         var textSize = CalcTextSize(text, fontSize, maxTextWidth);
-        var width = MathF.Min(maxBannerWidth, MathF.Max(textSize.X + padding.X * 2f, maxBannerWidth * 0.55f));
+        var width = MathF.Min(maxBannerWidth, MathF.Max(textSize.X + padding.X * 2f + closeSlot, maxBannerWidth * 0.55f));
         var bannerSize = new Vector2(width, textSize.Y + padding.Y * 2f);
-        return new BannerLayout(bannerSize.Y + 8f * scale, bannerSize, textSize, fontSize, padding, maxTextWidth);
+        return new BannerLayout(bannerSize.Y + 8f * scale, bannerSize, textSize, fontSize, padding, maxTextWidth, closable);
     }
 
-    public static void DrawSystemBanner(
+    public static bool DrawSystemBanner(
         ImDrawListPtr draw,
         Vector2 origin,
         float availWidth,
@@ -782,17 +783,50 @@ internal static class ChatVisuals
         BannerLayout layout,
         float alpha = 1f,
         Vector4? bgOverride = null,
-        Vector4? textOverride = null)
+        Vector4? textOverride = null,
+        string? closeButtonId = null)
     {
         var bannerPos = new Vector2(origin.X + (availWidth - layout.BannerSize.X) * 0.5f, origin.Y + 3f * scale);
         draw.AddRectFilled(bannerPos, bannerPos + layout.BannerSize,
             Color(ScaleAlpha(bgOverride ?? SystemBg, alpha)), 10f * scale);
+        var closeSlot = layout.Closable ? 22f * scale : 0f;
+        var textAreaWidth = layout.BannerSize.X - closeSlot;
         var textX = layout.TextSize.X < layout.MaxTextWidth
-            ? bannerPos.X + (layout.BannerSize.X - layout.TextSize.X) * 0.5f
+            ? bannerPos.X + (textAreaWidth - layout.TextSize.X) * 0.5f
             : bannerPos.X + layout.Padding.X;
         var textPos = new Vector2(textX, bannerPos.Y + layout.Padding.Y);
         var fg = textOverride ?? (isAlert ? AlertText : SystemText);
         AddText(draw, textPos, layout.FontSize, Color(ScaleAlpha(fg, alpha)), text, layout.MaxTextWidth);
+
+        if (!layout.Closable || string.IsNullOrEmpty(closeButtonId))
+            return false;
+
+        var btnSize = 18f * scale;
+        var btnPos = new Vector2(
+            bannerPos.X + layout.BannerSize.X - layout.Padding.X * 0.6f - btnSize,
+            bannerPos.Y + (layout.BannerSize.Y - btnSize) * 0.5f);
+        var cursorBackup = ImGui.GetCursorScreenPos();
+        ImGui.SetCursorScreenPos(btnPos);
+        var clicked = ImGui.InvisibleButton(closeButtonId, new Vector2(btnSize));
+        var hovered = ImGui.IsItemHovered();
+        var active = ImGui.IsItemActive();
+        if (hovered)
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+        ImGui.SetCursorScreenPos(cursorBackup);
+
+        if (hovered || active)
+        {
+            var hoverCol = WithAlpha(fg, active ? 0.20f : 0.12f);
+            draw.AddRectFilled(btnPos, btnPos + new Vector2(btnSize), Color(ScaleAlpha(hoverCol, alpha)), 5f * scale);
+        }
+
+        DrawCloseIcon(
+            draw,
+            btnPos + new Vector2(btnSize * 0.5f),
+            10f * scale,
+            Color(ScaleAlpha(fg, hovered || active ? 1f : 0.72f)),
+            MathF.Max(1.3f, 1.5f * scale));
+        return clicked;
     }
 
     public static int DrawReplyCard(
@@ -1032,7 +1066,8 @@ internal static class ChatVisuals
         Vector2 TextSize,
         float FontSize,
         Vector2 Padding,
-        float MaxTextWidth);
+        float MaxTextWidth,
+        bool Closable = false);
 
     public static bool ShouldInsertTimeDivider(long? previousSentAt, long currentSentAt)
     {

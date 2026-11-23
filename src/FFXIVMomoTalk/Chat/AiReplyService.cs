@@ -48,24 +48,9 @@ internal sealed partial class AiReplyService(
 {
     private const int MaxReplyOptions = 3;
     private const int MaxErrorPreviewLength = 140;
+    private const string InvalidEndpointMessage = "Use an HTTPS LLM endpoint. HTTP is allowed for loopback addresses only.";
 
-    private static readonly string[] ResponseFormatRetryHints =
-    [
-        "response_format",
-        "json_object",
-        "json_schema",
-        "structured",
-        "parameter",
-        "unsupported",
-        "not supported",
-        "extra_forbidden",
-        "unrecognized",
-        "unknown",
-        "invalid_request",
-        "schema",
-    ];
-
-    private readonly HttpClient httpClient = new()
+    private readonly HttpClient httpClient = new(new HttpClientHandler { AllowAutoRedirect = false })
     {
         Timeout = TimeSpan.FromSeconds(30),
         MaxResponseContentBufferSize = 1024 * 1024,
@@ -110,12 +95,6 @@ internal sealed partial class AiReplyService(
                 ? new AiReplySnapshot(state.Status, state.Options, state.ErrorMessage, state.GenerationId)
                 : AiReplySnapshot.Idle;
         }
-    }
-
-    public bool IsLoading(ConversationKey key)
-    {
-        lock (gate)
-            return states.TryGetValue(key, out var state) && state.Status == AiReplyStatus.Loading;
     }
 
     public void Clear(ConversationKey key)
@@ -290,9 +269,7 @@ internal sealed partial class AiReplyService(
         if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var parsed) || string.IsNullOrWhiteSpace(parsed.Host))
             return false;
 
-        var isHttp = StringComparer.OrdinalIgnoreCase.Equals(parsed.Scheme, Uri.UriSchemeHttp)
-            || StringComparer.OrdinalIgnoreCase.Equals(parsed.Scheme, Uri.UriSchemeHttps);
-        if (!isHttp)
+        if (parsed.Scheme != Uri.UriSchemeHttps && !(parsed.Scheme == Uri.UriSchemeHttp && parsed.IsLoopback))
             return false;
 
         var builder = new UriBuilder(parsed);
@@ -478,8 +455,7 @@ internal sealed partial class AiReplyService(
         {
             if (!TryBuildCompletionsUri(endpoint, out var endpointUri) || endpointUri is null)
             {
-                CommitConnectionTest(generationId, AiConnectionTestStatus.Error,
-                    "Invalid LLM endpoint URL. Use a valid http:// or https:// URL.");
+                CommitConnectionTest(generationId, AiConnectionTestStatus.Error, InvalidEndpointMessage);
                 return;
             }
 
@@ -507,12 +483,7 @@ internal sealed partial class AiReplyService(
                 linked.Token).ConfigureAwait(false);
 
             if (!result.IsSuccess)
-            {
-                var error = FormatHttpError(result.StatusCode, result.Body, trimmedApiKey);
-                log.Warning("AI endpoint connection test failed: {Reason}", error);
-                CommitConnectionTest(generationId, AiConnectionTestStatus.Error, error);
-                return;
-            }
+                throw CreateHttpError(result.StatusCode, result.Body, trimmedApiKey);
 
             _ = ExtractAssistantContent(result.Body);
             var elapsedMs = (int)Math.Round(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
@@ -529,7 +500,7 @@ internal sealed partial class AiReplyService(
         catch (AiRequestException exception)
         {
             log.Warning("AI endpoint connection test failed: {Reason}", exception.Message);
-            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, exception.Message);
+            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, exception.DisplayMessage);
         }
         catch (HttpRequestException exception)
         {
@@ -579,7 +550,7 @@ internal sealed partial class AiReplyService(
                     request.GenerationId,
                     AiReplyStatus.Error,
                     [],
-                    "Invalid LLM endpoint URL. Use a valid http:// or https:// URL.");
+                    InvalidEndpointMessage);
                 return;
             }
 
@@ -672,7 +643,7 @@ internal sealed partial class AiReplyService(
                 request.GenerationId,
                 AiReplyStatus.Error,
                 [],
-                exception.Message);
+                exception.DisplayMessage);
         }
         catch (HttpRequestException exception)
         {
@@ -757,7 +728,7 @@ internal sealed partial class AiReplyService(
         }
 
         if (!result.IsSuccess)
-            throw new AiRequestException(FormatHttpError(result.StatusCode, result.Body, trimmedApiKey));
+            throw CreateHttpError(result.StatusCode, result.Body, trimmedApiKey);
 
         return ExtractAssistantContent(result.Body);
     }
@@ -786,84 +757,83 @@ internal sealed partial class AiReplyService(
 
     private static bool ShouldRetryWithoutResponseFormat(string errorBody)
     {
-        if (string.IsNullOrWhiteSpace(errorBody))
-            return true;
-
-        foreach (var hint in ResponseFormatRetryHints)
+        var error = ReadApiError(errorBody);
+        if ((error.Parameter is "response_format" or "response_format.type")
+            && (error.Code is "unsupported_parameter" or "unsupported_value" or "unknown_parameter"))
         {
-            if (errorBody.Contains(hint, StringComparison.OrdinalIgnoreCase))
-                return true;
+            return true;
         }
 
-        return false;
+        var message = error.Message ?? errorBody.TrimStart();
+        return !message.StartsWith('{') && !message.StartsWith('[') && UnsupportedResponseFormatRegex().IsMatch(message);
     }
+
+    private static AiRequestException CreateHttpError(HttpStatusCode statusCode, string responseBody, string trimmedApiKey)
+        => new(DescribeHttpError(statusCode), FormatHttpError(statusCode, responseBody, trimmedApiKey));
 
     private static string FormatHttpError(HttpStatusCode statusCode, string responseBody, string trimmedApiKey)
     {
         if (statusCode == HttpStatusCode.Unauthorized)
-            return "Authentication error (HTTP 401). Check your API key.";
+            return DescribeHttpError(statusCode);
 
-        var code = (int)statusCode;
-        var detail = ExtractApiErrorMessage(responseBody);
-        if (!string.IsNullOrEmpty(detail) && !string.IsNullOrEmpty(trimmedApiKey))
-            detail = detail.Replace(trimmedApiKey, "[redacted]", StringComparison.Ordinal);
+        var message = ReadApiError(responseBody).Message;
+        if (string.IsNullOrWhiteSpace(message))
+            return DescribeHttpError(statusCode);
 
-        if (!string.IsNullOrEmpty(detail))
-        {
-            return statusCode switch
-            {
-                HttpStatusCode.Forbidden => $"Authentication error ({code}): {detail}",
-                HttpStatusCode.TooManyRequests => $"Rate limit exceeded (429): {detail}",
-                _ => $"HTTP {code}: {detail}",
-            };
-        }
+        if (trimmedApiKey.Length > 0)
+            message = message.Replace(trimmedApiKey, "[redacted]", StringComparison.Ordinal);
+
+        var detail = CollapseSingleLine(message);
+        if (detail.Length > MaxErrorPreviewLength)
+            detail = detail[..(MaxErrorPreviewLength - 3)].TrimEnd() + "...";
+
+        if (detail.Length == 0)
+            return DescribeHttpError(statusCode);
 
         return statusCode switch
         {
-            HttpStatusCode.Forbidden => $"Authentication error (HTTP {code}). Check your API key.",
-            HttpStatusCode.TooManyRequests => "Rate limit exceeded (HTTP 429). Please wait and try again.",
-            _ => $"LLM request failed (HTTP {code}).",
+            HttpStatusCode.Forbidden => $"Authentication error (HTTP 403): {detail}",
+            HttpStatusCode.TooManyRequests => $"Rate limit exceeded (HTTP 429): {detail}",
+            _ => $"HTTP {(int)statusCode}: {detail}",
         };
     }
 
-    private static string? ExtractApiErrorMessage(string responseBody)
+    private static string DescribeHttpError(HttpStatusCode statusCode)
+    {
+        return statusCode switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
+                $"Authentication error (HTTP {(int)statusCode}). Check your API key.",
+            HttpStatusCode.TooManyRequests => "Rate limit exceeded (HTTP 429). Please wait and try again.",
+            _ => $"LLM request failed (HTTP {(int)statusCode}).",
+        };
+    }
+
+    private static (string? Message, string? Parameter, string? Code) ReadApiError(string responseBody)
     {
         if (string.IsNullOrWhiteSpace(responseBody))
-            return null;
+            return default;
 
         try
         {
             using var doc = JsonDocument.Parse(responseBody);
-            string? rawMessage = null;
-            if (doc.RootElement.ValueKind == JsonValueKind.Object)
-            {
-                if (doc.RootElement.TryGetProperty("error", out var errorElem)
-                    && errorElem.ValueKind == JsonValueKind.Object
-                    && errorElem.TryGetProperty("message", out var nestedMessage)
-                    && nestedMessage.ValueKind == JsonValueKind.String)
-                {
-                    rawMessage = nestedMessage.GetString();
-                }
-                else if (doc.RootElement.TryGetProperty("message", out var topMessage)
-                    && topMessage.ValueKind == JsonValueKind.String)
-                {
-                    rawMessage = topMessage.GetString();
-                }
-            }
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                return default;
 
-            if (string.IsNullOrWhiteSpace(rawMessage))
-                return null;
-
-            var collapsed = CollapseSingleLine(rawMessage);
-            if (collapsed.Length <= MaxErrorPreviewLength)
-                return collapsed;
-
-            return collapsed[..(MaxErrorPreviewLength - 3)].TrimEnd() + "...";
+            var error = root.TryGetProperty("error", out var nested) && nested.ValueKind == JsonValueKind.Object
+                ? nested
+                : root;
+            var message = ReadString(error, "message") ?? ReadString(root, "message") ?? ReadString(root, "error");
+            return (message, ReadString(error, "param"), ReadString(error, "code"));
         }
         catch (JsonException)
         {
-            return null;
+            return default;
         }
+
+        static string? ReadString(JsonElement element, string name) =>
+            element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     }
 
     private static string BuildRequestJson(string model, string systemPrompt, string userPrompt, bool includeResponseFormat)
@@ -1240,6 +1210,17 @@ internal sealed partial class AiReplyService(
     [GeneratedRegex(@"^\s*(?:[-*•]+|\(\d+\)|\[\d+\]|\d+[.)、])\s*")]
     private static partial Regex LeadingListPrefixRegex();
 
+    [GeneratedRegex(
+        """
+        \b(?:unsupported|unknown|unrecognized)\s+
+            (?:(?:request\s+)?(?:parameter|argument)(?:\s+supplied)?(?:\s*:\s*|\s+))? ['"\x60]?\bresponse_format\b
+        | \b(?:does\s+not\s+support|doesn't\s+support)\s+(?:the\s+)?['"\x60]?\bresponse_format\b
+        | \bresponse_format\b['"\x60]?(?:\s+(?:parameter|argument))?
+            (?:\s+of\s+type\s+['"\x60]?json_(?:object|schema)['"\x60]?)?
+            \s+(?:is\s+)?(?:not\s+supported|unsupported)\b
+        """, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.IgnorePatternWhitespace)]
+    private static partial Regex UnsupportedResponseFormatRegex();
+
     private sealed class ConversationReplyState
     {
         public AiReplyStatus Status { get; set; }
@@ -1270,5 +1251,8 @@ internal sealed partial class AiReplyService(
         long GenerationId,
         CancellationTokenSource Cts);
 
-    private sealed class AiRequestException(string message) : Exception(message);
+    private sealed class AiRequestException(string message, string? displayMessage = null) : Exception(message)
+    {
+        public string DisplayMessage { get; } = displayMessage ?? message;
+    }
 }

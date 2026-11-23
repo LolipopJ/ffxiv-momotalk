@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CSPROJ_PATH: src/FFXIVMomoTalk/FFXIVMomoTalk.csproj
-      MANIFEST_PATH: src/FFXIVMomoTalk/bin/Release/FFXIVMomoTalk/FFXIVMomoTalk.json
       ZIP_PATH: src/FFXIVMomoTalk/bin/Release/FFXIVMomoTalk/latest.zip
     steps:
       - name: Checkout repository
@@ -49,20 +48,70 @@ jobs:
           fi
 
           TAG="v${VERSION}"
-          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-            echo "::error::Tag '${TAG}' already exists."
-            exit 1
+          if TAG_COMMIT="$(git rev-parse --verify --quiet "refs/tags/${TAG}^{commit}")"; then
+            if [[ "${TAG_COMMIT}" != "${GITHUB_SHA}" ]]; then
+              # A completed release adds a catalog commit on top of the tagged source.
+              if [[ "${TAG_COMMIT}" != "$(git rev-parse --verify --quiet HEAD^ || true)" ||
+                    "$(git log -1 --format=%s)" != "chore(release): ${TAG}" ]] ||
+                 ! git diff --quiet "${TAG_COMMIT}" HEAD -- . \
+                    ':(exclude)pluginmaster.json' ":(exclude)${CSPROJ_PATH}"; then
+                echo "::error::Tag '${TAG}' already points to a different source commit (${TAG_COMMIT})."
+                exit 1
+              fi
+            fi
+          else
+            git tag "${TAG}" "${GITHUB_SHA}"
+            git push origin "refs/tags/${TAG}"
           fi
 
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare or resume GitHub Release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! RELEASE="$(gh release view "${TAG}" --json databaseId,isDraft)"; then
+            gh release create "${TAG}" --title "${TAG}" --draft --verify-tag --generate-notes
+            RELEASE="$(gh release view "${TAG}" --json databaseId,isDraft)"
+          fi
+
+          RELEASE_ID="$(jq -er '.databaseId' <<< "${RELEASE}")"
+          ASSET="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" \
+            --jq '.[] | select(.name == "latest.zip")')"
+          ASSET_STATE="$(jq -r '.state // empty' <<< "${ASSET}")"
+          case "${ASSET_STATE}" in
+            uploaded)
+              echo "upload=false" >> "$GITHUB_OUTPUT"
+              ;;
+            starter)
+              # GitHub can leave an empty placeholder after an interrupted upload.
+              ASSET_ID="$(jq -er '.id' <<< "${ASSET}")"
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
+              echo "upload=true" >> "$GITHUB_OUTPUT"
+              ;;
+            '')
+              echo "upload=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unexpected state of latest.zip: ${ASSET_STATE}."
+              exit 1
+              ;;
+          esac
+          echo "draft=$(jq -r '.isDraft' <<< "${RELEASE}")" >> "$GITHUB_OUTPUT"
+
       - name: Setup .NET 10
+        if: steps.release.outputs.upload == 'true'
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Download Dalamud assemblies
+        if: steps.release.outputs.upload == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -79,10 +128,12 @@ jobs:
           echo "DALAMUD_HOME=${DALAMUD_DIR}" >> "$GITHUB_ENV"
 
       - name: Update .csproj version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          python3 - "${CSPROJ_PATH}" "${{ steps.version.outputs.version }}" <<'PY'
+          python3 - "${CSPROJ_PATH}" "${VERSION}" <<'PY'
           import re
           import sys
           from pathlib import Path
@@ -102,22 +153,60 @@ jobs:
           PY
 
       - name: Restore and build Release
+        if: steps.release.outputs.upload == 'true'
         shell: bash
         run: |
           set -euo pipefail
           dotnet restore ./FFXIVMomoTalk.slnx --locked-mode
           dotnet build "${CSPROJ_PATH}" -c Release -p:ContinuousIntegrationBuild=true
-          test -f "${MANIFEST_PATH}"
-          test -f "${ZIP_PATH}"
+          unzip -tq "${ZIP_PATH}"
 
-      - name: Update pluginmaster.json
+      - name: Upload and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          UPLOAD_ASSET: ${{ steps.release.outputs.upload }}
+          IS_DRAFT: ${{ steps.release.outputs.draft }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${{ steps.version.outputs.tag }}"
+          if [[ "${UPLOAD_ASSET}" == "true" ]]; then
+            gh release upload "${TAG}" "${ZIP_PATH}"
+          fi
+          if [[ "${IS_DRAFT}" == "true" ]]; then
+            gh release edit "${TAG}" --draft=false --verify-tag
+          fi
+
+      - name: Verify public ZIP and update pluginmaster.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          UPLOAD_ASSET: ${{ steps.release.outputs.upload }}
+        shell: bash
+        run: |
+          set -euo pipefail
           ICON_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/src/Data/icon.png"
           DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/latest.zip"
-          LAST_UPDATE="$(date +%s)"
+          PUBLISHED_ZIP="${RUNNER_TEMP}/published-latest.zip"
+          PUBLISHED_MANIFEST="${RUNNER_TEMP}/FFXIVMomoTalk.json"
+          CATALOG="${RUNNER_TEMP}/pluginmaster.json"
+
+          curl -fsSL --retry 5 --retry-all-errors --retry-max-time 90 --max-time 90 \
+            "${DOWNLOAD_URL}" -o "${PUBLISHED_ZIP}"
+          if [[ "${UPLOAD_ASSET}" == "true" ]]; then
+            cmp "${ZIP_PATH}" "${PUBLISHED_ZIP}"
+          fi
+          unzip -tq "${PUBLISHED_ZIP}"
+          unzip -Z1 "${PUBLISHED_ZIP}" | grep -Fx 'FFXIVMomoTalk.dll' >/dev/null
+          unzip -p "${PUBLISHED_ZIP}" FFXIVMomoTalk.json > "${PUBLISHED_MANIFEST}"
+          jq -e --arg version "${VERSION}" '
+            def assembly_version: split(".") | map(tonumber) | if length == 3 then . + [0] else . end;
+            .InternalName == "FFXIVMomoTalk" and
+            (.AssemblyVersion | assembly_version) == ($version | assembly_version)
+          ' "${PUBLISHED_MANIFEST}" >/dev/null
+          PUBLISHED_AT="$(gh release view "${TAG}" --json publishedAt --jq '.publishedAt')"
+          LAST_UPDATE="$(date -d "${PUBLISHED_AT}" +%s)"
           jq --arg icon "${ICON_URL}" \
              --arg dl "${DOWNLOAD_URL}" \
              --argjson updated "${LAST_UPDATE}" \
@@ -128,33 +217,23 @@ jobs:
                DownloadLinkTesting: $dl,
                LastUpdate: $updated
              }]' \
-             "${MANIFEST_PATH}" > pluginmaster.json
+             "${PUBLISHED_MANIFEST}" > "${CATALOG}"
 
-      - name: Commit version updates, tag, and push
-        id: push
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.version.outputs.tag }}"
+          git fetch origin refs/heads/main
+          MAIN_COMMIT="$(git rev-parse FETCH_HEAD)"
+          if git show "${MAIN_COMMIT}:pluginmaster.json" | cmp -s - "${CATALOG}"; then
+            echo "The public catalog already points to the verified release."
+            exit 0
+          fi
+          if [[ "${MAIN_COMMIT}" != "${GITHUB_SHA}" ]]; then
+            echo "::error::Main advanced since this release started. The verified ZIP is published; the catalog was not changed."
+            exit 1
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          cp "${CATALOG}" pluginmaster.json
           git add "${CSPROJ_PATH}" pluginmaster.json
           git commit -m "chore(release): ${TAG}"
-          git tag "${TAG}" HEAD
-          git push --atomic origin HEAD:refs/heads/main "refs/tags/${TAG}"
-
-          echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.version.outputs.tag }}"
-          gh release create "${TAG}" "${ZIP_PATH}" \
-            --title "${TAG}" \
-            --target "${{ steps.push.outputs.release_sha }}" \
-            --generate-notes
+          git push origin HEAD:refs/heads/main

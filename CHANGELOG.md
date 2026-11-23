@@ -5,18 +5,27 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 ## [Unreleased]
 
 ### Added
-- Automatic merging of consecutive messages sent by the same user in the same conversation within 500 ms (e.g., FFXIV chat macros) into a single newline-separated chat message.
+- Group consecutive messages from the same sender within 500 ms into a single timeline bubble.
 - OpenAI-compatible AI reply suggestions via a conditional sparkle button in the chat send bar, generating 1–3 single-line replies from timestamped recent conversation context (defaulting to the last 10 minutes, up to 100 messages, minimum 5) and notes into an in-timeline MomoTalk-styled `Reply` card with click-to-send and automatic dismissal when sending manually.
 - Editable inline notes for groups (Free Company, Linkshells, Cross-World Linkshells, and Statics) in the `Groups` detail card, replacing the default group description in the `Groups` list when set and supporting search by note.
 
 ### Changed
 - Sized chat timeline avatars to span from the top of the sender name to the bottom of the first single-line message bubble.
+- Added a close button to dismiss `error` banners above the chat box while keeping persistent `info` reminders (such as a Static group requiring all members in the party to send messages) non-dismissible.
 - Refactored the Settings modal into `General` and `AI Reply` tabs with scrollable narrow-window support, tactile button hover/press feedback, LLM Endpoint, masked/toggleable API Key, Model, `Test Connection` endpoint check, configurable `Chat Context` window/limits, editable System Prompt, and `Reset to Default`.
 - **Breaking:** Split per-character SQLite storage into four independent domain databases under `characters/{ContentId}/` (`messages.sqlite3`, `notes.sqlite3`, `statics.sqlite3`, and `cache.sqlite3`) with independent `user_version` schemas so future cache or state schema updates never require resetting chat history, user notes, or static rosters; legacy `history/{ContentId}.sqlite3` files are preserved unmodified without migration.
 
 ### Fixed
-- Cached Free Company, Linkshell, and Cross-World Linkshell group channels per character immediately on first fetch, loading them on startup and preserving existing groups when native proxies are empty (e.g., on relog, reload, zone transitions, or cross-world duties).
+- Recorded and attached message send failure notices directly below the failed message bubble in the timeline so they scroll with the chat history instead of remaining above the chat input box.
+- Resolved the local player's full identity and `ContentId` in Static party chats (and other group chats) when FFXIV's in-game log Name Display Type is set to an abbreviated format (`Forename S.`, `F. Surname`, or `F. S.`), displaying self messages on the right with the full name and Lodestone avatar.
+- Preserve cached group channels while native membership is unavailable. Clear confirmed departures and require current membership and slots to send.
 - Hardened Friends list caching by adopting already-populated native friend buffers on attach and guarding against empty or late cache overwrites.
+- Keep drafts when a send is blocked before it reaches the game and preserve edits made while dispatch is pending.
+- Attach game rejections to the matching outgoing message, refresh merged lines in open timelines, and sort chats by their latest activity.
+- Keep failed note and static group edits available for retry and update the displayed values after saving.
+- Use an ID index for live message updates and reuse bubble measurements until their text, width, or font changes.
+- Retry AI requests only when the provider reports that it cannot use `response_format`.
+- Verify the published ZIP before updating the plugin catalog and resume interrupted releases for the same tag and commit.
 
 ## [v0.2.0.0] - 2026-11-23
 

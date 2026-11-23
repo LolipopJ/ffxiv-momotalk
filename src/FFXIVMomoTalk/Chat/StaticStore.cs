@@ -137,29 +137,23 @@ internal sealed class StaticStore(string charactersDirectory)
             return group;
         });
 
-    public Task RenameStaticAsync(ulong owner, string stableKey, string newName)
-    {
-        var trimmed = newName.Trim();
-        if (trimmed.Length == 0)
-            return Task.CompletedTask;
-
-        return Enqueue(owner, connection =>
+    public Task<bool> RenameStaticAsync(ulong owner, string stableKey, string name) =>
+        Enqueue(owner, connection =>
         {
             using var updateGroup = connection.CreateCommand();
             updateGroup.CommandText = """
                 UPDATE static_groups
                 SET display_name = $name
-                WHERE stable_key = $stableKey AND display_name <> $name
+                WHERE stable_key = $stableKey
                 """;
             updateGroup.Parameters.AddWithValue("$stableKey", stableKey);
-            updateGroup.Parameters.AddWithValue("$name", trimmed);
+            updateGroup.Parameters.AddWithValue("$name", name);
             var changed = updateGroup.ExecuteNonQuery() != 0;
             if (changed)
                 Interlocked.Increment(ref revision);
 
             return changed;
         });
-    }
 
     public Task SyncMemberIdentitiesAsync(ulong owner, IReadOnlyList<PlayerIdentity> members)
     {
