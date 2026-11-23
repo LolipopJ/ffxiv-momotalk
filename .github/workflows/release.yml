@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CSPROJ_PATH: src/FFXIVMomoTalk/FFXIVMomoTalk.csproj
+      CHANGELOG_PATH: CHANGELOG.md
       ZIP_PATH: src/FFXIVMomoTalk/bin/Release/FFXIVMomoTalk/latest.zip
     steps:
       - name: Checkout repository
@@ -57,12 +58,12 @@ jobs:
               if [[ "${TAG_PARENT}" == "${GITHUB_SHA}" &&
                     "$(git log -1 --format=%s "${TAG_COMMIT}")" == "chore(release): ${TAG}" ]] &&
                  git diff --quiet "${GITHUB_SHA}" "${TAG_COMMIT}" -- . \
-                    ':(exclude)pluginmaster.json' ":(exclude)${CSPROJ_PATH}"; then
+                    ':(exclude)pluginmaster.json' ":(exclude)${CSPROJ_PATH}" ":(exclude)${CHANGELOG_PATH}"; then
                 :
               elif [[ "${TAG_COMMIT}" == "${HEAD_PARENT}" &&
                       "$(git log -1 --format=%s)" == "chore(release): ${TAG}" ]] &&
                    git diff --quiet "${TAG_COMMIT}" HEAD -- . \
-                      ':(exclude)pluginmaster.json' ":(exclude)${CSPROJ_PATH}"; then
+                      ':(exclude)pluginmaster.json' ":(exclude)${CSPROJ_PATH}" ":(exclude)${CHANGELOG_PATH}"; then
                 :
               else
                 echo "::error::Tag '${TAG}' already points to a different source commit (${TAG_COMMIT})."
@@ -189,7 +190,7 @@ jobs:
             gh release edit "${TAG}" --draft=false --verify-tag
           fi
 
-      - name: Verify public ZIP and update pluginmaster.json
+      - name: Verify public ZIP, update changelog and pluginmaster.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
@@ -256,8 +257,129 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          RELEASE_DATE="$(date -u -d "${PUBLISHED_AT}" +%Y-%m-%d)"
+          python3 - "${CHANGELOG_PATH}" "${TAG}" "${RELEASE_DATE}" "https://github.com/${GITHUB_REPOSITORY}" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          tag = sys.argv[2]
+          release_date = sys.argv[3]
+          repo_url = sys.argv[4].rstrip("/")
+
+          lines = path.read_text(encoding="utf-8").splitlines()
+
+          unreleased_idx = None
+          for i, line in enumerate(lines):
+              if line.strip().lower() == "## [unreleased]":
+                  unreleased_idx = i
+                  break
+          if unreleased_idx is None:
+              raise SystemExit(f"Expected '## [Unreleased]' heading in {path}.")
+
+          link_re = re.compile(r"^\[([^\]]+)\]:\s*(\S+)\s*$")
+          end_nonempty = len(lines) - 1
+          while end_nonempty >= 0 and not lines[end_nonempty].strip():
+              end_nonempty -= 1
+
+          links_start = end_nonempty + 1
+          while links_start > 0 and link_re.match(lines[links_start - 1]):
+              links_start -= 1
+
+          body_lines = lines[:links_start]
+          link_lines = lines[links_start : end_nonempty + 1]
+
+          version_heading_re = re.compile(r"^## \[([^\]]+)\]")
+          next_section_idx = None
+          prev_tag = None
+          already_released = False
+          for i, line in enumerate(body_lines):
+              if i <= unreleased_idx:
+                  continue
+              m = version_heading_re.match(line.strip())
+              if m:
+                  if next_section_idx is None:
+                      next_section_idx = i
+                      prev_tag = m.group(1)
+                  if m.group(1) == tag:
+                      already_released = True
+
+          if not already_released:
+              unreleased_end = next_section_idx if next_section_idx is not None else len(body_lines)
+              unreleased_body = body_lines[unreleased_idx + 1 : unreleased_end]
+              while unreleased_body and not unreleased_body[0].strip():
+                  unreleased_body.pop(0)
+              while unreleased_body and not unreleased_body[-1].strip():
+                  unreleased_body.pop()
+
+              new_section = [f"## [{tag}] - {release_date}"]
+              if unreleased_body:
+                  new_section.append("")
+                  new_section.extend(unreleased_body)
+
+              rest = body_lines[unreleased_end:]
+              while rest and not rest[0].strip():
+                  rest.pop(0)
+
+              updated_body = body_lines[: unreleased_idx + 1] + [""] + new_section
+              if rest:
+                  updated_body.append("")
+                  updated_body.extend(rest)
+              body_lines = updated_body
+
+          parsed_links = []
+          for line in link_lines:
+              m = link_re.match(line)
+              if m:
+                  parsed_links.append((m.group(1), m.group(2)))
+
+          if prev_tag is None:
+              for label, url in parsed_links:
+                  if label.lower() == "unreleased":
+                      m = re.search(r"/compare/(.+?)\.\.\.", url)
+                      if m:
+                          prev_tag = m.group(1)
+                      break
+
+          if prev_tag == tag:
+              prev_tag = None
+              seen_tag = False
+              for line in body_lines:
+                  m = version_heading_re.match(line.strip())
+                  if not m:
+                      continue
+                  if m.group(1) == tag:
+                      seen_tag = True
+                  elif seen_tag:
+                      prev_tag = m.group(1)
+                      break
+
+          filtered_links = [
+              (label, url)
+              for label, url in parsed_links
+              if label.lower() != "unreleased" and label != tag
+          ]
+
+          tag_url = (
+              f"{repo_url}/compare/{prev_tag}...{tag}"
+              if prev_tag
+              else f"{repo_url}/commits/{tag}"
+          )
+          new_links = [
+              ("unreleased", f"{repo_url}/compare/{tag}...main"),
+              (tag, tag_url),
+          ] + filtered_links
+
+          while body_lines and not body_lines[-1].strip():
+              body_lines.pop()
+
+          result_lines = body_lines + [""] + [f"[{k}]: {v}" for k, v in new_links]
+          path.write_text("\n".join(result_lines) + "\n", encoding="utf-8")
+          PY
+
           cp "${CATALOG}" pluginmaster.json
-          git add "${CSPROJ_PATH}" pluginmaster.json
+          git add "${CSPROJ_PATH}" "${CHANGELOG_PATH}" pluginmaster.json
           git commit -m "chore(release): ${TAG}"
           RELEASE_COMMIT="$(git rev-parse HEAD)"
           git push origin HEAD:refs/heads/main
