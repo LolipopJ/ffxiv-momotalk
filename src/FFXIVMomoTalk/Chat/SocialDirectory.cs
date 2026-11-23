@@ -24,6 +24,14 @@ internal sealed unsafe class SocialDirectory(
     private PlayerSession? loadedFor;
     private PlayerSession? cachedQueryFor;
     private Task<IReadOnlyList<PlayerIdentity>?>? cachedFriendsQuery;
+    private PlayerSession? cachedChannelsQueryFor;
+    private Task<CachedChannels>? cachedChannelsQuery;
+    private bool fcLoadedLive;
+    private bool lsLoadedLive;
+    private bool cwlsLoadedLive;
+    private bool fcCachedInStore;
+    private bool lsCachedInStore;
+    private bool cwlsCachedInStore;
     private PlayerSession? staticsQueryFor;
     private Task<IReadOnlyList<StaticGroup>>? staticsQuery;
     private long staticsRevision = -1;
@@ -35,7 +43,6 @@ internal sealed unsafe class SocialDirectory(
     private long lastFriendsRead;
     private long lastSocialRead;
     private bool loggedOut;
-    private readonly Dictionary<ConversationKey, string> syncedChannelNames = new();
     private readonly Dictionary<ulong, PlayerIdentity> syncedPartyMembers = new();
 
     public SocialSnapshot Current => Volatile.Read(ref current);
@@ -62,6 +69,7 @@ internal sealed unsafe class SocialDirectory(
             return Current;
 
         PollCachedFriends(session);
+        PollCachedChannels(session);
         PollStatics(session);
 
         if (!playerState.IsLoaded)
@@ -71,10 +79,20 @@ internal sealed unsafe class SocialDirectory(
         if (proxy != friendProxy)
             WatchProxy(proxy);
 
-        if (ReferenceEquals(loadedFor, session) && !IsInCrossWorldDuty() && (rereadFriends
-            || Stopwatch.GetElapsedTime(lastFriendsRead) >= TimeSpan.FromMilliseconds(500)))
+        var shouldReadFriends = rereadFriends
+            || lastFriendsRead == 0
+            || Stopwatch.GetElapsedTime(lastFriendsRead) >= TimeSpan.FromMilliseconds(500);
+        if (shouldReadFriends && !IsInCrossWorldDuty() && friendProxy is not null)
         {
-            ReadFriends(session, forcePersist: false);
+            if (ReferenceEquals(loadedFor, session))
+            {
+                ReadFriends(session, forcePersist: false);
+            }
+            else if (requestedFor is null && HasPopulatedFriends(friendProxy))
+            {
+                loadedFor = session;
+                ReadFriends(session, forcePersist: false);
+            }
         }
 
         if (rereadSocial || lastSocialRead == 0
@@ -254,10 +272,17 @@ internal sealed unsafe class SocialDirectory(
         loadedFor = null;
         lastFriendsRead = 0;
         lastSocialRead = 0;
-        syncedChannelNames.Clear();
+        fcLoadedLive = false;
+        lsLoadedLive = false;
+        cwlsLoadedLive = false;
+        fcCachedInStore = false;
+        lsCachedInStore = false;
+        cwlsCachedInStore = false;
         syncedPartyMembers.Clear();
         cachedQueryFor = session;
         cachedFriendsQuery = session is not null ? history.ReadCachedFriendsAsync(session.ContentId) : null;
+        cachedChannelsQueryFor = session;
+        cachedChannelsQuery = session is not null ? history.ReadCachedChannelsAsync(session.ContentId) : null;
         staticsQueryFor = session;
         staticsRevision = history.StaticsRevision;
         staticsQuery = session is not null ? history.ReadStaticsAsync(session.ContentId) : null;
@@ -273,7 +298,7 @@ internal sealed unsafe class SocialDirectory(
         cachedFriendsQuery = null;
         cachedQueryFor = null;
 
-        if (!ReferenceEquals(owner, session) || ReferenceEquals(loadedFor, session))
+        if (!ReferenceEquals(owner, session) || ReferenceEquals(loadedFor, session) || Current.Friends is not null)
             return;
 
         if (completed.IsCompletedSuccessfully)
@@ -290,6 +315,80 @@ internal sealed unsafe class SocialDirectory(
         else if (completed.Exception is { } exception)
         {
             log.Error(exception, "Failed to read cached friends list.");
+        }
+    }
+
+    private void PollCachedChannels(PlayerSession session)
+    {
+        if (cachedChannelsQuery is not { IsCompleted: true } completed)
+            return;
+
+        var owner = cachedChannelsQueryFor;
+        cachedChannelsQuery = null;
+        cachedChannelsQueryFor = null;
+
+        if (!ReferenceEquals(owner, session))
+            return;
+
+        if (completed.IsCompletedSuccessfully)
+        {
+            var cached = completed.Result;
+            fcCachedInStore = cached.HasFreeCompany;
+            lsCachedInStore = cached.HasLinkshells;
+            cwlsCachedInStore = cached.HasCrossWorldLinkshells;
+
+            var snapshot = Current;
+            if (!ReferenceEquals(snapshot.Session, session))
+                return;
+
+            var nextFc = fcLoadedLive
+                ? MergeChannelName(snapshot.FreeCompany, cached.FreeCompany)
+                : cached.FreeCompany;
+            var nextLs = lsLoadedLive
+                ? MergeChannelNames(snapshot.Linkshells, cached.Linkshells)
+                : cached.Linkshells;
+            var nextCwls = cwlsLoadedLive
+                ? MergeChannelNames(snapshot.CrossWorldLinkshells, cached.CrossWorldLinkshells)
+                : cached.CrossWorldLinkshells;
+
+            if (snapshot.FreeCompany != nextFc
+                || ChannelsChanged(snapshot.Linkshells, nextLs)
+                || ChannelsChanged(snapshot.CrossWorldLinkshells, nextCwls))
+            {
+                Publish(snapshot with
+                {
+                    FreeCompany = nextFc,
+                    Linkshells = nextLs,
+                    CrossWorldLinkshells = nextCwls,
+                });
+            }
+
+            if (fcLoadedLive && nextFc is not null && (!fcCachedInStore || cached.FreeCompany != nextFc))
+            {
+                fcCachedInStore = true;
+                PersistChannels(session.ContentId, ConversationKind.FreeCompany, [nextFc]);
+            }
+
+            if (lsLoadedLive && nextLs.Count > 0 && (!lsCachedInStore || ChannelsChanged(cached.Linkshells, nextLs)))
+            {
+                lsCachedInStore = true;
+                PersistChannels(session.ContentId, ConversationKind.Linkshell, nextLs.Values.ToArray());
+            }
+
+            if (cwlsLoadedLive && nextCwls.Count > 0
+                && (!cwlsCachedInStore || ChannelsChanged(cached.CrossWorldLinkshells, nextCwls)))
+            {
+                cwlsCachedInStore = true;
+                PersistChannels(session.ContentId, ConversationKind.CrossWorldLinkshell, nextCwls.Values.ToArray());
+            }
+        }
+        else if (completed.Exception is { } exception)
+        {
+            // Prevent repeated write attempts every 500 ms when the history store failed to open (e.g. schema mismatch).
+            fcCachedInStore = true;
+            lsCachedInStore = true;
+            cwlsCachedInStore = true;
+            log.Error(exception, "Failed to read cached group channels.");
         }
     }
 
@@ -330,30 +429,81 @@ internal sealed unsafe class SocialDirectory(
     {
         lastSocialRead = Stopwatch.GetTimestamp();
 
-        var fc = ReadFreeCompany();
-        var linkshells = ReadLinkshells();
-        var cwls = ReadCrossWorldLinkshells();
+        var inCrossWorldDuty = IsInCrossWorldDuty();
+        var onHomeWorld = !inCrossWorldDuty && IsOnHomeWorld();
+        var onHomeDataCenter = !inCrossWorldDuty && IsOnHomeDataCenter();
+
+        var liveFc = onHomeWorld ? ReadFreeCompany() : null;
+        var liveLs = onHomeWorld ? ReadLinkshells() : null;
+        var liveCwls = onHomeDataCenter ? ReadCrossWorldLinkshells() : null;
         var party = ReadActiveParty(owner);
 
         var snapshot = Current;
         if (!ReferenceEquals(snapshot.Session, owner))
             return;
 
-        if (snapshot.FreeCompany != fc
-            || ChannelsChanged(snapshot.Linkshells, linkshells)
-            || ChannelsChanged(snapshot.CrossWorldLinkshells, cwls)
+        var nextFc = snapshot.FreeCompany;
+        var persistFc = false;
+        if (liveFc is not null)
+        {
+            nextFc = MergeChannelName(liveFc, snapshot.FreeCompany);
+            fcLoadedLive = true;
+            persistFc = snapshot.FreeCompany != nextFc || !fcCachedInStore;
+        }
+
+        var nextLs = snapshot.Linkshells;
+        var persistLs = false;
+        if (liveLs is { Count: > 0 })
+        {
+            nextLs = MergeChannelNames(liveLs, snapshot.Linkshells);
+            lsLoadedLive = true;
+            persistLs = ChannelsChanged(snapshot.Linkshells, nextLs) || !lsCachedInStore;
+        }
+
+        var nextCwls = snapshot.CrossWorldLinkshells;
+        var persistCwls = false;
+        if (liveCwls is { Count: > 0 })
+        {
+            nextCwls = MergeChannelNames(liveCwls, snapshot.CrossWorldLinkshells);
+            cwlsLoadedLive = true;
+            persistCwls = ChannelsChanged(snapshot.CrossWorldLinkshells, nextCwls) || !cwlsCachedInStore;
+        }
+
+        if (snapshot.FreeCompany != nextFc
+            || ChannelsChanged(snapshot.Linkshells, nextLs)
+            || ChannelsChanged(snapshot.CrossWorldLinkshells, nextCwls)
             || PartyChanged(snapshot.Party, party))
         {
             Publish(snapshot with
             {
-                FreeCompany = fc,
-                Linkshells = linkshells,
-                CrossWorldLinkshells = cwls,
+                FreeCompany = nextFc,
+                Linkshells = nextLs,
+                CrossWorldLinkshells = nextCwls,
                 Party = party,
             });
         }
 
-        SyncChannelNames(owner, fc, linkshells, cwls);
+        if (cachedChannelsQuery is null)
+        {
+            if (persistFc && nextFc is not null)
+            {
+                fcCachedInStore = true;
+                PersistChannels(owner.ContentId, ConversationKind.FreeCompany, [nextFc]);
+            }
+
+            if (persistLs && nextLs.Count > 0)
+            {
+                lsCachedInStore = true;
+                PersistChannels(owner.ContentId, ConversationKind.Linkshell, nextLs.Values.ToArray());
+            }
+
+            if (persistCwls && nextCwls.Count > 0)
+            {
+                cwlsCachedInStore = true;
+                PersistChannels(owner.ContentId, ConversationKind.CrossWorldLinkshell, nextCwls.Values.ToArray());
+            }
+        }
+
         if (party is not null)
             SyncPartyMembers(owner, party);
     }
@@ -537,44 +687,75 @@ internal sealed unsafe class SocialDirectory(
         return members;
     }
 
-    private void SyncChannelNames(
-        PlayerSession owner,
-        ChannelInfo? fc,
-        Dictionary<int, ChannelInfo> linkshells,
-        Dictionary<int, ChannelInfo> cwls)
+    private void PersistChannels(ulong owner, ConversationKind kind, IReadOnlyList<ChannelInfo> channels)
     {
-        List<(ConversationKey Key, string Name)>? updates = null;
-
-        void Consider(ChannelInfo? channel)
-        {
-            if (channel is not { HasRealName: true })
-                return;
-
-            if (syncedChannelNames.TryGetValue(channel.Key, out var previous)
-                && StringComparer.Ordinal.Equals(previous, channel.Name))
-            {
-                return;
-            }
-
-            syncedChannelNames[channel.Key] = channel.Name;
-            updates ??= [];
-            updates.Add((channel.Key, channel.Name));
-        }
-
-        Consider(fc);
-        foreach (var ls in linkshells.Values)
-            Consider(ls);
-        foreach (var c in cwls.Values)
-            Consider(c);
-
-        if (updates is null)
-            return;
-
-        _ = history.SyncChannelNamesAsync(owner.ContentId, updates).ContinueWith(
-            task => log.Error(task.Exception, "Failed to sync group channel names."),
+        _ = history.SyncCachedChannelsAsync(owner, kind, channels).ContinueWith(
+            task => log.Error(task.Exception, "Failed to update cached group channels."),
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);
+    }
+
+    private static ChannelInfo? MergeChannelName(ChannelInfo? live, ChannelInfo? existing)
+    {
+        if (live is null)
+            return null;
+
+        if (!live.HasRealName && existing is { HasRealName: true } && existing.Key == live.Key)
+            return live with { Name = existing.Name, HasRealName = true };
+
+        return live;
+    }
+
+    private static Dictionary<int, ChannelInfo> MergeChannelNames(
+        IReadOnlyDictionary<int, ChannelInfo> live,
+        IReadOnlyDictionary<int, ChannelInfo> existing)
+    {
+        Dictionary<ConversationKey, ChannelInfo>? existingByKey = null;
+        var merged = new Dictionary<int, ChannelInfo>(live.Count);
+        foreach (var (slot, channel) in live)
+        {
+            var resolved = channel;
+            if (!channel.HasRealName && existing.Count > 0)
+            {
+                if (existingByKey is null)
+                {
+                    existingByKey = new Dictionary<ConversationKey, ChannelInfo>(existing.Count);
+                    foreach (var item in existing.Values)
+                    {
+                        if (item.HasRealName)
+                            existingByKey.TryAdd(item.Key, item);
+                    }
+                }
+
+                if (existingByKey.TryGetValue(channel.Key, out var cached))
+                    resolved = channel with { Name = cached.Name, HasRealName = true };
+            }
+
+            merged[slot] = resolved;
+        }
+
+        return merged;
+    }
+
+    private static bool HasPopulatedFriends(InfoProxyInterface* proxy)
+    {
+        var list = (InfoProxyFriendList*)proxy;
+        return proxy->EntryCount is > 0 and <= 200 && list->CharData is not null;
+    }
+
+    private bool IsOnHomeWorld() =>
+        playerState.HomeWorld.RowId != 0 && playerState.CurrentWorld.RowId == playerState.HomeWorld.RowId;
+
+    private bool IsOnHomeDataCenter()
+    {
+        if (IsOnHomeWorld())
+            return true;
+
+        return playerState.HomeWorld.ValueNullable is { } home
+            && playerState.CurrentWorld.ValueNullable is { } currentWorld
+            && home.DataCenter.RowId != 0
+            && currentWorld.DataCenter.RowId == home.DataCenter.RowId;
     }
 
     private void SyncPartyMembers(PlayerSession owner, ActiveParty party)
@@ -844,6 +1025,12 @@ internal sealed unsafe class SocialDirectory(
             friends.TryAdd(friend.ContentId, friend);
         }
 
+        if (!forcePersist && friends.Count == 0)
+        {
+            loadedFor = null;
+            return;
+        }
+
         var previous = Current.Friends;
         Publish(Current with { Friends = friends });
 
@@ -898,7 +1085,7 @@ internal sealed unsafe class SocialDirectory(
 
     private static bool ChannelsChanged(
         IReadOnlyDictionary<int, ChannelInfo> previous,
-        Dictionary<int, ChannelInfo> next)
+        IReadOnlyDictionary<int, ChannelInfo> next)
     {
         if (previous.Count != next.Count)
             return true;

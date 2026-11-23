@@ -1342,7 +1342,7 @@ internal sealed class MomoTalkWindow : Window
         if (items.Count == 0)
         {
             DrawListNotice(
-                "No groups yet. Join an FC or Linkshell, or right-click a party member in-game to create a Static.",
+                "No groups yet. Open your in-game FC, Linkshell, or Cross-World Linkshell list to sync, or right-click a party member to create a Static.",
                 scale);
             return;
         }

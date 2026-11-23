@@ -8,7 +8,11 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Editable inline notes for groups (Free Company, Linkshells, Cross-World Linkshells, and Statics) in the `Groups` detail card, replacing the default group description in the `Groups` list when set and supporting search by note.
 
 ### Changed
-- **Breaking:** Upgraded per-character SQLite history schema to `user_version` 4 to unify friend and group notes in `conversation_notes` keyed by `(kind, stable_key)`; unrecognized v3 databases are preserved unmodified without migration.
+- **Breaking:** Upgraded per-character SQLite history schema to `user_version` 5 to unify friend and group notes in `conversation_notes` keyed by `(kind, stable_key)` and persist synced FC/Linkshell/CWLS group channels in `cached_channels`; unrecognized older databases are preserved unmodified without migration.
+
+### Fixed
+- Cached Free Company, Linkshell, and Cross-World Linkshell group channels per character immediately on first fetch, loading them on startup and preserving existing groups when native proxies are empty (e.g., on relog, reload, zone transitions, or cross-world duties).
+- Hardened Friends list caching by adopting already-populated native friend buffers on attach and guarding against empty or late cache overwrites.
 
 ## [v0.2.0.0] - 2026-11-23
 

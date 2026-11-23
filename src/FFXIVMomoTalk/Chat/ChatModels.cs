@@ -80,6 +80,14 @@ internal sealed record ChannelInfo(ConversationKey Key, string Name, int? Slot =
     public ConversationDescriptor ToDescriptor() => new(Key, Name);
 }
 
+internal sealed record CachedChannels(
+    bool HasFreeCompany,
+    ChannelInfo? FreeCompany,
+    bool HasLinkshells,
+    IReadOnlyDictionary<int, ChannelInfo> Linkshells,
+    bool HasCrossWorldLinkshells,
+    IReadOnlyDictionary<int, ChannelInfo> CrossWorldLinkshells);
+
 internal sealed record StaticGroup(
     string StableKey,
     string Name,
