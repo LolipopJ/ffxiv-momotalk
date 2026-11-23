@@ -4,6 +4,12 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+- Editable inline notes for groups (Free Company, Linkshells, Cross-World Linkshells, and Statics) in the `Groups` detail card, replacing the default group description in the `Groups` list when set and supporting search by note.
+
+### Changed
+- **Breaking:** Upgraded per-character SQLite history schema to `user_version` 4 to unify friend and group notes in `conversation_notes` keyed by `(kind, stable_key)`; unrecognized v3 databases are preserved unmodified without migration.
+
 ## [v0.2.0.0] - 2026-11-23
 
 ### Added

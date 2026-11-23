@@ -6,7 +6,7 @@ namespace FFXIVMomoTalk.Chat;
 internal sealed class HistoryStore : IAsyncDisposable
 {
     private const int PageSize = 40;
-    private const int SchemaVersion = 3;
+    private const int SchemaVersion = 4;
     private const string FriendsCachedMetaKey = "friends_cached_at";
 
     private const string Schema = """
@@ -48,9 +48,11 @@ internal sealed class HistoryStore : IAsyncDisposable
             world_name TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS friend_notes (
-            content_id INTEGER PRIMARY KEY,
-            note TEXT NOT NULL
+        CREATE TABLE IF NOT EXISTS conversation_notes (
+            kind INTEGER NOT NULL,
+            stable_key TEXT NOT NULL,
+            note TEXT NOT NULL,
+            PRIMARY KEY (kind, stable_key)
         );
 
         CREATE TABLE IF NOT EXISTS hidden_conversations (
@@ -623,35 +625,35 @@ internal sealed class HistoryStore : IAsyncDisposable
             return changed;
         });
 
-    public Task<IReadOnlyDictionary<ulong, string>> ReadNotesAsync(ulong owner) =>
-        Enqueue<IReadOnlyDictionary<ulong, string>>(owner, connection =>
+    public Task<IReadOnlyDictionary<ConversationKey, string>> ReadNotesAsync(ulong owner) =>
+        Enqueue<IReadOnlyDictionary<ConversationKey, string>>(owner, connection =>
         {
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT content_id, note FROM friend_notes";
+            command.CommandText = "SELECT kind, stable_key, note FROM conversation_notes";
             using var reader = command.ExecuteReader();
-            var notes = new Dictionary<ulong, string>();
+            var notes = new Dictionary<ConversationKey, string>();
             while (reader.Read())
-                notes[ReadContentId(reader, 0)] = reader.GetString(1);
+                notes[new ConversationKey((ConversationKind)reader.GetInt32(0), reader.GetString(1))] = reader.GetString(2);
 
             return notes;
         });
 
-    public Task SaveNoteAsync(ulong owner, ulong peerContentId, string note) => Enqueue(owner, connection =>
+    public Task SaveNoteAsync(ulong owner, ConversationKey key, string note) => Enqueue(owner, connection =>
     {
         var trimmed = note.Trim();
         using var command = connection.CreateCommand();
         if (trimmed.Length == 0)
         {
-            command.CommandText = "DELETE FROM friend_notes WHERE content_id = $cid";
-            BindContentId(command, "$cid", peerContentId);
+            command.CommandText = "DELETE FROM conversation_notes WHERE kind = $kind AND stable_key = $stableKey";
+            BindConversationKey(command, key);
         }
         else
         {
             command.CommandText = """
-                INSERT INTO friend_notes (content_id, note) VALUES ($cid, $note)
-                ON CONFLICT (content_id) DO UPDATE SET note = excluded.note
+                INSERT INTO conversation_notes (kind, stable_key, note) VALUES ($kind, $stableKey, $note)
+                ON CONFLICT (kind, stable_key) DO UPDATE SET note = excluded.note
                 """;
-            BindContentId(command, "$cid", peerContentId);
+            BindConversationKey(command, key);
             command.Parameters.AddWithValue("$note", trimmed);
         }
 
