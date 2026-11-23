@@ -16,7 +16,7 @@ FFXIV MomoTalk 是面向《最终幻想 XIV》国际服的游戏内好友私聊�
 FFXIVMomoTalk.slnx              解决方案与构建入口
 CHANGELOG.md                    版本变更日志（Keep a Changelog 1.1.0）
 src/FFXIVMomoTalk/Plugin.cs     Dalamud 插件入口与生命周期
-src/FFXIVMomoTalk/Chat/         好友/群组/小队快照、多频道收发、SQLite 历史与头像缓存
+src/FFXIVMomoTalk/Chat/         好友/群组/小队快照、多频道收发、分域 SQLite 持久化与头像缓存
 src/FFXIVMomoTalk/Windows/      ImGui 窗口、会话视图与绘制
 openspec/specs/                 当前规范
 openspec/changes/               变更提案、设计、任务与归档
@@ -29,6 +29,16 @@ openspec/changes/               变更提案、设计、任务与归档
 - 在 Dalamud 框架线程读写原生游戏状态。把可独立使用的托管数据交给后台处理，SQLite 和 Lodestone I/O 留在框架线程之外。
 - Tell 由玩家主动提交。发送前核验当前角色和好友关系，仅将游戏的 `TellOutgoing` 回显写为本人发出的消息。聊天正文按登录角色隔离并保存在本机，头像查询仅使用公开角色资料。
 - 实施 OpenSpec 变更时，先读取 CLI 列出的变更产物。产物正文使用简体中文，保留英文结构标题及 `SHALL`、`MUST` 等规范关键字。
+
+## 数据持久化
+
+- 按角色隔离的 SQLite 数据存放在 `<PluginConfigDir>/characters/{ContentId:X16}/`，按数据域拆分为独立数据库并各自维护独立的 `PRAGMA user_version`：
+  - `messages.sqlite3`：聊天记录、会话摘要与发送拒发原因（不可再生的高价值核心数据）。
+  - `notes.sqlite3`：用户手动填写的好友与群组备注（不可再生的用户创作数据）。
+  - `statics.sqlite3`：固定队配置与成员名单（游戏无原生对应物，不可直接重建）。
+  - `cache.sqlite3`：好友缓存、群组频道缓存、隐藏会话状态与同步元数据（可由游戏重建或低损恢复）。
+- 设计新的持久化数据时，必须先评估其**可再生性**、**丢失代价**与 **schema 演进频率**：不可从游戏重建、由用户手工录入或长期累积的高价值数据，MUST 放置在单独的数据库中存储，避免其他模块的 schema 变更连带要求重置该数据；可从游戏重新拉取的缓存、临时状态或低影响 UI 标记应归入 `cache.sqlite3`。
+- 各独立数据库相互隔离故障：任意单一数据库遇到无法识别的 `user_version` 时，保留原文件并报告错误，不得影响其余独立数据库的正常读写。
 
 ## 常用命令
 

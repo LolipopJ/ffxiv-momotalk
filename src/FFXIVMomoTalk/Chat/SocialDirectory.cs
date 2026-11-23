@@ -16,7 +16,9 @@ internal sealed unsafe class SocialDirectory(
     IPlayerState playerState,
     IDataManager data,
     IGameInteropProvider interop,
-    HistoryStore history,
+    CacheStore cache,
+    StaticStore statics,
+    MessageStore messages,
     IPluginLog log) : IDisposable
 {
     private SocialSnapshot current = SocialSnapshot.Empty(null);
@@ -107,7 +109,7 @@ internal sealed unsafe class SocialDirectory(
     public StaticGroup? CreateStatic(PlayerSession owner, ActiveParty party, string rawName)
     {
         var trimmed = rawName.Trim();
-        if (trimmed.Length == 0 || !ReferenceEquals(Current.Session, owner))
+        if (trimmed.Length == 0 || !ReferenceEquals(Current.Session, owner) || statics.IncompatibleOwner == owner.ContentId)
             return null;
 
         var existingStatics = Current.Statics ?? new Dictionary<string, StaticGroup>(StringComparer.Ordinal);
@@ -126,10 +128,14 @@ internal sealed unsafe class SocialDirectory(
         };
         Publish(Current with { Statics = nextStatics });
 
-        _ = history.CreateStaticAsync(owner.ContentId, group).ContinueWith(
-            task => log.Error(task.Exception, "Failed to save static group."),
+        var createTask = statics.CreateStaticAsync(owner.ContentId, group);
+        ObserveTask(createTask, "Failed to save static group.");
+        _ = createTask.ContinueWith(
+            completed => ObserveTask(
+                messages.RenameConversationAsync(owner.ContentId, completed.Result.Key, completed.Result.Name),
+                "Failed to update static conversation name."),
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted,
+            TaskContinuationOptions.OnlyOnRanToCompletion,
             TaskScheduler.Default);
 
         return group;
@@ -138,7 +144,7 @@ internal sealed unsafe class SocialDirectory(
     public bool RenameStatic(PlayerSession owner, string stableKey, string rawName)
     {
         var trimmed = rawName.Trim();
-        if (trimmed.Length == 0 || !ReferenceEquals(Current.Session, owner))
+        if (trimmed.Length == 0 || !ReferenceEquals(Current.Session, owner) || statics.IncompatibleOwner == owner.ContentId)
             return false;
 
         if (Current.Statics is null || !Current.Statics.TryGetValue(stableKey, out var existing))
@@ -154,10 +160,14 @@ internal sealed unsafe class SocialDirectory(
         };
         Publish(Current with { Statics = nextStatics });
 
-        _ = history.RenameStaticAsync(owner.ContentId, stableKey, trimmed).ContinueWith(
-            task => log.Error(task.Exception, "Failed to rename static group."),
+        var renameTask = statics.RenameStaticAsync(owner.ContentId, stableKey, trimmed);
+        ObserveTask(renameTask, "Failed to rename static group.");
+        _ = renameTask.ContinueWith(
+            _ => ObserveTask(
+                messages.RenameConversationAsync(owner.ContentId, ConversationKey.Static(stableKey), trimmed),
+                "Failed to update static conversation name."),
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted,
+            TaskContinuationOptions.OnlyOnRanToCompletion,
             TaskScheduler.Default);
 
         return true;
@@ -280,12 +290,12 @@ internal sealed unsafe class SocialDirectory(
         cwlsCachedInStore = false;
         syncedPartyMembers.Clear();
         cachedQueryFor = session;
-        cachedFriendsQuery = session is not null ? history.ReadCachedFriendsAsync(session.ContentId) : null;
+        cachedFriendsQuery = session is not null ? cache.ReadCachedFriendsAsync(session.ContentId) : null;
         cachedChannelsQueryFor = session;
-        cachedChannelsQuery = session is not null ? history.ReadCachedChannelsAsync(session.ContentId) : null;
+        cachedChannelsQuery = session is not null ? cache.ReadCachedChannelsAsync(session.ContentId) : null;
         staticsQueryFor = session;
-        staticsRevision = history.StaticsRevision;
-        staticsQuery = session is not null ? history.ReadStaticsAsync(session.ContentId) : null;
+        staticsRevision = statics.Revision;
+        staticsQuery = session is not null ? statics.ReadStaticsAsync(session.ContentId) : null;
         Publish(SocialSnapshot.Empty(session));
     }
 
@@ -384,11 +394,27 @@ internal sealed unsafe class SocialDirectory(
         }
         else if (completed.Exception is { } exception)
         {
-            // Prevent repeated write attempts every 500 ms when the history store failed to open (e.g. schema mismatch).
+            // Prevent repeated write attempts every 500 ms when the cache store failed to open (e.g. schema mismatch).
             fcCachedInStore = true;
             lsCachedInStore = true;
             cwlsCachedInStore = true;
             log.Error(exception, "Failed to read cached group channels.");
+
+            var snapshot = Current;
+            if (ReferenceEquals(snapshot.Session, session))
+            {
+                if (fcLoadedLive && snapshot.FreeCompany is { HasRealName: true } liveFc)
+                    UpdateMessageChannelNames(session.ContentId, ConversationKind.FreeCompany, [liveFc]);
+
+                if (lsLoadedLive && snapshot.Linkshells.Count > 0)
+                    UpdateMessageChannelNames(session.ContentId, ConversationKind.Linkshell, snapshot.Linkshells.Values.ToArray());
+
+                if (cwlsLoadedLive && snapshot.CrossWorldLinkshells.Count > 0)
+                {
+                    UpdateMessageChannelNames(session.ContentId, ConversationKind.CrossWorldLinkshell,
+                        snapshot.CrossWorldLinkshells.Values.ToArray());
+                }
+            }
         }
     }
 
@@ -404,11 +430,11 @@ internal sealed unsafe class SocialDirectory(
             {
                 if (completed.IsCompletedSuccessfully)
                 {
-                    var statics = new Dictionary<string, StaticGroup>(completed.Result.Count, StringComparer.Ordinal);
+                    var loadedStatics = new Dictionary<string, StaticGroup>(completed.Result.Count, StringComparer.Ordinal);
                     foreach (var group in completed.Result)
-                        statics[group.StableKey] = group;
+                        loadedStatics[group.StableKey] = group;
 
-                    Publish(Current with { Statics = statics });
+                    Publish(Current with { Statics = loadedStatics });
                 }
                 else if (completed.Exception is { } exception)
                 {
@@ -417,11 +443,11 @@ internal sealed unsafe class SocialDirectory(
             }
         }
 
-        if (staticsQuery is null && staticsRevision != history.StaticsRevision)
+        if (staticsQuery is null && staticsRevision != statics.Revision)
         {
-            staticsRevision = history.StaticsRevision;
+            staticsRevision = statics.Revision;
             staticsQueryFor = session;
-            staticsQuery = history.ReadStaticsAsync(session.ContentId);
+            staticsQuery = statics.ReadStaticsAsync(session.ContentId);
         }
     }
 
@@ -689,11 +715,19 @@ internal sealed unsafe class SocialDirectory(
 
     private void PersistChannels(ulong owner, ConversationKind kind, IReadOnlyList<ChannelInfo> channels)
     {
-        _ = history.SyncCachedChannelsAsync(owner, kind, channels).ContinueWith(
-            task => log.Error(task.Exception, "Failed to update cached group channels."),
-            CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted,
-            TaskScheduler.Default);
+        if (cache.IncompatibleOwner != owner)
+            ObserveTask(cache.SyncCachedChannelsAsync(owner, kind, channels), "Failed to update cached group channels.");
+
+        UpdateMessageChannelNames(owner, kind, channels);
+    }
+
+    private void UpdateMessageChannelNames(ulong owner, ConversationKind kind, IReadOnlyList<ChannelInfo> channels)
+    {
+        if (channels.Any(channel => channel.HasRealName))
+        {
+            ObserveTask(messages.UpdateChannelNamesAsync(owner, kind, channels),
+                "Failed to update group conversation names.");
+        }
     }
 
     private static ChannelInfo? MergeChannelName(ChannelInfo? live, ChannelInfo? existing)
@@ -771,14 +805,10 @@ internal sealed unsafe class SocialDirectory(
             changed.Add(member);
         }
 
-        if (changed is null)
+        if (changed is null || statics.IncompatibleOwner == owner.ContentId)
             return;
 
-        _ = history.SyncStaticMemberIdentitiesAsync(owner.ContentId, changed).ContinueWith(
-            task => log.Error(task.Exception, "Failed to sync static member names."),
-            CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted,
-            TaskScheduler.Default);
+        ObserveTask(statics.SyncMemberIdentitiesAsync(owner.ContentId, changed), "Failed to sync static member names.");
     }
 
     private static ulong LookupMemberProxyContentId(ConversationKind kind, string name, uint worldId)
@@ -1040,12 +1070,25 @@ internal sealed unsafe class SocialDirectory(
 
     private void PersistFriends(ulong owner, IReadOnlyList<PlayerIdentity> friends)
     {
-        _ = history.SyncFriendsAsync(owner, friends).ContinueWith(
-            task => log.Error(task.Exception, "Failed to update cached friends list."),
+        if (cache.IncompatibleOwner != owner)
+            ObserveTask(cache.SyncFriendsAsync(owner, friends), "Failed to update cached friends list.");
+
+        if (friends.Count > 0)
+        {
+            if (statics.IncompatibleOwner != owner)
+                ObserveTask(statics.SyncMemberIdentitiesAsync(owner, friends), "Failed to update static member names.");
+
+            ObserveTask(messages.UpdateFriendDescriptorsAsync(owner, friends),
+                "Failed to update friend conversation names.");
+        }
+    }
+
+    private void ObserveTask(Task task, string message) =>
+        _ = task.ContinueWith(
+            completed => log.Error(completed.Exception, message),
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);
-    }
 
     private void Publish(SocialSnapshot snapshot) => Volatile.Write(ref current, snapshot);
 

@@ -5,10 +5,12 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 ## [Unreleased]
 
 ### Added
+- OpenAI-compatible AI reply suggestions via a conditional sparkle button in the chat send bar, generating 1–3 single-line replies from timestamped recent conversation context (defaulting to the last 10 minutes, up to 100 messages, minimum 5) and notes into an in-timeline MomoTalk-styled `Reply` card with click-to-send and automatic dismissal when sending manually.
 - Editable inline notes for groups (Free Company, Linkshells, Cross-World Linkshells, and Statics) in the `Groups` detail card, replacing the default group description in the `Groups` list when set and supporting search by note.
 
 ### Changed
-- **Breaking:** Upgraded per-character SQLite history schema to `user_version` 5 to unify friend and group notes in `conversation_notes` keyed by `(kind, stable_key)` and persist synced FC/Linkshell/CWLS group channels in `cached_channels`; unrecognized older databases are preserved unmodified without migration.
+- Refactored the Settings modal into `General` and `AI Reply` tabs with scrollable narrow-window support, tactile button hover/press feedback, LLM Endpoint, masked/toggleable API Key, Model, `Test Connection` endpoint check, configurable `Chat Context` window/limits, editable System Prompt, and `Reset to Default`.
+- **Breaking:** Split per-character SQLite storage into four independent domain databases under `characters/{ContentId}/` (`messages.sqlite3`, `notes.sqlite3`, `statics.sqlite3`, and `cache.sqlite3`) with independent `user_version` schemas so future cache or state schema updates never require resetting chat history, user notes, or static rosters; legacy `history/{ContentId}.sqlite3` files are preserved unmodified without migration.
 
 ### Fixed
 - Cached Free Company, Linkshell, and Cross-World Linkshell group channels per character immediately on first fetch, loading them on startup and preserving existing groups when native proxies are empty (e.g., on relog, reload, zone transitions, or cross-world duties).

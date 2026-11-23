@@ -4,7 +4,7 @@ namespace FFXIVMomoTalk.Windows;
 
 internal sealed class ConversationHistory
 {
-    private readonly HistoryStore store;
+    private readonly MessageStore store;
     private readonly ulong owner;
     private readonly ConversationKey conversation;
     private readonly List<ChatMessage> messages = new();
@@ -17,7 +17,7 @@ internal sealed class ConversationHistory
     private long latestId;
     private long rejectionRevision;
 
-    public ConversationHistory(HistoryStore store, ulong owner, ConversationKey conversation)
+    public ConversationHistory(MessageStore store, ulong owner, ConversationKey conversation)
     {
         this.store = store;
         this.owner = owner;

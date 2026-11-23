@@ -1,5 +1,6 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using FFXIVMomoTalk.Chat;
 
 namespace FFXIVMomoTalk.Windows;
@@ -15,6 +16,11 @@ internal static class ChatVisuals
     public static readonly Vector4 CoverPink = Hex(0xFB94A7);
     public static readonly Vector4 ModalBackdrop = Hex(0x000000, 0.50f);
     public static readonly Vector4 ModalDivider = Hex(0xE7EBEC);
+    public static readonly Vector4 ModalButtonBg = Hex(0xE6ECF1);
+    public static readonly Vector4 ModalButtonHover = Hex(0xD5E0E9);
+    public static readonly Vector4 ModalButtonActive = Hex(0xC0D0DD);
+    public static readonly Vector4 ModalButtonBorder = Hex(0xCED8E0);
+    public static readonly Vector4 ModalButtonHoverBorder = Hex(0x9BB1C4);
     public static readonly Vector4 SwitchOffBg = Hex(0xE7EBEC);
     public static readonly Vector4 RailBg = Hex(0x4B5A6F);
     public static readonly Vector4 RailActive = Hex(0x68788F);
@@ -46,6 +52,17 @@ internal static class ChatVisuals
     public static readonly Vector4 GroupStaticBg = Hex(0x4A8AC6);
     public static readonly Vector4 MatchSuccessBg = Hex(0xE4F2EC);
     public static readonly Vector4 MatchSuccessText = Hex(0x2F7B58);
+    public static readonly Vector4 ReplyCardBg = Hex(0xEFF5F8);
+    public static readonly Vector4 ReplyCardBorder = Hex(0xD9E2E8);
+    public static readonly Vector4 ReplyCardAccent = Hex(0x3E95E8);
+    public static readonly Vector4 ReplyCardDivider = Hex(0xCBD5E1);
+    public static readonly Vector4 ReplyCardGeoLight = Hex(0xDCEEF9, 0.72f);
+    public static readonly Vector4 ReplyCardGeoMid = Hex(0xCBE2F0, 0.55f);
+    public static readonly Vector4 ReplyCardGeoDeep = Hex(0xB9D8EC, 0.40f);
+    public static readonly Vector4 ReplyOptionHover = Hex(0xF4F8FB);
+    public static readonly Vector4 ReplyOptionActive = Hex(0xE6F0F8);
+    public static readonly Vector4 ReplyOptionBorder = Hex(0xDCE5EC);
+    public static readonly Vector4 ReplyOptionShadow = Hex(0x2D3A4B, 0.10f);
     public static readonly Vector4 Shadow = Hex(0x2D2342, 0.16f);
     public static readonly Vector4 WindowBorder = Hex(0x2D2342, 0.20f);
 
@@ -267,10 +284,13 @@ internal static class ChatVisuals
             clicked = ImGui.InvisibleButton(id, size);
             hovered = ImGui.IsItemHovered();
             active = ImGui.IsItemActive();
+            if (hovered)
+                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         }
 
         Vector4 fill;
         Vector4 textCol;
+        Vector4? borderCol = null;
         if (primary)
         {
             fill = !enabled
@@ -284,15 +304,30 @@ internal static class ChatVisuals
         }
         else
         {
-            fill = active ? Divider : hovered ? ListHover : SystemBg;
-            textCol = Ink;
+            fill = !enabled
+                ? ListBg
+                : active
+                    ? ModalButtonActive
+                    : hovered
+                        ? ModalButtonHover
+                        : ModalButtonBg;
+            borderCol = !enabled
+                ? ModalDivider
+                : hovered || active
+                    ? ModalButtonHoverBorder
+                    : ModalButtonBorder;
+            textCol = enabled ? Ink : Muted;
         }
 
         var rounding = 7f * scale;
         draw.AddRectFilled(pos, pos + size, Color(ScaleAlpha(fill, alpha)), rounding);
+        if (borderCol is { } border)
+            draw.AddRect(pos, pos + size, Color(ScaleAlpha(border, alpha)), rounding, ImDrawFlags.None, MathF.Max(1f, scale));
+
+        var pressOffsetY = enabled && active ? 1f * scale : 0f;
         var fontSize = ImGui.GetFontSize() * 0.96f;
         var textSize = CalcTextSize(label, fontSize);
-        var textPos = pos + (size - textSize) * 0.5f;
+        var textPos = pos + (size - textSize) * 0.5f + new Vector2(0, pressOffsetY);
         if (primary)
             AddBoldText(draw, textPos, fontSize, Color(ScaleAlpha(textCol, alpha)), label, scale);
         else
@@ -425,6 +460,31 @@ internal static class ChatVisuals
         var innerLeft = center + new Vector2(-halfW * 0.55f, 0);
         draw.AddTriangleFilled(topLeft, tip, innerLeft, col);
         draw.AddTriangleFilled(bottomLeft, innerLeft, tip, col);
+    }
+
+    public static void DrawAiSparkleIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
+    {
+        DrawFourPointStar(draw, center + new Vector2(-size * 0.10f, size * 0.08f), size * 0.36f, col);
+        DrawFourPointStar(draw, center + new Vector2(size * 0.28f, -size * 0.26f), size * 0.16f, col);
+    }
+
+    private static void DrawFourPointStar(ImDrawListPtr draw, Vector2 center, float outerRadius, uint col)
+    {
+        var innerRadius = outerRadius * 0.28f;
+        var top = center + new Vector2(0, -outerRadius);
+        var right = center + new Vector2(outerRadius, 0);
+        var bottom = center + new Vector2(0, outerRadius);
+        var left = center + new Vector2(-outerRadius, 0);
+        var ne = center + new Vector2(innerRadius, -innerRadius);
+        var se = center + new Vector2(innerRadius, innerRadius);
+        var sw = center + new Vector2(-innerRadius, innerRadius);
+        var nw = center + new Vector2(-innerRadius, -innerRadius);
+
+        draw.AddQuadFilled(ne, se, sw, nw, col);
+        draw.AddTriangleFilled(top, ne, nw, col);
+        draw.AddTriangleFilled(right, se, ne, col);
+        draw.AddTriangleFilled(bottom, sw, se, col);
+        draw.AddTriangleFilled(left, nw, sw, col);
     }
 
     public static bool DrawProfileChatButton(ImDrawListPtr draw, string id, Vector2 center, float radius, float scale)
@@ -720,16 +780,248 @@ internal static class ChatVisuals
         bool isAlert,
         float scale,
         BannerLayout layout,
-        float alpha = 1f)
+        float alpha = 1f,
+        Vector4? bgOverride = null,
+        Vector4? textOverride = null)
     {
         var bannerPos = new Vector2(origin.X + (availWidth - layout.BannerSize.X) * 0.5f, origin.Y + 3f * scale);
-        draw.AddRectFilled(bannerPos, bannerPos + layout.BannerSize, Color(ScaleAlpha(SystemBg, alpha)), 10f * scale);
+        draw.AddRectFilled(bannerPos, bannerPos + layout.BannerSize,
+            Color(ScaleAlpha(bgOverride ?? SystemBg, alpha)), 10f * scale);
         var textX = layout.TextSize.X < layout.MaxTextWidth
             ? bannerPos.X + (layout.BannerSize.X - layout.TextSize.X) * 0.5f
             : bannerPos.X + layout.Padding.X;
         var textPos = new Vector2(textX, bannerPos.Y + layout.Padding.Y);
-        AddText(draw, textPos, layout.FontSize, Color(ScaleAlpha(isAlert ? AlertText : SystemText, alpha)), text,
-            layout.MaxTextWidth);
+        var fg = textOverride ?? (isAlert ? AlertText : SystemText);
+        AddText(draw, textPos, layout.FontSize, Color(ScaleAlpha(fg, alpha)), text, layout.MaxTextWidth);
+    }
+
+    public static int DrawReplyCard(
+        ImDrawListPtr draw,
+        Vector2 origin,
+        float availWidth,
+        float maxCardWidth,
+        IReadOnlyList<string> options,
+        bool enabled,
+        float scale,
+        out float totalHeight)
+    {
+        var m = ReplyCardMetrics.Create(maxCardWidth, scale);
+        var buttonGap = 7f * scale;
+        var buttonWidth = MathF.Max(40f * scale, m.CardWidth - m.PadX * 2f);
+        var buttonPadX = 12f * scale;
+        var buttonPadY = 7f * scale;
+        var optionFontSize = ImGui.GetFontSize() * 0.95f;
+        var textWrapWidth = MathF.Max(20f * scale, buttonWidth - buttonPadX * 2f);
+
+        Span<float> buttonHeights = options.Count <= 8 ? stackalloc float[options.Count] : new float[options.Count];
+        Span<Vector2> textSizes = options.Count <= 8 ? stackalloc Vector2[options.Count] : new Vector2[options.Count];
+        var buttonsHeight = 0f;
+        for (var i = 0; i < options.Count; i++)
+        {
+            var textSize = CalcTextSize(options[i], optionFontSize, textWrapWidth);
+            var buttonHeight = MathF.Max(34f * scale, textSize.Y + buttonPadY * 2f);
+            textSizes[i] = textSize;
+            buttonHeights[i] = buttonHeight;
+            buttonsHeight += buttonHeight;
+            if (i > 0)
+                buttonsHeight += buttonGap;
+        }
+
+        var cardHeight = m.PadTop + m.HeaderRowH + m.HeaderToDividerGap + 1f + m.DividerToBodyGap + buttonsHeight + m.PadBottom;
+        totalHeight = cardHeight + 14f * scale;
+
+        var cardPos = new Vector2(origin.X + (availWidth - m.CardWidth) * 0.5f, origin.Y + 8f * scale);
+        var dividerY = DrawReplyCardFrame(draw, cardPos, new Vector2(m.CardWidth, cardHeight), m, scale);
+
+        var clickedIndex = -1;
+        var cursorY = dividerY + 1f + m.DividerToBodyGap;
+        var buttonX = cardPos.X + m.PadX;
+        var btnRounding = 7f * scale;
+        var borderThickness = MathF.Max(1f, scale);
+
+        for (var i = 0; i < options.Count; i++)
+        {
+            var btnPos = new Vector2(buttonX, cursorY);
+            var btnSize = new Vector2(buttonWidth, buttonHeights[i]);
+
+            ImGui.SetCursorScreenPos(btnPos);
+            bool clicked;
+            var hovered = false;
+            var active = false;
+            using (ImRaii.Disabled(!enabled))
+            {
+                clicked = ImGui.InvisibleButton($"##ai-reply-opt-{i}", btnSize);
+                if (enabled)
+                {
+                    hovered = ImGui.IsItemHovered();
+                    active = ImGui.IsItemActive();
+                }
+            }
+
+            if (clicked && enabled)
+                clickedIndex = i;
+
+            var shadowOffset = new Vector2(0, 1.5f * scale);
+            draw.AddRectFilled(btnPos + shadowOffset, btnPos + btnSize + shadowOffset, Color(ReplyOptionShadow), btnRounding);
+
+            var fill = !enabled
+                ? White
+                : active
+                    ? ReplyOptionActive
+                    : hovered
+                        ? ReplyOptionHover
+                        : White;
+            draw.AddRectFilled(btnPos, btnPos + btnSize, Color(fill), btnRounding);
+
+            var borderCol = enabled && hovered ? ReplyCardAccent : ReplyOptionBorder;
+            draw.AddRect(btnPos, btnPos + btnSize, Color(borderCol), btnRounding, ImDrawFlags.None, borderThickness);
+
+            var textSize = textSizes[i];
+            var textX = btnPos.X + MathF.Max(buttonPadX, (buttonWidth - textSize.X) * 0.5f);
+            var textY = btnPos.Y + (btnSize.Y - textSize.Y) * 0.5f;
+            var textCol = Color(enabled ? Ink : Muted);
+            AddText(draw, new Vector2(textX, textY), optionFontSize, textCol, options[i], textWrapWidth);
+
+            cursorY += btnSize.Y + buttonGap;
+        }
+
+        ImGui.SetCursorScreenPos(origin);
+        return clickedIndex;
+    }
+
+    public static float DrawReplyLoadingCard(
+        ImDrawListPtr draw,
+        Vector2 origin,
+        float availWidth,
+        float maxCardWidth,
+        float timeSeconds,
+        float scale)
+    {
+        var m = ReplyCardMetrics.Create(maxCardWidth, scale);
+        var bodyHeight = 36f * scale;
+        var cardHeight = m.PadTop + m.HeaderRowH + m.HeaderToDividerGap + 1f + m.DividerToBodyGap + bodyHeight + m.PadBottom;
+        var totalHeight = cardHeight + 14f * scale;
+        if (!ImGui.IsRectVisible(origin, origin + new Vector2(availWidth, totalHeight)))
+            return totalHeight;
+
+        var cardPos = new Vector2(origin.X + (availWidth - m.CardWidth) * 0.5f, origin.Y + 8f * scale);
+        var dividerY = DrawReplyCardFrame(draw, cardPos, new Vector2(m.CardWidth, cardHeight), m, scale);
+
+        var pillPos = new Vector2(cardPos.X + m.PadX, dividerY + 1f + m.DividerToBodyGap);
+        var pillSize = new Vector2(MathF.Max(40f * scale, m.CardWidth - m.PadX * 2f), bodyHeight);
+        var rounding = 7f * scale;
+        var shadowOffset = new Vector2(0, 1.5f * scale);
+        draw.AddRectFilled(pillPos + shadowOffset, pillPos + pillSize + shadowOffset, Color(ReplyOptionShadow), rounding);
+        draw.AddRectFilled(pillPos, pillPos + pillSize, Color(White), rounding);
+        draw.AddRect(pillPos, pillPos + pillSize, Color(ReplyOptionBorder), rounding, ImDrawFlags.None, MathF.Max(1f, scale));
+
+        const string loadingLabel = "Generating replies...";
+        var labelFontSize = ImGui.GetFontSize() * 0.92f;
+        var labelSize = CalcTextSize(loadingLabel, labelFontSize);
+        var dotRadius = 3.1f * scale;
+        var dotSpacing = 9f * scale;
+        var dotsWidth = dotSpacing * 2f + dotRadius * 2f;
+        var gap = 9f * scale;
+        var contentWidth = dotsWidth + gap + labelSize.X;
+        var startX = pillPos.X + MathF.Max(10f * scale, (pillSize.X - contentWidth) * 0.5f);
+        var centerY = pillPos.Y + pillSize.Y * 0.5f;
+
+        const float period = 0.65f;
+        for (var i = 0; i < 3; i++)
+        {
+            var phase = (timeSeconds + i * (period / 3f)) / period % 1f;
+            var wave = 0.5f + 0.5f * MathF.Cos(phase * MathF.Tau);
+            var dotAlpha = 0.28f + 0.72f * wave;
+            var dotScale = 0.78f + 0.22f * wave;
+            var dotCenter = new Vector2(startX + dotRadius + i * dotSpacing, centerY);
+            draw.AddCircleFilled(dotCenter, dotRadius * dotScale, Color(WithAlpha(ReplyCardAccent, dotAlpha)), 16);
+        }
+
+        var textPos = new Vector2(startX + dotsWidth + gap, centerY - labelSize.Y * 0.5f);
+        AddText(draw, textPos, labelFontSize, Color(Muted), loadingLabel);
+        return totalHeight;
+    }
+
+    private static float DrawReplyCardFrame(
+        ImDrawListPtr draw,
+        Vector2 cardPos,
+        Vector2 cardSize,
+        ReplyCardMetrics m,
+        float scale)
+    {
+        var cardMax = cardPos + cardSize;
+        var rounding = 8f * scale;
+        draw.AddRectFilled(cardPos, cardMax, Color(ReplyCardBg), rounding);
+
+        draw.PushClipRect(cardPos + new Vector2(1f), cardMax - new Vector2(1f), true);
+        var maxX = cardMax.X - 1f;
+        var minY = cardPos.Y + 1f;
+        var geoW = MathF.Min(cardSize.X * 0.46f, 190f * scale);
+        var geoH = MathF.Min(cardSize.Y * 0.62f, 84f * scale);
+
+        var pTopLeft = new Vector2(maxX - geoW, minY);
+        var pTopMid = new Vector2(maxX - geoW * 0.48f, minY);
+        var pCornerTop = new Vector2(maxX - rounding, minY);
+        var pCornerRight = new Vector2(maxX, minY + rounding);
+        var pRightMid = new Vector2(maxX, minY + geoH * 0.62f);
+        var pRightBot = new Vector2(maxX, minY + geoH);
+        var pInner1 = new Vector2(maxX - geoW * 0.62f, minY + geoH * 0.42f);
+        var pInner2 = new Vector2(maxX - geoW * 0.28f, minY + geoH * 0.56f);
+        var pInner3 = new Vector2(maxX - geoW * 0.36f, minY + geoH * 0.92f);
+
+        draw.AddTriangleFilled(pTopLeft, pTopMid, pInner1, Color(ReplyCardGeoLight));
+        draw.AddTriangleFilled(pTopMid, pCornerTop, pInner2, Color(ReplyCardGeoMid));
+        draw.AddTriangleFilled(pTopMid, pInner2, pInner1, Color(ReplyCardGeoLight));
+        draw.AddTriangleFilled(pCornerTop, pCornerRight, pInner2, Color(ReplyCardGeoDeep));
+        draw.AddTriangleFilled(pCornerRight, pRightMid, pInner2, Color(ReplyCardGeoMid));
+        draw.AddTriangleFilled(pInner2, pRightMid, pInner3, Color(ReplyCardGeoLight));
+        draw.AddTriangleFilled(pRightMid, pRightBot, pInner3, Color(ReplyCardGeoLight));
+        draw.PopClipRect();
+
+        draw.AddRect(cardPos, cardMax, Color(ReplyCardBorder), rounding, ImDrawFlags.None, MathF.Max(1f, scale));
+
+        var barWidth = MathF.Max(2.5f, 3.2f * scale);
+        var barHeight = MathF.Max(14f * scale, m.TitleFontSize * 0.95f);
+        var headerY = cardPos.Y + m.PadTop;
+        var barPos = new Vector2(cardPos.X + m.PadX, headerY + (m.HeaderRowH - barHeight) * 0.5f);
+        draw.AddRectFilled(barPos, barPos + new Vector2(barWidth, barHeight), Color(ReplyCardAccent), barWidth * 0.5f);
+
+        var titleSize = CalcTextSize("Reply", m.TitleFontSize);
+        var titlePos = new Vector2(barPos.X + barWidth + 7f * scale, headerY + (m.HeaderRowH - titleSize.Y) * 0.5f);
+        AddBoldText(draw, titlePos, m.TitleFontSize, Color(Ink), "Reply", scale);
+
+        var dividerY = headerY + m.HeaderRowH + m.HeaderToDividerGap;
+        draw.AddLine(
+            new Vector2(cardPos.X + m.PadX, dividerY),
+            new Vector2(cardMax.X - m.PadX, dividerY),
+            Color(ReplyCardDivider),
+            MathF.Max(1f, scale));
+        return dividerY;
+    }
+
+    private readonly record struct ReplyCardMetrics(
+        float CardWidth,
+        float PadX,
+        float PadTop,
+        float PadBottom,
+        float TitleFontSize,
+        float HeaderRowH,
+        float HeaderToDividerGap,
+        float DividerToBodyGap)
+    {
+        public static ReplyCardMetrics Create(float maxCardWidth, float scale)
+        {
+            var titleFontSize = ImGui.GetFontSize() * 0.98f;
+            return new ReplyCardMetrics(
+                MathF.Min(460f * scale, MathF.Max(120f * scale, maxCardWidth)),
+                14f * scale,
+                10f * scale,
+                12f * scale,
+                titleFontSize,
+                MathF.Max(18f * scale, titleFontSize),
+                7f * scale,
+                10f * scale);
+        }
     }
 
     public readonly record struct TimeDividerLayout(float Height, Vector2 PillSize, Vector2 TextSize, float FontSize);

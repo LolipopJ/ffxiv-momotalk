@@ -22,7 +22,7 @@ internal sealed class PartyContextMenu(
             return;
 
         var snapshot = directory.Update(rereadSocial: true);
-        if (snapshot.Session is null || snapshot.Party is not { } party)
+        if (snapshot.Session is null || snapshot.Party is not { } party || snapshot.Statics is null)
             return;
 
         if (args.AddonName == "SocialList" && !IsTargetInParty(args.Target, party))

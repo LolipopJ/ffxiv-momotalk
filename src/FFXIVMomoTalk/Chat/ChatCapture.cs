@@ -10,7 +10,8 @@ internal sealed class ChatCapture(
     IChatGui chat,
     IFramework framework,
     SocialDirectory directory,
-    HistoryStore history,
+    MessageStore messages,
+    CacheStore cache,
     IPluginLog log) : IDisposable
 {
     private const int PendingLimit = 128;
@@ -25,7 +26,7 @@ internal sealed class ChatCapture(
     public ulong FailedWriteOwner => Volatile.Read(ref failedWriteOwner);
 
     public void RecordRejection(PlayerSession session, Task<long> echo, string reason) =>
-        _ = ObserveWriteAsync(session.ContentId, history.RecordRejectionAsync(session.ContentId, echo, reason));
+        _ = ObserveWriteAsync(session.ContentId, messages.RecordRejectionAsync(session.ContentId, echo, reason));
 
     public void Attach() => chat.ChatMessageUnhandled += OnChatMessage;
 
@@ -277,8 +278,10 @@ internal sealed class ChatCapture(
 
     private void Archive(CapturedMessage captured, bool updateDisplayName)
     {
-        var write = history.RecordAsync(captured, updateDisplayName);
+        var write = messages.RecordAsync(captured, updateDisplayName);
         _ = ObserveWriteAsync(captured.Session.ContentId, write);
+        if (cache.IncompatibleOwner != captured.Session.ContentId)
+            _ = ObserveCacheAsync(cache.UnhideConversationAsync(captured.Session.ContentId, captured.Conversation.Key));
         Captured?.Invoke(captured, write);
     }
 
@@ -292,6 +295,18 @@ internal sealed class ChatCapture(
         {
             Volatile.Write(ref failedWriteOwner, contentId);
             log.Error(exception, "Unable to save a captured message.");
+        }
+    }
+
+    private async Task ObserveCacheAsync(Task operation)
+    {
+        try
+        {
+            await operation.ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            log.Error(exception, "Unable to unhide conversation in cache.");
         }
     }
 

@@ -47,11 +47,15 @@ public sealed class Plugin : IAsyncDalamudPlugin
 
     private readonly WindowSystem windows = new("FFXIVMomoTalk");
     private readonly Configuration config;
+    private readonly MessageStore messages;
+    private readonly NotesStore notes;
+    private readonly StaticStore statics;
+    private readonly CacheStore cache;
     private readonly SocialDirectory directory;
-    private readonly HistoryStore history;
     private readonly ChatCapture capture;
     private readonly ChatSender sender;
     private readonly AvatarCache avatars;
+    private readonly AiReplyService aiReply;
     private readonly PartyContextMenu partyContextMenu;
     private readonly MomoTalkWindow mainWindow;
     private readonly FloatingEntryWindow entryWindow;
@@ -60,13 +64,18 @@ public sealed class Plugin : IAsyncDalamudPlugin
     public Plugin()
     {
         var root = PluginInterface.GetPluginConfigDirectory();
+        var charactersRoot = Path.Combine(root, "characters");
         config = Configuration.Load(PluginInterface, Log);
-        history = new HistoryStore(Path.Combine(root, "history"));
-        directory = new SocialDirectory(ClientState, PlayerState, Data, Interop, history, Log);
-        capture = new ChatCapture(Chat, Framework, directory, history, Log);
+        messages = new MessageStore(charactersRoot);
+        notes = new NotesStore(charactersRoot);
+        statics = new StaticStore(charactersRoot);
+        cache = new CacheStore(charactersRoot);
+        directory = new SocialDirectory(ClientState, PlayerState, Data, Interop, cache, statics, messages, Log);
+        capture = new ChatCapture(Chat, Framework, directory, messages, cache, Log);
         sender = new ChatSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);
-        mainWindow = new MomoTalkWindow(directory, history, capture, sender, avatars, config, SaveConfig, Textures);
+        aiReply = new AiReplyService(config, capture, messages, Log);
+        mainWindow = new MomoTalkWindow(directory, messages, notes, statics, cache, capture, sender, avatars, aiReply, config, SaveConfig, Textures, Log);
         partyContextMenu = new PartyContextMenu(
             ContextMenu,
             directory,
@@ -81,6 +90,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         attached = true;
         directory.Attach();
         capture.Attach();
+        aiReply.Attach();
         sender.Attach();
         partyContextMenu.Attach();
         Framework.Update += Update;
@@ -108,7 +118,13 @@ public sealed class Plugin : IAsyncDalamudPlugin
         }
         finally
         {
-            await Task.WhenAll(history.DisposeAsync().AsTask(), avatars.DisposeAsync().AsTask()).ConfigureAwait(false);
+            await Task.WhenAll(
+                messages.DisposeAsync().AsTask(),
+                notes.DisposeAsync().AsTask(),
+                statics.DisposeAsync().AsTask(),
+                cache.DisposeAsync().AsTask(),
+                avatars.DisposeAsync().AsTask(),
+                aiReply.DisposeAsync().AsTask()).ConfigureAwait(false);
         }
     }
 
@@ -126,6 +142,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         Framework.Update -= Update;
         partyContextMenu.Dispose();
         sender.Dispose();
+        aiReply.Detach();
         capture.Dispose();
         directory.Dispose();
     }
@@ -133,6 +150,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
     private void Update(IFramework framework)
     {
         var snapshot = directory.Update();
+        aiReply.SyncSession(snapshot.Session);
         sender.Update(snapshot.Session);
         capture.Update(snapshot);
     }

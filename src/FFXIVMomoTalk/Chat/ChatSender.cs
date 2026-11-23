@@ -22,7 +22,7 @@ internal sealed class ChatSender(
     ChatCapture capture,
     IPluginLog log) : IDisposable
 {
-    private const int MaxCommandBytes = 500;
+    internal const int MaxCommandBytes = 500;
     private const uint ErrorMessageLogKind = 60;
     private const string FallbackTellRejection = "Failed to send Tell. Check the in-game chat for details.";
     private const string FallbackGroupRejection = "Failed to send message. Check the in-game chat for details.";
