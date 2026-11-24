@@ -4,6 +4,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [v1.1.0.0] - 2026-11-24
+
 ### Added
 
 - Localize the plugin in English, Japanese, German, French, Simplified Chinese, and Traditional Chinese. The interface follows the game language by default and can be changed in General settings.
@@ -87,7 +89,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Attached native in-game outgoing Tell rejection errors to matching message bubbles or conversation banners.
 - Hidden the floating entry button while logged out or on the title/character select screens.
 
-[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.2...main
+[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.1.0.0...main
+[v1.1.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.2...v1.1.0.0
 [v1.0.0.2]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.1...v1.0.0.2
 [v1.0.0.1]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.0...v1.0.0.1
 [v1.0.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v0.2.0.0...v1.0.0.0
