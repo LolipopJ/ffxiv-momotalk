@@ -7,10 +7,18 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 ### Added
 
 - Localize the plugin in English, Japanese, German, French, Simplified Chinese, and Traditional Chinese. The interface follows the game language by default and can be changed in General settings.
+- Choose from seven built-in FFXIV-styled AI reply presets (including Blue Archive Sensei and five Eorzean tavern RP voices) with curated conversation examples, copy a preset into Custom, and edit examples to guide suggestions.
+
+### Changed
+
+- **Breaking:** Configuration now uses version 2. Upgrading keeps existing settings and custom AI prompts and creates a v1 backup beside the configuration. To downgrade, close the game and restore the corresponding `.v1.bak` file to the original configuration filename. The backup contains settings from before the upgrade.
 
 ### Fixed
 
 - Preserve cached Free Company, Linkshell, and Cross-World Linkshell groups after relogging while the game loads its channel lists.
+- Wrap long AI system prompts in the settings editor and align the language and AI style dropdowns with the settings buttons.
+- Load valid version 2 settings when Dalamud cannot resolve the plugin configuration type.
+- Open the language and AI style menus at the same width as their dropdown controls.
 
 ## [v1.0.0.2] - 2026-11-23
 

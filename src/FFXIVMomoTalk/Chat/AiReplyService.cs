@@ -1,8 +1,10 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Dalamud.Plugin.Services;
@@ -60,6 +62,10 @@ internal sealed partial class AiReplyService(
     private const int MaxReplyOptions = 3;
     private const int MaxErrorPreviewLength = 140;
     private static readonly AiNotice InvalidEndpointMessage = new("AiInvalidEndpoint");
+    private static readonly JsonSerializerOptions ExampleJsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     private readonly HttpClient httpClient = new(new HttpClientHandler { AllowAutoRedirect = false })
     {
@@ -194,7 +200,8 @@ internal sealed partial class AiReplyService(
             var endpoint = config.LlmEndpoint;
             var apiKey = config.LlmApiKey;
             var model = config.LlmModel;
-            var prompt = config.LlmPrompt;
+            var prompt = config.EffectiveLlmPrompt;
+            var examples = SnapshotExamples(config.EffectiveLlmExamples);
             var windowMinutes = config.LlmContextWindowMinutes;
             var maxMessages = config.LlmContextMaxMessages;
             var minMessages = Math.Min(config.LlmContextMinMessages, maxMessages);
@@ -226,6 +233,7 @@ internal sealed partial class AiReplyService(
                 apiKey,
                 model,
                 prompt,
+                examples,
                 windowMinutes,
                 minMessages,
                 maxMessages,
@@ -293,23 +301,52 @@ internal sealed partial class AiReplyService(
         return true;
     }
 
-    internal static string BuildSystemPrompt(string? userPrompt, SendTarget target)
+    internal static AiReplyPromptExample[] SnapshotExamples(IReadOnlyList<IAiReplyExample> examples)
     {
-        var stylePrompt = string.IsNullOrWhiteSpace(userPrompt)
-            ? Configuration.DefaultLlmPrompt
-            : userPrompt.Trim();
+        var snapshot = new List<AiReplyPromptExample>(examples.Count);
+        foreach (var example in examples)
+        {
+            var context = CollapseSingleLine(example.Context);
+            if (context.Length == 0)
+                continue;
+
+            var replies = example.Replies.Select(CollapseSingleLine).Where(reply => reply.Length > 0)
+                .Take(Configuration.MaxExampleReplies).ToImmutableArray();
+            if (!replies.IsEmpty)
+                snapshot.Add(new AiReplyPromptExample(context, replies));
+        }
+
+        return [.. snapshot];
+    }
+
+    internal static string BuildSystemPrompt(string? userPrompt, SendTarget target, IReadOnlyList<AiReplyPromptExample> examples)
+    {
+        var stylePrompt = string.IsNullOrWhiteSpace(userPrompt) ? AiReplyPresets.DefaultPrompt : userPrompt.Trim();
+        var prompt = new StringBuilder(stylePrompt).AppendLine().AppendLine();
+        if (examples.Count > 0)
+        {
+            prompt.AppendLine("Dialogue examples (tone and option-variety reference only; always reply in the language used by the recent conversation messages):");
+            for (var i = 0; i < examples.Count; i++)
+            {
+                var example = examples[i];
+                prompt.Append("Example ").Append(i + 1).AppendLine(":")
+                    .Append("Incoming: ").AppendLine(JsonSerializer.Serialize(example.Context, ExampleJsonOptions))
+                    .Append("Expected JSON: ").AppendLine(JsonSerializer.Serialize(new { replies = example.Replies }, ExampleJsonOptions));
+            }
+
+            prompt.AppendLine();
+        }
+
         var maxBodyBytes = Math.Max(64, ChatSender.MaxCommandBytes - Encoding.UTF8.GetByteCount(target.CommandPrefix) - 1);
-
-        return $$"""
-            {{stylePrompt}}
-
+        return prompt.Append($$"""
             Mandatory output format constraints (always follow):
             - Return ONLY valid JSON in the exact shape: {"replies": ["...", "..."]}.
             - Provide 1 to {{MaxReplyOptions}} distinct, ready-to-send reply options.
             - Each reply MUST be a single line with no line breaks, no bullet/number prefixes, and no markdown.
+            - Match the language used in the recent conversation messages.
             - Keep each reply concise and strictly within {{maxBodyBytes}} UTF-8 bytes so it fits in-game chat.
             - Do not include explanations, commentary, or extra JSON keys outside "replies".
-            """;
+            """).ToString();
     }
 
     internal static ChatMessage[] SelectContextMessages(
@@ -592,7 +629,7 @@ internal sealed partial class AiReplyService(
                 request.WindowMinutes,
                 request.MinMessages,
                 request.MaxMessages);
-            var systemPrompt = BuildSystemPrompt(request.Prompt, request.Target);
+            var systemPrompt = BuildSystemPrompt(request.Prompt, request.Target, request.Examples);
             var userPrompt = BuildUserPrompt(
                 request.Session,
                 request.Conversation,
@@ -1254,6 +1291,7 @@ internal sealed partial class AiReplyService(
         string ApiKey,
         string Model,
         string Prompt,
+        AiReplyPromptExample[] Examples,
         int WindowMinutes,
         int MinMessages,
         int MaxMessages,

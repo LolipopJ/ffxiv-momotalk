@@ -336,6 +336,125 @@ internal static class ChatVisuals
         return clicked;
     }
 
+    public static ImRaii.ColorDisposable PushSettingsComboColors() => ImRaii.PushColor(ImGuiCol.Text, Ink)
+        .Push(ImGuiCol.FrameBg, ModalButtonBg)
+        .Push(ImGuiCol.FrameBgHovered, ModalButtonHover)
+        .Push(ImGuiCol.Button, ModalButtonBg)
+        .Push(ImGuiCol.ButtonHovered, ModalButtonHover)
+        .Push(ImGuiCol.ButtonActive, ModalButtonActive)
+        .Push(ImGuiCol.Border, ModalButtonBorder)
+        .Push(ImGuiCol.PopupBg, White)
+        .Push(ImGuiCol.Header, ModalButtonBg)
+        .Push(ImGuiCol.HeaderHovered, ModalButtonHover)
+        .Push(ImGuiCol.HeaderActive, ModalButtonActive);
+
+    public static ImRaii.StyleDisposable PushSettingsComboStyle(float height, float scale)
+    {
+        var paddingY = MathF.Max(0f, (height - ImGui.GetFontSize()) * 0.5f);
+        return ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(10f * scale, paddingY))
+            .Push(ImGuiStyleVar.FrameRounding, 7f * scale)
+            .Push(ImGuiStyleVar.FrameBorderSize, MathF.Max(1f, scale))
+            .Push(ImGuiStyleVar.WindowPadding, new Vector2(8f * scale))
+            .Push(ImGuiStyleVar.PopupRounding, 7f * scale)
+            .Push(ImGuiStyleVar.PopupBorderSize, MathF.Max(1f, scale))
+            .Push(ImGuiStyleVar.SelectableTextAlign, new Vector2(0f, 0.5f));
+    }
+
+    public static ImRaii.ComboDisposable BeginSettingsCombo(string id, string label, Vector2 pos, float width)
+    {
+        ImGui.SetCursorScreenPos(pos);
+        ImGui.SetNextItemWidth(width);
+        var frameWidth = ImGui.CalcItemWidth();
+        ImGui.SetNextWindowSizeConstraints(new Vector2(frameWidth, 0), new Vector2(frameWidth, float.MaxValue));
+        var labelWidth = frameWidth - ImGui.GetFrameHeight() - 2f * ImGui.GetStyle().FramePadding.X;
+        var preview = TruncateSingleLine(label, ImGui.GetFontSize(), labelWidth);
+        var combo = ImRaii.Combo(id, preview);
+        if (!combo && ImGui.IsItemHovered())
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+            if (preview != label)
+                ImGui.SetTooltip(label);
+        }
+
+        return combo;
+    }
+
+    public static bool SelectSettingsOption(string label, string id, bool selected, float height)
+    {
+        var visibleLabel = TruncateSingleLine(label, ImGui.GetFontSize(), ImGui.GetContentRegionAvail().X);
+        var clicked = ImGui.Selectable($"{visibleLabel}###{id}", selected, ImGuiSelectableFlags.None, new Vector2(0f, height));
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+            if (visibleLabel != label)
+                ImGui.SetTooltip(label);
+        }
+
+        if (selected)
+            ImGui.SetItemDefaultFocus();
+
+        return clicked;
+    }
+
+    public static float MeasureCompactModalButton(string label, float scale, float maxWidth) =>
+        MathF.Min(maxWidth, CalcTextSize(label, ImGui.GetFontSize() * 0.96f).X + 20f * scale);
+
+    public static bool DrawCompactModalButton(ImDrawListPtr draw, string id, string label, Vector2 pos,
+        Vector2 size, bool enabled, float scale, float alpha)
+    {
+        var visibleLabel = TruncateSingleLine(label, ImGui.GetFontSize() * 0.96f, size.X - 12f * scale);
+        var clicked = DrawModalButton(draw, id, visibleLabel, pos, size, primary: false, enabled, scale, alpha);
+        if (enabled && visibleLabel != label && ImGui.IsItemHovered())
+            ImGui.SetTooltip(label);
+
+        return clicked;
+    }
+
+    public static void DrawAiExampleCard(ImDrawListPtr draw, Vector2 pos, Vector2 size, float scale, float alpha)
+    {
+        var rounding = 7f * scale;
+        draw.AddRectFilled(pos, pos + size, Color(ScaleAlpha(ListBg, alpha)), rounding);
+        draw.AddRect(pos, pos + size, Color(ScaleAlpha(InputBorder, alpha)), rounding);
+    }
+
+    public static AiExamplePreview MeasureAiExamplePreview(IAiReplyExample example, float width,
+        float labelHeight, float fontSize, float scale)
+    {
+        var padding = 8f * scale;
+        var gap = 4f * scale;
+        var wrapWidth = width - 2f * padding;
+        var rows = new (string Text, float Height)[1 + example.Replies.Count];
+        rows[0] = (example.Context, CalcTextSize(example.Context, fontSize, wrapWidth).Y);
+        for (var i = 0; i < example.Replies.Count; i++)
+        {
+            var text = $"{i + 1}. {example.Replies[i]}";
+            rows[i + 1] = (text, CalcTextSize(text, fontSize, wrapWidth).Y);
+        }
+
+        var height = 2f * padding + labelHeight + rows.Sum(row => row.Height) + (rows.Length - 1) * gap;
+        return new AiExamplePreview(height, padding, gap, wrapWidth, rows);
+    }
+
+    public static void DrawAiExamplePreview(ImDrawListPtr draw, Vector2 pos, float width, string title,
+        float labelHeight, float fontSize, float scale, float alpha, AiExamplePreview preview)
+    {
+        DrawAiExampleCard(draw, pos, new Vector2(width, preview.Height), scale, alpha);
+        var textPos = pos + new Vector2(preview.Padding);
+        var ink = Color(ScaleAlpha(Ink, alpha));
+        AddBoldText(draw, textPos, fontSize, ink, title, scale);
+        textPos.Y += labelHeight;
+        var secondary = Color(ScaleAlpha(SystemText, alpha));
+        for (var i = 0; i < preview.Rows.Length; i++)
+        {
+            var (text, height) = preview.Rows[i];
+            AddText(draw, textPos, fontSize, i == 0 ? ink : secondary, text, preview.WrapWidth);
+            textPos.Y += height + preview.Gap;
+        }
+    }
+
+    public readonly record struct AiExamplePreview(
+        float Height, float Padding, float Gap, float WrapWidth, (string Text, float Height)[] Rows);
+
     public static void DrawContactsIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
     {
         var headRadius = size * 0.22f;

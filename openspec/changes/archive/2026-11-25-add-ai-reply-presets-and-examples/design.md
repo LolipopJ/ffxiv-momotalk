@@ -13,7 +13,7 @@
 ## Goals / Non-Goals
 
 **Goals:**
-- 新增内置英文风格预设目录（`default`、`sensei` 及五种酒馆 Roleplay 性格），每套预设包含纯英文系统提示词与 2–3 组纯英文结构化对话示例（每组 1 句情境发言 + 3 条不同角度单行示范回复）。
+- 新增内置英文风格预设目录（`default`、`sensei` 及五种 FFXIV 艾欧泽亚酒馆 Roleplay 性格），每套预设包含纯英文系统提示词与纯英文结构化对话示例（`sensei` 为 10 组、其余 6 套预设各 5 组，每组 1 句情境发言 + 3 条不同角度单行示范回复）。
 - 支持 `custom` 独立模式（可自由使用任意语言文本编辑提示词与最多 10 组结构化示例）与一键 `Copy to Custom`，在预设间切换不会覆盖 `custom` 数据。
 - 保持 `[system, user]` 双消息请求结构，将有效结构化示例序列化为 JSON 内嵌至 `system` 提示词中，同时确保中/英/日等实时聊天仍匹配对话本身语言。
 - 实现 `Configuration` `v1 → v2` 安全升级路径：先做本地恢复备份，自动区分未改动默认提示词与自定义提示词，原子落盘并完整保护未知版本或异常配置。
@@ -36,14 +36,14 @@
 |---|---|---|---|
 | 1 | `custom` | `AiPresetCustom` | 用户自定义提示词与对话示例，支持任意语言 |
 | 2 | `default` | `AiPresetDefault` | 保留原有 FFXIV 日常闲聊自然风格（`DefaultPrompt`）与日常冒险者示例 |
-| 3 | `sensei` | `AiPresetSensei` | 《蔚蓝档案》Sensei 风格：温和可靠、略带幽默、善于倾听并鼓励同伴 |
-| 4 | `tavern-reliable` | `AiPresetTavernReliable` | 酒馆 RP - 可靠：沉稳笃定、重诺扛事的冒险者老友口吻 |
-| 5 | `tavern-cunning` | `AiPresetTavernCunning` | 酒馆 RP - 狡诈：机敏圆滑、带点调侃算计却不失分寸的酒馆常客 |
-| 6 | `tavern-wise` | `AiPresetTavernWise` | 酒馆 RP - 睿智：克制沉静、善用简短比喻与冒险见闻点拨他人 |
-| 7 | `tavern-aloof` | `AiPresetTavernAloof` | 酒馆 RP - 高冷：话少冷静、外冷内热、点到即止的简洁表达 |
-| 8 | `tavern-cheerful` | `AiPresetTavernCheerful` | 酒馆 RP - 活泼：元气明快、热情接梗、擅长活跃气氛的酒馆伙伴 |
+| 3 | `sensei` | `AiPresetSensei` | 《蔚蓝档案》Sensei 风格：以主线“大人的担当”为底色，结合社群形象与主线名场面在合适场合自然流露脱线幽默与偶尔发癫，并贴合 FFXIV 聊天场景 |
+| 4 | `tavern-reliable` | `AiPresetTavernReliable` | 酒馆 RP - 可靠：沉稳笃定、重诺扛事的艾欧泽亚老练冒险者口吻 |
+| 5 | `tavern-cunning` | `AiPresetTavernCunning` | 酒馆 RP - 狡诈：机敏圆滑、精于乌尔达哈式算计与打趣却不失分寸的酒馆常客 |
+| 6 | `tavern-wise` | `AiPresetTavernWise` | 酒馆 RP - 睿智：克制沉静、以艾欧泽亚旅途与工艺经验温和点拨他人的记录者 |
+| 7 | `tavern-aloof` | `AiPresetTavernAloof` | 酒馆 RP - 高冷：话少冷静、外冷内热、点到即止的孤狼冒险者表达 |
+| 8 | `tavern-cheerful` | `AiPresetTavernCheerful` | 酒馆 RP - 活泼：元气明快、热情接梗、擅长在艾欧泽亚酒馆与挖宝日常中活跃气氛的伙伴 |
 
-每套预设配备 2–3 组结构化英文示例，每组固定提供 3 条风格一致但切入角度不同的单行示范回复（例如直接回应、轻松调侃、延伸追问），且每套预设提示词均保留自动匹配近期对话语言（如中文、英文、日文）的指令。
+其中 `sensei` 配备 10 组取材自 `bluearchive.wiki` 主线剧情名场面的结构化英文示例（涵盖大人的责任担当与场合自洽的幽默发癫），其余 6 套预设各配备 5 组融合 FFXIV 玩法与艾欧泽亚酒馆 RP 风格的结构化英文示例，每组固定提供 3 条风格一致但切入角度不同的单行示范回复（例如直接回应、轻松调侃、延伸追问），且每套预设提示词均保留自动匹配近期对话语言（如中文、英文、日文）的指令。
 
 - **备选方案**：将预设内容外置为嵌入 JSON 或放入 `.resx` → 否决：预设正文固定为英文且需在无 UI 上下文时由 `Configuration` 与 `AiReplyService` 直接读取，C# 静态定义零 I/O 开销且类型安全，仅把界面展示名接入 `.resx` 最简洁。
 
@@ -61,7 +61,7 @@
 2. **`v1 → v2` 迁移管线（`Migrations/Configuration/V1ToV2.cs`）**：
    - 由 `Configuration.Load(pluginInterface, log)` 在正常读取前执行：
      - **文件不存在**：直接返回新建 `v2` 默认配置，不创建冗余文件。
-     - **`Version == 2`**：直接由 Dalamud `GetPluginConfig()` 读取（读取或反序列化异常则标记 `PreserveExistingFile = true` 并记录错误）。
+     - **`Version == 2`**：将已读取的 JSON 按当前插件 `Configuration` 类型反序列化并校验。类型由插件指定，文件中的 `$type` 元数据仍可保留。读取或校验失败时标记 `PreserveExistingFile = true` 并记录错误。
      - **`Version == 1`**：调用 `V1ToV2.Migrate(pluginInterface.ConfigFile.FullName, log)`：
        1. **创建可恢复备份**：先将原配置文件以不覆盖既有备份的方式复制为 `<ConfigFile>.v1.bak`（若已存在则依次递增 `.v1.bak.1` 等），并在日志中输出备份路径与手动回退步骤（删除新配置并将备份改回原文件名）。
        2. **JSON 转换**：基于 `Newtonsoft.Json.Linq.JObject` 原样保留所有已有配置键（包含 `UiLanguage`、三个展示开关、悬浮位置、`LlmEndpoint`、`LlmApiKey`、`LlmModel`、上下文窗口三个数值及 Newtonsoft `$type` 元数据）；读取旧 `LlmPrompt`，统一换行符并 `Trim` 后与 `v1` 的 `DefaultLlmPrompt` 对比——若为空或与旧默认值一致，则写入 `LlmPromptPreset = "default"` 与 `LlmCustomPrompt = AiReplyPresets.DefaultPrompt`；若玩家此前自定义过内容，则写入 `LlmPromptPreset = "custom"` 并完整保留原 `LlmPrompt` 到 `LlmCustomPrompt`；初始化 `LlmCustomExamples = []`，移除 `LlmPrompt`，将 `Version` 置为 `2`。
@@ -96,6 +96,7 @@
   - 下拉框按顺序列出 `Custom` 与 7 套内置预设（显示名取自 `Loc.Text`）。
   - 当选中内置预设时，下拉框宽度缩减为 `innerW - copyBtnW - gap`，右侧绘制次级按钮 `Copy to Custom`（按本地化文案宽度动态测量并安全限制范围）；点击后调用 `config.CopyPresetToCustom(...)`、`saveConfig()` 并即时切入 `Custom` 编辑态。
   - 当选中 `Custom` 时，隐藏 `Copy to Custom` 按钮，下拉框占满整行宽度。
+  - 展开的下拉列表与当前选择框等宽。超宽的选项显示省略号，鼠标悬浮时显示完整名称。
 - **提示词框（移除 `Reset to Default`）**：
   - 控件 ID 采用预设作用域隔离（如 `##ai-prompt-{presetId}`），确保切换预设或点击 `Copy to Custom` 时 ImGui 不会残留上一个状态的 `InputTextMultiline` 内部编辑缓冲区。
   - 预设态下使用 `ImGuiInputTextFlags.ReadOnly` 与浅灰底色（`ChatVisuals.ListBg`）区分只读状态；`Custom` 态下使用白底可编辑并在改动时即时 `saveConfig()`。

@@ -3,7 +3,9 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AddExample" xml:space="preserve"><value>+ Add</value></data>
   <data name="AddNote" xml:space="preserve"><value>Add a note...</value></data>
+  <data name="AddReply" xml:space="preserve"><value>+ Add Reply</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>Authentication error (HTTP {0}). Check your API key.</value></data>
   <data name="AiConnected" xml:space="preserve"><value>Connected ({0} ms).</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>Connection test failed.</value></data>
@@ -17,6 +19,14 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLM response was missing message content.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLM response did not contain any choices.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AI returned no valid reply options for this channel.</value></data>
+  <data name="AiPresetCustom" xml:space="preserve"><value>Custom</value></data>
+  <data name="AiPresetDefault" xml:space="preserve"><value>Default</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>Blue Archive - Sensei</value></data>
+  <data name="AiPresetTavernAloof" xml:space="preserve"><value>Tavern RP - Aloof</value></data>
+  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>Tavern RP - Cheerful</value></data>
+  <data name="AiPresetTavernCunning" xml:space="preserve"><value>Tavern RP - Cunning</value></data>
+  <data name="AiPresetTavernReliable" xml:space="preserve"><value>Tavern RP - Reliable</value></data>
+  <data name="AiPresetTavernWise" xml:space="preserve"><value>Tavern RP - Wise</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Rate limit exceeded (HTTP 429). Please wait and try again.</value></data>
   <data name="AiReply" xml:space="preserve"><value>AI Reply</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AI request timed out.</value></data>
@@ -36,7 +46,9 @@
   <data name="ContextMaximumHint" xml:space="preserve"><value>Maximum messages sent to AI (1–500).</value></data>
   <data name="ContextMinimumHint" xml:space="preserve"><value>Minimum messages sent, including earlier messages if needed (0–500).</value></data>
   <data name="ContextMinutesHint" xml:space="preserve"><value>Only send messages from the last N minutes (1–1440).</value></data>
+  <data name="ConversationExamples" xml:space="preserve"><value>Conversation Examples</value></data>
   <data name="CopyText" xml:space="preserve"><value>Copy Text</value></data>
+  <data name="CopyToCustom" xml:space="preserve"><value>Copy to Custom</value></data>
   <data name="Create" xml:space="preserve"><value>Create</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>Create Static Group</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Cross-World Linkshell</value></data>
@@ -49,6 +61,11 @@
   <data name="Endpoint" xml:space="preserve"><value>Endpoint</value></data>
   <data name="EnterGroupName" xml:space="preserve"><value>Enter group name...</value></data>
   <data name="EnterMessageBeforeSending" xml:space="preserve"><value>Enter a message before sending.</value></data>
+  <data name="ExampleContext" xml:space="preserve"><value>Context</value></data>
+  <data name="ExampleContextHint" xml:space="preserve"><value>What did the other player say?</value></data>
+  <data name="ExampleItemTitle" xml:space="preserve"><value>Example {0}</value></data>
+  <data name="ExampleReplies" xml:space="preserve"><value>Replies</value></data>
+  <data name="ExampleReplyHint" xml:space="preserve"><value>Write a sample reply</value></data>
   <data name="FollowClient" xml:space="preserve"><value>Follow game client</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Free Company</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>You are no longer a member of this Free Company.</value></data>
@@ -92,6 +109,7 @@
   <data name="Minimum" xml:space="preserve"><value>Min</value></data>
   <data name="Minutes" xml:space="preserve"><value>Minutes</value></data>
   <data name="Model" xml:space="preserve"><value>Model</value></data>
+  <data name="NoExamplesYet" xml:space="preserve"><value>No examples yet.</value></data>
   <data name="NoMatchingChats" xml:space="preserve"><value>No matching conversations.</value></data>
   <data name="NoMatchingFriends" xml:space="preserve"><value>No matching friends.</value></data>
   <data name="NoMatchingGroups" xml:space="preserve"><value>No matching groups.</value></data>
@@ -105,9 +123,9 @@
   <data name="PartyMembers" xml:space="preserve"><value>Party Members ({0})</value></data>
   <data name="ReadConversationsFailed" xml:space="preserve"><value>Failed to read conversations.</value></data>
   <data name="ReadHistoryFailed" xml:space="preserve"><value>History could not be read.</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
   <data name="RenameGroup" xml:space="preserve"><value>Rename Group</value></data>
   <data name="Reply" xml:space="preserve"><value>Reply</value></data>
-  <data name="ResetToDefault" xml:space="preserve"><value>Reset to Default</value></data>
   <data name="Retry" xml:space="preserve"><value>Retry</value></data>
   <data name="RetryNoteByClick" xml:space="preserve"><value>Click to retry saving the note</value></data>
   <data name="RetryNoteWithEnter" xml:space="preserve"><value>Press Enter to retry saving the note.</value></data>

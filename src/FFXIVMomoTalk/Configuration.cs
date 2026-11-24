@@ -2,14 +2,30 @@ using System.Numerics;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using FFXIVMomoTalk.Chat;
+using FFXIVMomoTalk.Migrations.Configuration;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace FFXIVMomoTalk;
 
 [Serializable]
+public sealed class AiReplyExample : IAiReplyExample
+{
+    public string Context { get; set; } = string.Empty;
+
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<string> Replies { get; set; } = [string.Empty];
+
+    IReadOnlyList<string> IAiReplyExample.Replies => Replies;
+}
+
+[Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
+    public const int MaxCustomExamples = 10;
+    public const int MaxExampleReplies = 3;
 
     public const int DefaultContextWindowMinutes = 10;
     public const int MinContextWindowMinutes = 1;
@@ -23,18 +39,11 @@ public sealed class Configuration : IPluginConfiguration
     public const int MinContextMinMessages = 0;
     public const int MaxContextMinMessages = 500;
 
-    public const string DefaultLlmPrompt =
-        "You are a player chatting casually in FINAL FANTASY XIV.\n"
-        + "Suggest 1 to 3 short, natural, everyday single-line replies\n"
-        + "that fit the recent conversation with varied tones or angles.\n"
-        + "Always match the language used in the recent messages\n"
-        + "(e.g. Chinese, English, or Japanese).\n"
-        + "Avoid robotic phrasing, long paragraphs, or explanations.";
-
     private string llmEndpoint = string.Empty;
     private string llmApiKey = string.Empty;
     private string llmModel = string.Empty;
-    private string llmPrompt = DefaultLlmPrompt;
+    private AiReplyPreset? llmPreset = AiReplyPresets.Default;
+    private string llmCustomPrompt = AiReplyPresets.DefaultPrompt;
     private int llmContextWindowMinutes = DefaultContextWindowMinutes;
     private int llmContextMaxMessages = DefaultContextMaxMessages;
     private int llmContextMinMessages = DefaultContextMinMessages;
@@ -70,11 +79,19 @@ public sealed class Configuration : IPluginConfiguration
         set => llmModel = value ?? string.Empty;
     }
 
-    public string LlmPrompt
+    public string LlmPromptPreset
     {
-        get => llmPrompt;
-        set => llmPrompt = value ?? string.Empty;
+        get => llmPreset?.Id ?? AiReplyPresets.CustomId;
+        set => llmPreset = value == AiReplyPresets.CustomId ? null : AiReplyPresets.Find(value) ?? AiReplyPresets.Default;
     }
+
+    public string LlmCustomPrompt
+    {
+        get => llmCustomPrompt;
+        set => llmCustomPrompt = value ?? string.Empty;
+    }
+
+    public List<AiReplyExample> LlmCustomExamples { get; set; } = [];
 
     public int LlmContextWindowMinutes
     {
@@ -101,6 +118,17 @@ public sealed class Configuration : IPluginConfiguration
         && !string.IsNullOrWhiteSpace(LlmModel);
 
     [JsonIgnore]
+    public bool IsCustomPreset => llmPreset is null;
+
+    [JsonIgnore]
+    public string EffectiveLlmPrompt =>
+        llmPreset?.Prompt ?? (string.IsNullOrWhiteSpace(LlmCustomPrompt) ? AiReplyPresets.DefaultPrompt : LlmCustomPrompt);
+
+    [JsonIgnore]
+    public IReadOnlyList<IAiReplyExample> EffectiveLlmExamples =>
+        llmPreset is { } preset ? preset.Examples : LlmCustomExamples;
+
+    [JsonIgnore]
     public bool PreserveExistingFile { get; private set; }
 
     [JsonIgnore]
@@ -114,23 +142,71 @@ public sealed class Configuration : IPluginConfiguration
         }
     }
 
+    public void CopyPresetToCustom(string presetId)
+    {
+        if (AiReplyPresets.Find(presetId) is not { } preset)
+            return;
+
+        LlmCustomPrompt = preset.Prompt;
+        LlmCustomExamples = preset.Examples.Select(example => new AiReplyExample
+        {
+            Context = example.Context,
+            Replies = [.. example.Replies],
+        }).ToList();
+        LlmPromptPreset = AiReplyPresets.CustomId;
+    }
+
+    private bool HasValidExamples() =>
+        LlmCustomExamples is { Count: <= MaxCustomExamples }
+        && LlmCustomExamples.All(example => example is { Context: not null, Replies.Count: >= 1 and <= MaxExampleReplies }
+            && example.Replies.All(reply => reply is not null));
+
+    internal static Configuration DeserializeCurrent(JObject json)
+    {
+        var serializer = new JsonSerializer { MetadataPropertyHandling = MetadataPropertyHandling.Ignore };
+        if (json.ToObject<Configuration>(serializer) is not { Version: CurrentVersion } config
+            || !config.HasValidExamples())
+        {
+            throw new JsonSerializationException("Settings do not match the current configuration.");
+        }
+
+        return config;
+    }
+
     public static Configuration Load(IDalamudPluginInterface pluginInterface, IPluginLog log)
     {
-        if (!pluginInterface.ConfigFile.Exists)
+        var file = pluginInterface.ConfigFile;
+        if (!file.Exists)
             return new Configuration();
 
+        long? version = null;
+        var step = "read version";
         try
         {
-            if (pluginInterface.GetPluginConfig() is Configuration { Version: CurrentVersion } existing)
-                return existing;
+            using var reader = new JsonTextReader(new StringReader(File.ReadAllText(file.FullName)));
+            var json = new JsonSerializer { DateParseHandling = DateParseHandling.None, CheckAdditionalContent = true }
+                .Deserialize<JObject>(reader);
+            if (json?["Version"] is { Type: JTokenType.Integer } versionToken)
+                version = versionToken.Value<long>();
+
+            if (version == 1)
+                return V1ToV2.Migrate(file.FullName, json!, log) ?? new Configuration { PreserveExistingFile = true };
+
+            if (version == CurrentVersion)
+            {
+                step = "deserialize and validate settings";
+                return DeserializeCurrent(json!);
+            }
+
+            log.Error("Configuration version check failed (source {SourceVersion}, target v{TargetVersion}). The existing file was preserved.",
+                version?.ToString() ?? "unknown", CurrentVersion);
         }
         catch (Exception exception)
         {
-            log.Error(exception, "Failed to read existing plugin configuration; preserving the file on disk.");
-            return new Configuration { PreserveExistingFile = true };
+            log.Error("Configuration {Step} failed (source {SourceVersion}, target v{TargetVersion}, {ErrorType}). The existing file was preserved.",
+                step, version?.ToString() ?? "unknown", CurrentVersion, exception.GetType().Name);
         }
 
-        log.Error("Existing plugin configuration is unrecognized or unsupported; preserving the file on disk.");
         return new Configuration { PreserveExistingFile = true };
     }
 

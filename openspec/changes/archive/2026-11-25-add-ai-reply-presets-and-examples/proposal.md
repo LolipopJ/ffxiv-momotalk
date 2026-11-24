@@ -6,7 +6,7 @@
 
 ## What Changes
 
-- 新增内置英文风格预设目录 `src/FFXIVMomoTalk/Chat/AiReplyPresets.cs`，包含 7 个预设（保留现有 FFXIV 日常聊天风格的 `Default (FFXIV Casual)`、新增 `Blue Archive - Sensei` 以及 5 种奇幻酒馆 Roleplay 性格：`Tavern RP - Reliable`、`Tavern RP - Cunning`、`Tavern RP - Wise`、`Tavern RP - Aloof`、`Tavern RP - Cheerful`）与 `Custom` 选项；所有预设提示词与自带对话示例均采用纯英文编写，每个预设提供 2–3 组结构化示例（每组含情境发言与 3 条不同角度的单行示范回复）。
+- 新增内置英文风格预设目录 `src/FFXIVMomoTalk/Chat/AiReplyPresets.cs`，包含 7 个预设（融合 FFXIV 日常聊天风格的 `Default (FFXIV Casual)`、立足主线名场面并兼顾大人的担当与场合自洽发癫的 `Blue Archive - Sensei` 以及 5 种艾欧泽亚酒馆 Roleplay 性格：`Tavern RP - Reliable`、`Tavern RP - Cunning`、`Tavern RP - Wise`、`Tavern RP - Aloof`、`Tavern RP - Cheerful`）与 `Custom` 选项；所有预设提示词与自带对话示例均采用纯英文编写，其中 `sensei` 提供 10 组取材自《蔚蓝档案》主线剧情名场面的结构化示例，其余 6 套预设各提供 5 组融合 FFXIV 语境的结构化示例（每组含情境发言与 3 条不同角度的单行示范回复）。
 - 在 `AI Reply` 设置页移除 `Reset to Default` 按钮，在系统提示词编辑框上方新增风格下拉选择框（依次为 `Custom` 与 7 个内置预设）；选中预设时在下拉框右侧显示 `Copy to Custom` 按钮并将预设提示词与示例以只读方式呈现，选中 `Custom` 时隐藏复制按钮并允许使用任意文本自由编辑提示词与示例，来回切换预设不会丢失 `Custom` 中保存的内容。
 - 新增结构化对话示例与请求组装机制：每条示例由对方/情境文本和 1–3 条候选回复列表组成；在 `AiReplyService` 中保持现有 `[system, user]` 双消息请求结构，将有效对话示例序列化为目标 `{"replies":[...]}` JSON 块内嵌于系统提示词中，并显式指示示例仅示范语气与选项多样性、实际回复必须匹配近期聊天语言。
 - 完善 6 语言 UI 本地化（`en`、`ja`、`de`、`fr`、`zh-Hans`、`zh-Hant`）：通过 `Loc` 资源目录本地化下拉选项名称、`Copy to Custom`、对话示例区块标题、添加/删除按钮与提示文案，并移除不再使用的 `ResetToDefault` 资源键；内置预设提示词与示例正文保持纯英文。

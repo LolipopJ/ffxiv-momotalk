@@ -3,7 +3,9 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AddExample" xml:space="preserve"><value>+ 追加</value></data>
   <data name="AddNote" xml:space="preserve"><value>メモを追加…</value></data>
+  <data name="AddReply" xml:space="preserve"><value>+ 返信を追加</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>認証エラー（HTTP {0}）。APIキーを確認してください。</value></data>
   <data name="AiConnected" xml:space="preserve"><value>接続できました（{0} ms）。</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>接続テストに失敗しました。</value></data>
@@ -17,6 +19,14 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLMのレスポンスにメッセージの本文がありません。</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLMのレスポンスに応答候補が含まれていません。</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AIからこのチャネルの有効な返信候補が返されませんでした。</value></data>
+  <data name="AiPresetCustom" xml:space="preserve"><value>カスタム</value></data>
+  <data name="AiPresetDefault" xml:space="preserve"><value>デフォルト</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>ブルーアーカイブ - 先生</value></data>
+  <data name="AiPresetTavernAloof" xml:space="preserve"><value>酒場RP - クール</value></data>
+  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>酒場RP - 陽気</value></data>
+  <data name="AiPresetTavernCunning" xml:space="preserve"><value>酒場RP - 策士</value></data>
+  <data name="AiPresetTavernReliable" xml:space="preserve"><value>酒場RP - 頼れる仲間</value></data>
+  <data name="AiPresetTavernWise" xml:space="preserve"><value>酒場RP - 賢者</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>リクエスト数の上限に達しました（HTTP 429）。時間をおいて再試行してください。</value></data>
   <data name="AiReply" xml:space="preserve"><value>AI返信</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AIへのリクエストがタイムアウトしました。</value></data>
@@ -36,7 +46,9 @@
   <data name="ContextMaximumHint" xml:space="preserve"><value>AIに送信するメッセージの最大件数（1～500件）。</value></data>
   <data name="ContextMinimumHint" xml:space="preserve"><value>必要に応じて時間範囲より前のメッセージで補う最小件数（0～500件）。</value></data>
   <data name="ContextMinutesHint" xml:space="preserve"><value>直近N分のメッセージに絞ります（1～1440分）。</value></data>
+  <data name="ConversationExamples" xml:space="preserve"><value>会話例</value></data>
   <data name="CopyText" xml:space="preserve"><value>テキストをコピー</value></data>
+  <data name="CopyToCustom" xml:space="preserve"><value>カスタムにコピー</value></data>
   <data name="Create" xml:space="preserve"><value>作成</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>固定パーティを作成</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>クロスワールドリンクシェル</value></data>
@@ -49,6 +61,11 @@
   <data name="Endpoint" xml:space="preserve"><value>エンドポイント</value></data>
   <data name="EnterGroupName" xml:space="preserve"><value>グループ名を入力…</value></data>
   <data name="EnterMessageBeforeSending" xml:space="preserve"><value>メッセージを入力してから送信してください。</value></data>
+  <data name="ExampleContext" xml:space="preserve"><value>状況</value></data>
+  <data name="ExampleContextHint" xml:space="preserve"><value>相手の発言を入力</value></data>
+  <data name="ExampleItemTitle" xml:space="preserve"><value>例 {0}</value></data>
+  <data name="ExampleReplies" xml:space="preserve"><value>返信</value></data>
+  <data name="ExampleReplyHint" xml:space="preserve"><value>返信例を入力</value></data>
   <data name="FollowClient" xml:space="preserve"><value>クライアントに従う</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>フリーカンパニー</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>このフリーカンパニーには所属していません。</value></data>
@@ -92,6 +109,7 @@
   <data name="Minimum" xml:space="preserve"><value>最小</value></data>
   <data name="Minutes" xml:space="preserve"><value>分</value></data>
   <data name="Model" xml:space="preserve"><value>モデル</value></data>
+  <data name="NoExamplesYet" xml:space="preserve"><value>会話例はまだありません。</value></data>
   <data name="NoMatchingChats" xml:space="preserve"><value>該当する会話がありません。</value></data>
   <data name="NoMatchingFriends" xml:space="preserve"><value>該当するフレンドがいません。</value></data>
   <data name="NoMatchingGroups" xml:space="preserve"><value>該当するグループがありません。</value></data>
@@ -105,9 +123,9 @@
   <data name="PartyMembers" xml:space="preserve"><value>パーティメンバー（{0}人）</value></data>
   <data name="ReadConversationsFailed" xml:space="preserve"><value>会話を読み込めませんでした。</value></data>
   <data name="ReadHistoryFailed" xml:space="preserve"><value>チャット履歴を読み込めませんでした。</value></data>
+  <data name="Remove" xml:space="preserve"><value>削除</value></data>
   <data name="RenameGroup" xml:space="preserve"><value>グループ名を変更</value></data>
   <data name="Reply" xml:space="preserve"><value>返信</value></data>
-  <data name="ResetToDefault" xml:space="preserve"><value>初期設定に戻す</value></data>
   <data name="Retry" xml:space="preserve"><value>再試行</value></data>
   <data name="RetryNoteByClick" xml:space="preserve"><value>クリックでメモの保存を再試行</value></data>
   <data name="RetryNoteWithEnter" xml:space="preserve"><value>Enterキーでメモの保存を再試行します。</value></data>

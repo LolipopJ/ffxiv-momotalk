@@ -3,7 +3,9 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AddExample" xml:space="preserve"><value>+ Ajouter</value></data>
   <data name="AddNote" xml:space="preserve"><value>Ajouter une note…</value></data>
+  <data name="AddReply" xml:space="preserve"><value>+ Ajouter une réponse</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>Erreur d’authentification (HTTP {0}). Vérifiez votre clé API.</value></data>
   <data name="AiConnected" xml:space="preserve"><value>Connexion réussie ({0} ms).</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>Le test de connexion a échoué.</value></data>
@@ -17,6 +19,14 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>Le contenu du message est absent de la réponse du LLM.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>La réponse du LLM ne contient aucune proposition.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>L’IA n’a renvoyé aucune réponse valide pour ce canal.</value></data>
+  <data name="AiPresetCustom" xml:space="preserve"><value>Personnalisé</value></data>
+  <data name="AiPresetDefault" xml:space="preserve"><value>Par défaut</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>Blue Archive - Sensei</value></data>
+  <data name="AiPresetTavernAloof" xml:space="preserve"><value>RP taverne - Distant</value></data>
+  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>RP taverne - Enjoué</value></data>
+  <data name="AiPresetTavernCunning" xml:space="preserve"><value>RP taverne - Rusé</value></data>
+  <data name="AiPresetTavernReliable" xml:space="preserve"><value>RP taverne - Fiable</value></data>
+  <data name="AiPresetTavernWise" xml:space="preserve"><value>RP taverne - Sage</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Limite de requêtes atteinte (HTTP 429). Patientez, puis réessayez.</value></data>
   <data name="AiReply" xml:space="preserve"><value>Réponses IA</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>La requête à l’IA a expiré.</value></data>
@@ -36,7 +46,9 @@
   <data name="ContextMaximumHint" xml:space="preserve"><value>Nombre maximal de messages envoyés à l’IA (1 à 500).</value></data>
   <data name="ContextMinimumHint" xml:space="preserve"><value>Nombre minimal de messages, complété au besoin par des messages plus anciens (0 à 500).</value></data>
   <data name="ContextMinutesHint" xml:space="preserve"><value>Limite le contexte aux N dernières minutes (1 à 1440).</value></data>
+  <data name="ConversationExamples" xml:space="preserve"><value>Exemples de dialogue</value></data>
   <data name="CopyText" xml:space="preserve"><value>Copier le texte</value></data>
+  <data name="CopyToCustom" xml:space="preserve"><value>Copier vers Personnalisé</value></data>
   <data name="Create" xml:space="preserve"><value>Créer</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>Créer un groupe fixe</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Linkshell inter-Monde</value></data>
@@ -49,6 +61,11 @@
   <data name="Endpoint" xml:space="preserve"><value>Point de terminaison</value></data>
   <data name="EnterGroupName" xml:space="preserve"><value>Saisir le nom du groupe…</value></data>
   <data name="EnterMessageBeforeSending" xml:space="preserve"><value>Saisissez un message avant de l’envoyer.</value></data>
+  <data name="ExampleContext" xml:space="preserve"><value>Contexte</value></data>
+  <data name="ExampleContextHint" xml:space="preserve"><value>Quel est le message reçu ?</value></data>
+  <data name="ExampleItemTitle" xml:space="preserve"><value>Exemple {0}</value></data>
+  <data name="ExampleReplies" xml:space="preserve"><value>Réponses</value></data>
+  <data name="ExampleReplyHint" xml:space="preserve"><value>Saisir un exemple de réponse</value></data>
   <data name="FollowClient" xml:space="preserve"><value>Langue du jeu</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Compagnie libre</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette compagnie libre.</value></data>
@@ -92,6 +109,7 @@
   <data name="Minimum" xml:space="preserve"><value>Min.</value></data>
   <data name="Minutes" xml:space="preserve"><value>Minutes</value></data>
   <data name="Model" xml:space="preserve"><value>Modèle</value></data>
+  <data name="NoExamplesYet" xml:space="preserve"><value>Aucun exemple pour le moment.</value></data>
   <data name="NoMatchingChats" xml:space="preserve"><value>Aucune discussion correspondante.</value></data>
   <data name="NoMatchingFriends" xml:space="preserve"><value>Aucun ami correspondant.</value></data>
   <data name="NoMatchingGroups" xml:space="preserve"><value>Aucun groupe correspondant.</value></data>
@@ -105,9 +123,9 @@
   <data name="PartyMembers" xml:space="preserve"><value>Membres de l’équipe ({0})</value></data>
   <data name="ReadConversationsFailed" xml:space="preserve"><value>Impossible de lire les discussions.</value></data>
   <data name="ReadHistoryFailed" xml:space="preserve"><value>Impossible de lire l’historique.</value></data>
+  <data name="Remove" xml:space="preserve"><value>Supprimer</value></data>
   <data name="RenameGroup" xml:space="preserve"><value>Renommer le groupe</value></data>
   <data name="Reply" xml:space="preserve"><value>Réponses</value></data>
-  <data name="ResetToDefault" xml:space="preserve"><value>Rétablir la valeur par défaut</value></data>
   <data name="Retry" xml:space="preserve"><value>Réessayer</value></data>
   <data name="RetryNoteByClick" xml:space="preserve"><value>Cliquer pour réessayer d’enregistrer la note</value></data>
   <data name="RetryNoteWithEnter" xml:space="preserve"><value>Appuyez sur Entrée pour réessayer d’enregistrer la note.</value></data>
