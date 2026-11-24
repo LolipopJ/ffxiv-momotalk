@@ -24,8 +24,8 @@ internal sealed class ChatSender(
 {
     internal const int MaxCommandBytes = 500;
     private const uint ErrorMessageLogKind = 60;
-    private const string FallbackTellRejection = "Failed to send Tell. Check the in-game chat for details.";
-    private const string FallbackGroupRejection = "Failed to send message. Check the in-game chat for details.";
+    private const string FallbackTellRejection = "TellFailedCheckGameChat";
+    private const string FallbackGroupRejection = "MessageFailedCheckGameChat";
     private static readonly TimeSpan ReconciliationWindow = TimeSpan.FromSeconds(5);
 
     private readonly List<PendingMessage> pending = new();
@@ -86,13 +86,13 @@ internal sealed class ChatSender(
         command = string.Empty;
         if (draft.Any(character => char.IsControl(character) || character is '\u2028' or '\u2029'))
         {
-            error = "A message must be one line without control characters.";
+            error = "MessageMustBeSingleLine";
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(draft))
         {
-            error = "Enter a message before sending.";
+            error = "EnterMessageBeforeSending";
             return false;
         }
 
@@ -100,7 +100,7 @@ internal sealed class ChatSender(
         command = $"{target.CommandPrefix} {body}";
         if (Encoding.UTF8.GetByteCount(command) > MaxCommandBytes)
         {
-            error = "This message exceeds the game's 500-byte input limit.";
+            error = "MessageTooLong";
             return false;
         }
 
@@ -135,7 +135,7 @@ internal sealed class ChatSender(
 
         if (isTell && !directory.HasLiveFriendList)
         {
-            Warn(request, "Open the in-game Friend List so MomoTalk can verify the recipient.");
+            Warn(request, "VerifyTellRecipient");
             return;
         }
 
@@ -155,14 +155,14 @@ internal sealed class ChatSender(
         var ui = UIModule.Instance();
         if (ui is null)
         {
-            Warn(request, "The game chat window is unavailable.");
+            Warn(request, "GameChatUnavailable");
             return;
         }
 
         var input = Utf8String.FromString(command);
         if (input is null)
         {
-            Warn(request, "The game could not prepare this message.");
+            Warn(request, "GameCouldNotPrepareMessage");
             return;
         }
 
@@ -172,7 +172,7 @@ internal sealed class ChatSender(
             input->SanitizeString((AllowedEntities)0x27F);
             if (input->ToString() != command)
             {
-                Warn(request, "The message contains text the game cannot send.");
+                Warn(request, "GameCannotSendText");
                 return;
             }
 
@@ -384,42 +384,42 @@ internal sealed class ChatSender(
 
     private static string ReadGroupLogRejection(uint logMessageId) => logMessageId switch
     {
-        484 => "Unable to send the message because it contains disallowed text.",
-        749 => "Unable to send the message due to chat rate limiting.",
-        3831 => "Unable to chat right now.",
-        3876 => "Unable to send the message because chat participation is disabled.",
-        7382 => "Unable to send the message because chat is restricted.",
+        484 => "MessageDisallowedText",
+        749 => "MessageRateLimited",
+        3831 => "ChatUnavailableNow",
+        3876 => "MessageParticipationDisabled",
+        7382 => "MessageChatRestricted",
         _ => FallbackGroupRejection,
     };
 
     private static string ReadTellRejection(uint logMessageId) => logMessageId switch
     {
-        49 => "Unable to send the Tell because the recipient is busy.",
-        50 or 7485 => "Unable to send the Tell. The recipient may be offline or unavailable.",
-        51 => "Unable to send the Tell. The recipient is offline or could not be found.",
-        55 => "Unable to send the Tell because the recipient is blacklisted.",
-        483 => "Unable to send the Tell.",
-        484 => "Unable to send the Tell because it contains disallowed text.",
-        690 => "Unable to use Tell in the current duty.",
-        691 => "Unable to send the Tell because the recipient is in a duty.",
-        749 => "Unable to send the Tell due to chat rate limiting.",
-        1641 => "Unable to use Tell during PvP.",
-        1642 => "Unable to send the Tell because the recipient is in PvP.",
-        1643 => "Unable to use Tell during a custom PvP match.",
-        3831 => "Unable to chat right now.",
-        3832 => "Unable to send the Tell because the recipient is in a restricted area.",
-        3872 => "Unable to send the Tell because the recipient is not in the same duty.",
-        3873 => "Unable to use Tell commands in the current duty.",
-        3874 => "Unable to reply to a Tell from outside the current duty.",
-        3875 => "Unable to use the Tell command right now.",
-        3876 => "Unable to send the Tell because chat participation is disabled.",
-        3877 => "Unable to send the Tell because the recipient's World is invalid.",
-        3881 => "Unable to send the Tell. Open the Friend List to refresh recipient info and try again.",
-        5655 => "Unable to send the Tell because the recipient is offline.",
-        7382 => "Unable to send the Tell because chat is restricted.",
-        7486 => "Unable to send the Tell because the Party Finder recruitment has ended.",
-        7489 => "Unable to send the Tell because the recipient's World is not in this Data Center.",
-        9743 => "Unable to send the Tell because the recipient is muted or blocked.",
+        49 => "TellRecipientBusy",
+        50 or 7485 => "TellRecipientMayBeOffline",
+        51 => "TellRecipientNotFound",
+        55 => "TellRecipientBlacklisted",
+        483 => "TellFailed",
+        484 => "TellDisallowedText",
+        690 => "TellUnavailableInDuty",
+        691 => "TellRecipientInDuty",
+        749 => "TellRateLimited",
+        1641 => "TellUnavailableInPvP",
+        1642 => "TellRecipientInPvP",
+        1643 => "TellUnavailableInCustomPvP",
+        3831 => "ChatUnavailableNow",
+        3832 => "TellRecipientInRestrictedArea",
+        3872 => "TellRecipientInDifferentDuty",
+        3873 => "TellCommandUnavailableInDuty",
+        3874 => "TellCannotReplyOutsideDuty",
+        3875 => "TellCommandUnavailableNow",
+        3876 => "TellParticipationDisabled",
+        3877 => "TellRecipientWorldInvalid",
+        3881 => "TellRefreshFriendList",
+        5655 => "TellRecipientOffline",
+        7382 => "TellChatRestricted",
+        7486 => "TellRecruitmentEnded",
+        7489 => "TellRecipientInDifferentDataCenter",
+        9743 => "TellRecipientMutedOrBlocked",
         _ => FallbackTellRejection,
     };
 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -27,7 +28,7 @@ internal enum AiConnectionTestStatus
 internal readonly record struct AiReplySnapshot(
     AiReplyStatus Status,
     IReadOnlyList<string> Options,
-    string? ErrorMessage,
+    AiNotice? ErrorMessage,
     long GenerationId)
 {
     public static AiReplySnapshot Idle { get; } = new(AiReplyStatus.Idle, [], null, 0);
@@ -35,9 +36,19 @@ internal readonly record struct AiReplySnapshot(
 
 internal readonly record struct AiConnectionTestSnapshot(
     AiConnectionTestStatus Status,
-    string? Message)
+    AiNotice? Message)
 {
     public static AiConnectionTestSnapshot Idle { get; } = new(AiConnectionTestStatus.Idle, null);
+}
+
+internal readonly record struct AiNotice(string Key, int? Number = null)
+{
+    public string Format(CultureInfo? culture = null)
+    {
+        culture ??= Loc.Culture;
+        var message = Loc.TextFor(culture, Key);
+        return Number is int number ? string.Format(culture, message, number) : message;
+    }
 }
 
 internal sealed partial class AiReplyService(
@@ -48,7 +59,7 @@ internal sealed partial class AiReplyService(
 {
     private const int MaxReplyOptions = 3;
     private const int MaxErrorPreviewLength = 140;
-    private const string InvalidEndpointMessage = "Use an HTTPS LLM endpoint. HTTP is allowed for loopback addresses only.";
+    private static readonly AiNotice InvalidEndpointMessage = new("AiInvalidEndpoint");
 
     private readonly HttpClient httpClient = new(new HttpClientHandler { AllowAutoRedirect = false })
     {
@@ -63,7 +74,7 @@ internal sealed partial class AiReplyService(
     private PlayerSession? activeSession;
     private long nextGenerationId;
     private AiConnectionTestStatus connectionTestStatus;
-    private string? connectionTestMessage;
+    private AiNotice? connectionTestMessage;
     private long connectionTestGenerationId;
     private CancellationTokenSource? connectionTestCts;
     private bool attached;
@@ -151,7 +162,7 @@ internal sealed partial class AiReplyService(
             connectionTestGenerationId = generationId;
             connectionTestCts = testCts;
             connectionTestStatus = AiConnectionTestStatus.Testing;
-            connectionTestMessage = "Testing connection...";
+            connectionTestMessage = null;
 
             var endpoint = config.LlmEndpoint;
             var apiKey = config.LlmApiKey;
@@ -467,7 +478,7 @@ internal sealed partial class AiReplyService(
             }
             catch (FormatException)
             {
-                CommitConnectionTest(generationId, AiConnectionTestStatus.Error, "Invalid API key format.");
+                CommitConnectionTest(generationId, AiConnectionTestStatus.Error, new("AiInvalidApiKeyFormat"));
                 return;
             }
 
@@ -487,7 +498,7 @@ internal sealed partial class AiReplyService(
 
             _ = ExtractAssistantContent(result.Body);
             var elapsedMs = (int)Math.Round(Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
-            CommitConnectionTest(generationId, AiConnectionTestStatus.Success, $"Connected ({elapsedMs} ms).");
+            CommitConnectionTest(generationId, AiConnectionTestStatus.Success, new("AiConnected", elapsedMs));
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested || testCts.IsCancellationRequested)
         {
@@ -495,7 +506,7 @@ internal sealed partial class AiReplyService(
         }
         catch (OperationCanceledException)
         {
-            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, "Connection test timed out.");
+            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, new("AiConnectionTimedOut"));
         }
         catch (AiRequestException exception)
         {
@@ -505,12 +516,12 @@ internal sealed partial class AiReplyService(
         catch (HttpRequestException exception)
         {
             log.Warning("AI endpoint connection test HTTP failed ({FailureType}).", exception.GetType().Name);
-            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, "Unable to reach the LLM endpoint.");
+            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, new("AiEndpointUnreachable"));
         }
         catch (Exception exception)
         {
             log.Error("Unexpected AI endpoint connection test failure ({FailureType}).", exception.GetType().Name);
-            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, "Connection test failed.");
+            CommitConnectionTest(generationId, AiConnectionTestStatus.Error, new("AiConnectionFailed"));
         }
         finally
         {
@@ -525,7 +536,7 @@ internal sealed partial class AiReplyService(
         }
     }
 
-    private void CommitConnectionTest(long generationId, AiConnectionTestStatus status, string message)
+    private void CommitConnectionTest(long generationId, AiConnectionTestStatus status, AiNotice message)
     {
         lock (gate)
         {
@@ -608,7 +619,7 @@ internal sealed partial class AiReplyService(
                     request.GenerationId,
                     AiReplyStatus.Error,
                     [],
-                    "AI returned no valid reply options for this channel.");
+                    new("AiNoReplies"));
                 return;
             }
 
@@ -632,7 +643,7 @@ internal sealed partial class AiReplyService(
                 request.GenerationId,
                 AiReplyStatus.Error,
                 [],
-                "AI request timed out.");
+                new("AiRequestTimedOut"));
         }
         catch (AiRequestException exception)
         {
@@ -654,7 +665,7 @@ internal sealed partial class AiReplyService(
                 request.GenerationId,
                 AiReplyStatus.Error,
                 [],
-                "Unable to reach the LLM endpoint.");
+                new("AiEndpointUnreachable"));
         }
         catch (Exception exception)
         {
@@ -665,7 +676,7 @@ internal sealed partial class AiReplyService(
                 request.GenerationId,
                 AiReplyStatus.Error,
                 [],
-                "Failed to generate AI replies.");
+                new("AiGenerateFailed"));
         }
         finally
         {
@@ -699,7 +710,7 @@ internal sealed partial class AiReplyService(
         }
         catch (FormatException)
         {
-            throw new AiRequestException("Invalid API key format.");
+            throw new AiRequestException(new("AiInvalidApiKeyFormat"));
         }
 
         var trimmedModel = model.Trim();
@@ -774,11 +785,11 @@ internal sealed partial class AiReplyService(
     private static string FormatHttpError(HttpStatusCode statusCode, string responseBody, string trimmedApiKey)
     {
         if (statusCode == HttpStatusCode.Unauthorized)
-            return DescribeHttpError(statusCode);
+            return DescribeHttpError(statusCode).Format(CultureInfo.InvariantCulture);
 
         var message = ReadApiError(responseBody).Message;
         if (string.IsNullOrWhiteSpace(message))
-            return DescribeHttpError(statusCode);
+            return DescribeHttpError(statusCode).Format(CultureInfo.InvariantCulture);
 
         if (trimmedApiKey.Length > 0)
             message = message.Replace(trimmedApiKey, "[redacted]", StringComparison.Ordinal);
@@ -788,7 +799,7 @@ internal sealed partial class AiReplyService(
             detail = detail[..(MaxErrorPreviewLength - 3)].TrimEnd() + "...";
 
         if (detail.Length == 0)
-            return DescribeHttpError(statusCode);
+            return DescribeHttpError(statusCode).Format(CultureInfo.InvariantCulture);
 
         return statusCode switch
         {
@@ -798,14 +809,14 @@ internal sealed partial class AiReplyService(
         };
     }
 
-    private static string DescribeHttpError(HttpStatusCode statusCode)
+    private static AiNotice DescribeHttpError(HttpStatusCode statusCode)
     {
         return statusCode switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
-                $"Authentication error (HTTP {(int)statusCode}). Check your API key.",
-            HttpStatusCode.TooManyRequests => "Rate limit exceeded (HTTP 429). Please wait and try again.",
-            _ => $"LLM request failed (HTTP {(int)statusCode}).",
+                new("AiAuthenticationError", (int)statusCode),
+            HttpStatusCode.TooManyRequests => new("AiRateLimitExceeded"),
+            _ => new("AiHttpError", (int)statusCode),
         };
     }
 
@@ -871,7 +882,7 @@ internal sealed partial class AiReplyService(
                 || choices.ValueKind != JsonValueKind.Array
                 || choices.GetArrayLength() == 0)
             {
-                throw new AiRequestException("LLM response did not contain any choices.");
+                throw new AiRequestException(new("AiNoChoices"));
             }
 
             var firstChoice = choices[0];
@@ -880,7 +891,7 @@ internal sealed partial class AiReplyService(
                 || message.ValueKind != JsonValueKind.Object
                 || !message.TryGetProperty("content", out var content))
             {
-                throw new AiRequestException("LLM response was missing message content.");
+                throw new AiRequestException(new("AiMissingMessage"));
             }
 
             if (content.ValueKind == JsonValueKind.String)
@@ -902,11 +913,11 @@ internal sealed partial class AiReplyService(
                 return sb.ToString();
             }
 
-            throw new AiRequestException("LLM response contained an unsupported content format.");
+            throw new AiRequestException(new("AiUnsupportedContent"));
         }
         catch (JsonException)
         {
-            throw new AiRequestException("LLM returned invalid JSON.");
+            throw new AiRequestException(new("AiInvalidJson"));
         }
     }
 
@@ -1187,7 +1198,7 @@ internal sealed partial class AiReplyService(
         long generationId,
         AiReplyStatus status,
         string[] options,
-        string? errorMessage)
+        AiNotice? errorMessage)
     {
         lock (gate)
         {
@@ -1227,7 +1238,7 @@ internal sealed partial class AiReplyService(
 
         public IReadOnlyList<string> Options { get; set; } = [];
 
-        public string? ErrorMessage { get; set; }
+        public AiNotice? ErrorMessage { get; set; }
 
         public long GenerationId { get; set; }
 
@@ -1251,8 +1262,9 @@ internal sealed partial class AiReplyService(
         long GenerationId,
         CancellationTokenSource Cts);
 
-    private sealed class AiRequestException(string message, string? displayMessage = null) : Exception(message)
+    private sealed class AiRequestException(AiNotice displayMessage, string? logMessage = null)
+        : Exception(logMessage ?? displayMessage.Format(CultureInfo.InvariantCulture))
     {
-        public string DisplayMessage { get; } = displayMessage ?? message;
+        public AiNotice DisplayMessage { get; } = displayMessage;
     }
 }

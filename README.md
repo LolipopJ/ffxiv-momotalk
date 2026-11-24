@@ -34,6 +34,8 @@ Then open `/xlplugins`, search for **MomoTalk**, and install it.
 
 ## Usage
 
+The interface follows the game client language by default. Choose English, Japanese, German, French, Simplified Chinese, or Traditional Chinese under **Settings → General → Language**.
+
 ### Basic Usage
 
 1. Type `/momotalk` in the in-game chat box, or click the floating MomoTalk icon to open the window.

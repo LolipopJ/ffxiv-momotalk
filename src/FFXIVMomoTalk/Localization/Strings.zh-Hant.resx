@@ -1,0 +1,179 @@
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AddNote" xml:space="preserve"><value>新增備註…</value></data>
+  <data name="AiAuthenticationError" xml:space="preserve"><value>驗證失敗（HTTP {0}）。請檢查 API 金鑰。</value></data>
+  <data name="AiConnected" xml:space="preserve"><value>連線成功（{0} 毫秒）。</value></data>
+  <data name="AiConnectionFailed" xml:space="preserve"><value>連線測試失敗。</value></data>
+  <data name="AiConnectionTimedOut" xml:space="preserve"><value>連線測試逾時。</value></data>
+  <data name="AiEndpointUnreachable" xml:space="preserve"><value>無法連線至 LLM 端點。</value></data>
+  <data name="AiGenerateFailed" xml:space="preserve"><value>無法產生 AI 回覆。</value></data>
+  <data name="AiHttpError" xml:space="preserve"><value>LLM 請求失敗（HTTP {0}）。</value></data>
+  <data name="AiInvalidApiKeyFormat" xml:space="preserve"><value>API 金鑰格式無效。</value></data>
+  <data name="AiInvalidEndpoint" xml:space="preserve"><value>請使用 HTTPS 的 LLM 端點。只有回送位址可以使用 HTTP。</value></data>
+  <data name="AiInvalidJson" xml:space="preserve"><value>LLM 傳回了無效的 JSON。</value></data>
+  <data name="AiMissingMessage" xml:space="preserve"><value>LLM 回應缺少訊息內容。</value></data>
+  <data name="AiNoChoices" xml:space="preserve"><value>LLM 回應未包含任何選項。</value></data>
+  <data name="AiNoReplies" xml:space="preserve"><value>AI 並未傳回適用於此頻道的有效回覆。</value></data>
+  <data name="AiRateLimitExceeded" xml:space="preserve"><value>請求過於頻繁（HTTP 429）。請稍後再試。</value></data>
+  <data name="AiReply" xml:space="preserve"><value>AI 回覆</value></data>
+  <data name="AiRequestTimedOut" xml:space="preserve"><value>AI 請求逾時。</value></data>
+  <data name="AiUnsupportedContent" xml:space="preserve"><value>LLM 回應使用了不支援的內容格式。</value></data>
+  <data name="ApiKey" xml:space="preserve"><value>API 金鑰</value></data>
+  <data name="AppName" xml:space="preserve"><value>MomoTalk</value></data>
+  <data name="Cancel" xml:space="preserve"><value>取消</value></data>
+  <data name="CannotGenerateReplies" xml:space="preserve"><value>目前無法產生回覆</value></data>
+  <data name="ChannelSlot" xml:space="preserve"><value>{0} · 欄位 {1}</value></data>
+  <data name="ChatContext" xml:space="preserve"><value>聊天上下文</value></data>
+  <data name="Chats" xml:space="preserve"><value>對話</value></data>
+  <data name="ChatsEmpty" xml:space="preserve"><value>目前沒有對話。選擇一位好友或一個群組開始聊天。</value></data>
+  <data name="ChatUnavailableNow" xml:space="preserve"><value>目前無法聊天。</value></data>
+  <data name="ChooseConversation" xml:space="preserve"><value>請選擇一個對話。</value></data>
+  <data name="CommandHelp" xml:space="preserve"><value>開啟或關閉 FFXIV MomoTalk 視窗。</value></data>
+  <data name="ConfigReadError" xml:space="preserve"><value>無法讀取設定檔，已保留原檔案。</value></data>
+  <data name="ContextMaximumHint" xml:space="preserve"><value>傳送給 AI 的訊息數量上限（1–500）。</value></data>
+  <data name="ContextMinimumHint" xml:space="preserve"><value>傳送給 AI 的訊息數量下限，必要時補入較早的訊息（0–500）。</value></data>
+  <data name="ContextMinutesHint" xml:space="preserve"><value>只傳送最近 N 分鐘內的訊息（1–1440）。</value></data>
+  <data name="CopyText" xml:space="preserve"><value>複製文字</value></data>
+  <data name="Create" xml:space="preserve"><value>建立</value></data>
+  <data name="CreateStaticGroup" xml:space="preserve"><value>建立固定隊</value></data>
+  <data name="CrossWorldLinkshell" xml:space="preserve"><value>跨界通訊貝</value></data>
+  <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>你已不屬於此跨界通訊貝。</value></data>
+  <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>跨界貝</value></data>
+  <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>目前無法使用跨界通訊貝聊天。</value></data>
+  <data name="DatabaseError" xml:space="preserve"><value>資料庫發生錯誤（{0}），已保留原檔案。詳細資訊請查看 /xllog。</value></data>
+  <data name="DeleteChat" xml:space="preserve"><value>刪除對話</value></data>
+  <data name="EditNote" xml:space="preserve"><value>點擊編輯備註</value></data>
+  <data name="Endpoint" xml:space="preserve"><value>端點</value></data>
+  <data name="EnterGroupName" xml:space="preserve"><value>輸入群組名稱…</value></data>
+  <data name="EnterMessageBeforeSending" xml:space="preserve"><value>請先輸入訊息再傳送。</value></data>
+  <data name="FollowClient" xml:space="preserve"><value>跟隨遊戲語言</value></data>
+  <data name="FreeCompany" xml:space="preserve"><value>公會</value></data>
+  <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不屬於此公會。</value></data>
+  <data name="FreeCompanyTag" xml:space="preserve"><value>公會</value></data>
+  <data name="FreeCompanyUnavailable" xml:space="preserve"><value>目前無法使用公會聊天。</value></data>
+  <data name="FriendRemoved" xml:space="preserve"><value>此角色已從你的好友名單移除。</value></data>
+  <data name="Friends" xml:space="preserve"><value>好友</value></data>
+  <data name="FriendsEmpty" xml:space="preserve"><value>遊戲內的好友名單是空的。</value></data>
+  <data name="GameCannotSendText" xml:space="preserve"><value>訊息包含遊戲無法傳送的文字。</value></data>
+  <data name="GameChatUnavailable" xml:space="preserve"><value>遊戲聊天視窗目前無法使用。</value></data>
+  <data name="GameCouldNotPrepareMessage" xml:space="preserve"><value>遊戲無法準備傳送此訊息。</value></data>
+  <data name="General" xml:space="preserve"><value>一般</value></data>
+  <data name="GenerateAiReplies" xml:space="preserve"><value>產生 AI 回覆</value></data>
+  <data name="GeneratingReplies" xml:space="preserve"><value>正在產生回覆…</value></data>
+  <data name="GroupName" xml:space="preserve"><value>群組名稱</value></data>
+  <data name="Groups" xml:space="preserve"><value>群組</value></data>
+  <data name="GroupsEmpty" xml:space="preserve"><value>目前沒有群組。開啟遊戲內的公會、通訊貝或跨界通訊貝名單以同步，或以滑鼠右鍵點擊小隊成員來建立固定隊。</value></data>
+  <data name="Hide" xml:space="preserve"><value>隱藏</value></data>
+  <data name="Language" xml:space="preserve"><value>語言</value></data>
+  <data name="Linkshell" xml:space="preserve"><value>通訊貝</value></data>
+  <data name="LinkshellLeft" xml:space="preserve"><value>你已不屬於此通訊貝。</value></data>
+  <data name="LinkshellTag" xml:space="preserve"><value>通訊貝</value></data>
+  <data name="LinkshellUnavailable" xml:space="preserve"><value>目前無法使用通訊貝聊天。</value></data>
+  <data name="LoadEarlierMessages" xml:space="preserve"><value>載入較早的訊息</value></data>
+  <data name="LoadFriends" xml:space="preserve"><value>請開啟遊戲內的好友名單以載入好友。</value></data>
+  <data name="LoadingConversations" xml:space="preserve"><value>正在載入對話…</value></data>
+  <data name="LoadingEarlierMessages" xml:space="preserve"><value>正在載入較早的訊息…</value></data>
+  <data name="LoadingHistory" xml:space="preserve"><value>正在載入聊天記錄…</value></data>
+  <data name="LoginToViewChats" xml:space="preserve"><value>登入角色後即可查看對話。</value></data>
+  <data name="MatchedMemberCount" xml:space="preserve"><value>{0} 名成員 · 小隊已配對</value></data>
+  <data name="Maximum" xml:space="preserve"><value>最多</value></data>
+  <data name="MemberCount" xml:space="preserve"><value>{0} 名成員</value></data>
+  <data name="MessageChatRestricted" xml:space="preserve"><value>聊天受到限制，無法傳送訊息。</value></data>
+  <data name="MessageDisallowedText" xml:space="preserve"><value>訊息包含不允許的內容，無法傳送。</value></data>
+  <data name="MessageFailedCheckGameChat" xml:space="preserve"><value>訊息傳送失敗，詳細資訊請查看遊戲聊天欄。</value></data>
+  <data name="MessageMustBeSingleLine" xml:space="preserve"><value>訊息須為單行，且不可包含控制字元。</value></data>
+  <data name="MessageParticipationDisabled" xml:space="preserve"><value>聊天參與已停用，無法傳送訊息。</value></data>
+  <data name="MessageRateLimited" xml:space="preserve"><value>傳送過於頻繁，無法傳送訊息。</value></data>
+  <data name="MessageSaveFailed" xml:space="preserve"><value>有一則訊息無法儲存，詳細資訊請查看 /xllog。</value></data>
+  <data name="MessageTooLong" xml:space="preserve"><value>訊息超過遊戲的 500 位元組輸入上限。</value></data>
+  <data name="Minimum" xml:space="preserve"><value>最少</value></data>
+  <data name="Minutes" xml:space="preserve"><value>分鐘</value></data>
+  <data name="Model" xml:space="preserve"><value>模型</value></data>
+  <data name="NoMatchingChats" xml:space="preserve"><value>沒有符合條件的對話。</value></data>
+  <data name="NoMatchingFriends" xml:space="preserve"><value>沒有符合條件的好友。</value></data>
+  <data name="NoMatchingGroups" xml:space="preserve"><value>沒有符合條件的群組。</value></data>
+  <data name="NoMessages" xml:space="preserve"><value>目前沒有訊息。</value></data>
+  <data name="NoMessagesPreview" xml:space="preserve"><value>目前沒有訊息</value></data>
+  <data name="OpenChat" xml:space="preserve"><value>開啟對話</value></data>
+  <data name="OpenFriendsToSendTell" xml:space="preserve"><value>請開啟遊戲內的好友名單以傳送密語。</value></data>
+  <data name="OpenLodestone" xml:space="preserve"><value>開啟 Lodestone</value></data>
+  <data name="OpenStaticGroup" xml:space="preserve"><value>開啟固定隊</value></data>
+  <data name="OutgoingPreview" xml:space="preserve"><value>你：{0}</value></data>
+  <data name="PartyMembers" xml:space="preserve"><value>小隊成員（{0} 人）</value></data>
+  <data name="ReadConversationsFailed" xml:space="preserve"><value>無法讀取對話。</value></data>
+  <data name="ReadHistoryFailed" xml:space="preserve"><value>無法讀取聊天記錄。</value></data>
+  <data name="RenameGroup" xml:space="preserve"><value>重新命名群組</value></data>
+  <data name="Reply" xml:space="preserve"><value>回覆</value></data>
+  <data name="ResetToDefault" xml:space="preserve"><value>恢復預設</value></data>
+  <data name="Retry" xml:space="preserve"><value>重試</value></data>
+  <data name="RetryNoteByClick" xml:space="preserve"><value>點擊重試儲存備註</value></data>
+  <data name="RetryNoteWithEnter" xml:space="preserve"><value>按 Enter 鍵重試儲存備註。</value></data>
+  <data name="Save" xml:space="preserve"><value>儲存</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>儲存失敗</value></data>
+  <data name="SaveStaticFailed" xml:space="preserve"><value>無法儲存固定隊，請再試一次。</value></data>
+  <data name="Saving" xml:space="preserve"><value>儲存中…</value></data>
+  <data name="SearchChats" xml:space="preserve"><value>搜尋對話…</value></data>
+  <data name="SearchFriends" xml:space="preserve"><value>搜尋好友…</value></data>
+  <data name="SearchGroups" xml:space="preserve"><value>搜尋群組…</value></data>
+  <data name="SelectFriend" xml:space="preserve"><value>選擇一位好友以查看個人資料。</value></data>
+  <data name="SelectGroup" xml:space="preserve"><value>選擇一個群組以查看詳細資料。</value></data>
+  <data name="Settings" xml:space="preserve"><value>設定</value></data>
+  <data name="Show" xml:space="preserve"><value>顯示</value></data>
+  <data name="ShowFloatingEntry" xml:space="preserve"><value>顯示浮動按鈕</value></data>
+  <data name="ShowIntroAnimation" xml:space="preserve"><value>播放開場動畫</value></data>
+  <data name="ShowSelfAvatar" xml:space="preserve"><value>顯示自己的頭像</value></data>
+  <data name="SortAscendingHint" xml:space="preserve"><value>遞增，點擊切換為遞減。</value></data>
+  <data name="SortDescendingHint" xml:space="preserve"><value>遞減，點擊切換為遞增。</value></data>
+  <data name="SortName" xml:space="preserve"><value>名稱</value></data>
+  <data name="SortNameHint" xml:space="preserve"><value>依名稱排序，點擊切換為依最近訊息排序。</value></data>
+  <data name="SortRecent" xml:space="preserve"><value>最近</value></data>
+  <data name="SortRecentHint" xml:space="preserve"><value>依最近訊息排序，點擊切換為依名稱排序。</value></data>
+  <data name="Static" xml:space="preserve"><value>固定隊</value></data>
+  <data name="StaticMembers" xml:space="preserve"><value>固定隊 · {0} 人</value></data>
+  <data name="StaticNeedsFullParty" xml:space="preserve"><value>與固定隊全員組成小隊後即可傳送訊息。</value></data>
+  <data name="StaticPartyMatched" xml:space="preserve"><value>目前的小隊包含固定隊全員</value></data>
+  <data name="StaticPartyNotMatched" xml:space="preserve"><value>目前的小隊尚未集齊固定隊全員</value></data>
+  <data name="StaticUnavailable" xml:space="preserve"><value>此固定隊目前無法使用。</value></data>
+  <data name="SystemPrompt" xml:space="preserve"><value>系統提示詞</value></data>
+  <data name="TellCannotReplyOutsideDuty" xml:space="preserve"><value>無法回覆來自目前任務外的密語。</value></data>
+  <data name="TellChatRestricted" xml:space="preserve"><value>聊天受到限制，無法傳送密語。</value></data>
+  <data name="TellCommandUnavailableInDuty" xml:space="preserve"><value>目前的任務中無法使用密語指令。</value></data>
+  <data name="TellCommandUnavailableNow" xml:space="preserve"><value>目前無法使用密語指令。</value></data>
+  <data name="TellDisallowedText" xml:space="preserve"><value>密語包含不允許的內容，無法傳送。</value></data>
+  <data name="TellFailed" xml:space="preserve"><value>無法傳送密語。</value></data>
+  <data name="TellFailedCheckGameChat" xml:space="preserve"><value>密語傳送失敗，詳細資訊請查看遊戲聊天欄。</value></data>
+  <data name="TellParticipationDisabled" xml:space="preserve"><value>聊天參與已停用，無法傳送密語。</value></data>
+  <data name="TellRateLimited" xml:space="preserve"><value>傳送過於頻繁，無法傳送密語。</value></data>
+  <data name="TellRecipientBlacklisted" xml:space="preserve"><value>對方在黑名單中，無法傳送密語。</value></data>
+  <data name="TellRecipientBusy" xml:space="preserve"><value>對方忙碌中，無法傳送密語。</value></data>
+  <data name="TellRecipientInDifferentDataCenter" xml:space="preserve"><value>對方所在的伺服器不在目前的資料中心，無法傳送密語。</value></data>
+  <data name="TellRecipientInDifferentDuty" xml:space="preserve"><value>對方未參與同一任務，無法傳送密語。</value></data>
+  <data name="TellRecipientInDuty" xml:space="preserve"><value>對方正在進行任務，無法傳送密語。</value></data>
+  <data name="TellRecipientInPvP" xml:space="preserve"><value>對方正在參與 PvP，無法傳送密語。</value></data>
+  <data name="TellRecipientInRestrictedArea" xml:space="preserve"><value>對方位於限制區域，無法傳送密語。</value></data>
+  <data name="TellRecipientMayBeOffline" xml:space="preserve"><value>無法傳送密語，對方可能離線或暫時無法聯絡。</value></data>
+  <data name="TellRecipientMutedOrBlocked" xml:space="preserve"><value>對方已被靜音或封鎖，無法傳送密語。</value></data>
+  <data name="TellRecipientNotFound" xml:space="preserve"><value>無法傳送密語，對方已離線或找不到該角色。</value></data>
+  <data name="TellRecipientOffline" xml:space="preserve"><value>對方已離線，無法傳送密語。</value></data>
+  <data name="TellRecipientUnavailable" xml:space="preserve"><value>目前無法聯絡此角色。</value></data>
+  <data name="TellRecipientWorldInvalid" xml:space="preserve"><value>對方所在的伺服器無效，無法傳送密語。</value></data>
+  <data name="TellRecruitmentEnded" xml:space="preserve"><value>招募已結束，無法傳送密語。</value></data>
+  <data name="TellRefreshFriendList" xml:space="preserve"><value>無法傳送密語。請開啟好友名單更新對方資訊後再試。</value></data>
+  <data name="TellUnavailableInCustomPvP" xml:space="preserve"><value>自訂 PvP 對戰期間無法使用密語。</value></data>
+  <data name="TellUnavailableInDuty" xml:space="preserve"><value>目前的任務中無法使用密語。</value></data>
+  <data name="TellUnavailableInPvP" xml:space="preserve"><value>PvP 期間無法使用密語。</value></data>
+  <data name="TestConnection" xml:space="preserve"><value>測試連線</value></data>
+  <data name="Testing" xml:space="preserve"><value>測試中…</value></data>
+  <data name="UnsupportedConversation" xml:space="preserve"><value>不支援此對話類型。</value></data>
+  <data name="VerifyTellRecipient" xml:space="preserve"><value>請開啟遊戲內的好友名單，讓 MomoTalk 確認收件人。</value></data>
+  <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>輸入跨界通訊貝訊息…</value></data>
+  <data name="WriteFreeCompany" xml:space="preserve"><value>輸入公會訊息…</value></data>
+  <data name="WriteLinkshell" xml:space="preserve"><value>輸入通訊貝訊息…</value></data>
+  <data name="WriteMessage" xml:space="preserve"><value>輸入訊息…</value></data>
+  <data name="WriteStatic" xml:space="preserve"><value>輸入固定隊訊息…</value></data>
+  <data name="WriteTell" xml:space="preserve"><value>輸入密語…</value></data>
+  <data name="You" xml:space="preserve"><value>你</value></data>
+</root>

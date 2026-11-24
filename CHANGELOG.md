@@ -4,6 +4,10 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+
+- Localize the plugin in English, Japanese, German, French, Simplified Chinese, and Traditional Chinese. The interface follows the game language by default and can be changed in General settings.
+
 ### Fixed
 
 - Preserve cached Free Company, Linkshell, and Cross-World Linkshell groups after relogging while the game loads its channel lists.

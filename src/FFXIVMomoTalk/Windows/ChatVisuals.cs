@@ -661,8 +661,10 @@ internal static class ChatVisuals
     public static bool ContextMenuItem(string id, string label, float width, float scale, bool danger = false)
     {
         var height = 30f * scale;
+        var fontSize = ImGui.GetFontSize() * 0.96f;
+        var textSize = CalcTextSize(label, fontSize);
         var origin = ImGui.GetCursorScreenPos();
-        var size = new Vector2(width, height);
+        var size = new Vector2(MathF.Max(width, textSize.X + 24f * scale), height);
         var clicked = ImGui.InvisibleButton(id, size);
         var hovered = ImGui.IsItemHovered();
 
@@ -673,8 +675,6 @@ internal static class ChatVisuals
             draw.AddRectFilled(origin, origin + size, Color(bg), 6f * scale);
         }
 
-        var fontSize = ImGui.GetFontSize() * 0.96f;
-        var textSize = CalcTextSize(label, fontSize);
         var textPos = new Vector2(origin.X + 12f * scale, origin.Y + (height - textSize.Y) * 0.5f);
         var textCol = Color(danger ? AlertText : Ink);
         AddText(draw, textPos, fontSize, textCol, label);
@@ -949,7 +949,7 @@ internal static class ChatVisuals
         draw.AddRectFilled(pillPos, pillPos + pillSize, Color(White), rounding);
         draw.AddRect(pillPos, pillPos + pillSize, Color(ReplyOptionBorder), rounding, ImDrawFlags.None, MathF.Max(1f, scale));
 
-        const string loadingLabel = "Generating replies...";
+        var loadingLabel = Loc.Text("GeneratingReplies");
         var labelFontSize = ImGui.GetFontSize() * 0.92f;
         var labelSize = CalcTextSize(loadingLabel, labelFontSize);
         var dotRadius = 3.1f * scale;
@@ -1020,9 +1020,9 @@ internal static class ChatVisuals
         var barPos = new Vector2(cardPos.X + m.PadX, headerY + (m.HeaderRowH - barHeight) * 0.5f);
         draw.AddRectFilled(barPos, barPos + new Vector2(barWidth, barHeight), Color(ReplyCardAccent), barWidth * 0.5f);
 
-        var titleSize = CalcTextSize("Reply", m.TitleFontSize);
+        var titleSize = CalcTextSize(Loc.Text("Reply"), m.TitleFontSize);
         var titlePos = new Vector2(barPos.X + barWidth + 7f * scale, headerY + (m.HeaderRowH - titleSize.Y) * 0.5f);
-        AddBoldText(draw, titlePos, m.TitleFontSize, Color(Ink), "Reply", scale);
+        AddBoldText(draw, titlePos, m.TitleFontSize, Color(Ink), Loc.Text("Reply"), scale);
 
         var dividerY = headerY + m.HeaderRowH + m.HeaderToDividerGap;
         draw.AddLine(
@@ -1087,15 +1087,15 @@ internal static class ChatVisuals
         var local = DateTimeOffset.FromUnixTimeMilliseconds(sentAt).ToLocalTime();
         var today = DateTimeOffset.Now.ToLocalTime().Date;
         if (local.Date == today)
-            return local.ToString("HH:mm");
+            return local.ToString("t", Loc.Culture);
 
         return local.Year == today.Year
-            ? local.ToString("MM-dd HH:mm")
-            : local.ToString("yyyy-MM-dd HH:mm");
+            ? $"{local.ToString("M", Loc.Culture)} {local.ToString("t", Loc.Culture)}"
+            : local.ToString("g", Loc.Culture);
     }
 
     public static string FormatFullTime(long sentAt) =>
-        DateTimeOffset.FromUnixTimeMilliseconds(sentAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+        DateTimeOffset.FromUnixTimeMilliseconds(sentAt).ToLocalTime().ToString("G", Loc.Culture);
 
     private static string NormalizeSingleLine(string text)
     {

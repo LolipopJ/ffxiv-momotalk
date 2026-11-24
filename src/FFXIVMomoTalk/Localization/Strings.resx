@@ -1,0 +1,179 @@
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AddNote" xml:space="preserve"><value>Add a note...</value></data>
+  <data name="AiAuthenticationError" xml:space="preserve"><value>Authentication error (HTTP {0}). Check your API key.</value></data>
+  <data name="AiConnected" xml:space="preserve"><value>Connected ({0} ms).</value></data>
+  <data name="AiConnectionFailed" xml:space="preserve"><value>Connection test failed.</value></data>
+  <data name="AiConnectionTimedOut" xml:space="preserve"><value>Connection test timed out.</value></data>
+  <data name="AiEndpointUnreachable" xml:space="preserve"><value>Unable to reach the LLM endpoint.</value></data>
+  <data name="AiGenerateFailed" xml:space="preserve"><value>Failed to generate AI replies.</value></data>
+  <data name="AiHttpError" xml:space="preserve"><value>LLM request failed (HTTP {0}).</value></data>
+  <data name="AiInvalidApiKeyFormat" xml:space="preserve"><value>Invalid API key format.</value></data>
+  <data name="AiInvalidEndpoint" xml:space="preserve"><value>Use an HTTPS LLM endpoint. HTTP is allowed for loopback addresses only.</value></data>
+  <data name="AiInvalidJson" xml:space="preserve"><value>LLM returned invalid JSON.</value></data>
+  <data name="AiMissingMessage" xml:space="preserve"><value>LLM response was missing message content.</value></data>
+  <data name="AiNoChoices" xml:space="preserve"><value>LLM response did not contain any choices.</value></data>
+  <data name="AiNoReplies" xml:space="preserve"><value>AI returned no valid reply options for this channel.</value></data>
+  <data name="AiRateLimitExceeded" xml:space="preserve"><value>Rate limit exceeded (HTTP 429). Please wait and try again.</value></data>
+  <data name="AiReply" xml:space="preserve"><value>AI Reply</value></data>
+  <data name="AiRequestTimedOut" xml:space="preserve"><value>AI request timed out.</value></data>
+  <data name="AiUnsupportedContent" xml:space="preserve"><value>LLM response contained an unsupported content format.</value></data>
+  <data name="ApiKey" xml:space="preserve"><value>API Key</value></data>
+  <data name="AppName" xml:space="preserve"><value>MomoTalk</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="CannotGenerateReplies" xml:space="preserve"><value>Cannot generate replies right now</value></data>
+  <data name="ChannelSlot" xml:space="preserve"><value>{0} · Slot {1}</value></data>
+  <data name="ChatContext" xml:space="preserve"><value>Chat Context</value></data>
+  <data name="Chats" xml:space="preserve"><value>Chats</value></data>
+  <data name="ChatsEmpty" xml:space="preserve"><value>No conversations yet. Pick a friend or group to start chatting.</value></data>
+  <data name="ChatUnavailableNow" xml:space="preserve"><value>Unable to chat right now.</value></data>
+  <data name="ChooseConversation" xml:space="preserve"><value>Choose a conversation.</value></data>
+  <data name="CommandHelp" xml:space="preserve"><value>Toggle the FFXIV MomoTalk window.</value></data>
+  <data name="ConfigReadError" xml:space="preserve"><value>Existing config file could not be read and was preserved.</value></data>
+  <data name="ContextMaximumHint" xml:space="preserve"><value>Maximum messages sent to AI (1–500).</value></data>
+  <data name="ContextMinimumHint" xml:space="preserve"><value>Minimum messages sent, including earlier messages if needed (0–500).</value></data>
+  <data name="ContextMinutesHint" xml:space="preserve"><value>Only send messages from the last N minutes (1–1440).</value></data>
+  <data name="CopyText" xml:space="preserve"><value>Copy Text</value></data>
+  <data name="Create" xml:space="preserve"><value>Create</value></data>
+  <data name="CreateStaticGroup" xml:space="preserve"><value>Create Static Group</value></data>
+  <data name="CrossWorldLinkshell" xml:space="preserve"><value>Cross-World Linkshell</value></data>
+  <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>You are no longer a member of this Cross-World Linkshell.</value></data>
+  <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>CWLS</value></data>
+  <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>Cross-World Linkshell chat is unavailable right now.</value></data>
+  <data name="DatabaseError" xml:space="preserve"><value>Database error ({0}). Existing files were preserved; see /xllog.</value></data>
+  <data name="DeleteChat" xml:space="preserve"><value>Delete Chat</value></data>
+  <data name="EditNote" xml:space="preserve"><value>Click to edit note</value></data>
+  <data name="Endpoint" xml:space="preserve"><value>Endpoint</value></data>
+  <data name="EnterGroupName" xml:space="preserve"><value>Enter group name...</value></data>
+  <data name="EnterMessageBeforeSending" xml:space="preserve"><value>Enter a message before sending.</value></data>
+  <data name="FollowClient" xml:space="preserve"><value>Follow game client</value></data>
+  <data name="FreeCompany" xml:space="preserve"><value>Free Company</value></data>
+  <data name="FreeCompanyLeft" xml:space="preserve"><value>You are no longer a member of this Free Company.</value></data>
+  <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
+  <data name="FreeCompanyUnavailable" xml:space="preserve"><value>Free Company chat is unavailable right now.</value></data>
+  <data name="FriendRemoved" xml:space="preserve"><value>This character is no longer on your Friend List.</value></data>
+  <data name="Friends" xml:space="preserve"><value>Friends</value></data>
+  <data name="FriendsEmpty" xml:space="preserve"><value>Your in-game Friend List is empty.</value></data>
+  <data name="GameCannotSendText" xml:space="preserve"><value>The message contains text the game cannot send.</value></data>
+  <data name="GameChatUnavailable" xml:space="preserve"><value>The game chat window is unavailable.</value></data>
+  <data name="GameCouldNotPrepareMessage" xml:space="preserve"><value>The game could not prepare this message.</value></data>
+  <data name="General" xml:space="preserve"><value>General</value></data>
+  <data name="GenerateAiReplies" xml:space="preserve"><value>Generate AI replies</value></data>
+  <data name="GeneratingReplies" xml:space="preserve"><value>Generating replies...</value></data>
+  <data name="GroupName" xml:space="preserve"><value>Group Name</value></data>
+  <data name="Groups" xml:space="preserve"><value>Groups</value></data>
+  <data name="GroupsEmpty" xml:space="preserve"><value>No groups yet. Open your in-game FC, Linkshell, or Cross-World Linkshell list to sync, or right-click a party member to create a Static.</value></data>
+  <data name="Hide" xml:space="preserve"><value>Hide</value></data>
+  <data name="Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Linkshell" xml:space="preserve"><value>Linkshell</value></data>
+  <data name="LinkshellLeft" xml:space="preserve"><value>You are no longer a member of this Linkshell.</value></data>
+  <data name="LinkshellTag" xml:space="preserve"><value>LS</value></data>
+  <data name="LinkshellUnavailable" xml:space="preserve"><value>Linkshell chat is unavailable right now.</value></data>
+  <data name="LoadEarlierMessages" xml:space="preserve"><value>Load earlier messages</value></data>
+  <data name="LoadFriends" xml:space="preserve"><value>Open the in-game Friend List to load your friends.</value></data>
+  <data name="LoadingConversations" xml:space="preserve"><value>Loading conversations...</value></data>
+  <data name="LoadingEarlierMessages" xml:space="preserve"><value>Loading earlier messages...</value></data>
+  <data name="LoadingHistory" xml:space="preserve"><value>Loading history...</value></data>
+  <data name="LoginToViewChats" xml:space="preserve"><value>Log in to view your conversations.</value></data>
+  <data name="MatchedMemberCount" xml:space="preserve"><value>Members: {0} · Party matched</value></data>
+  <data name="Maximum" xml:space="preserve"><value>Max</value></data>
+  <data name="MemberCount" xml:space="preserve"><value>Members: {0}</value></data>
+  <data name="MessageChatRestricted" xml:space="preserve"><value>Unable to send the message because chat is restricted.</value></data>
+  <data name="MessageDisallowedText" xml:space="preserve"><value>Unable to send the message because it contains disallowed text.</value></data>
+  <data name="MessageFailedCheckGameChat" xml:space="preserve"><value>Failed to send message. Check the in-game chat for details.</value></data>
+  <data name="MessageMustBeSingleLine" xml:space="preserve"><value>A message must be one line without control characters.</value></data>
+  <data name="MessageParticipationDisabled" xml:space="preserve"><value>Unable to send the message because chat participation is disabled.</value></data>
+  <data name="MessageRateLimited" xml:space="preserve"><value>Unable to send the message due to chat rate limiting.</value></data>
+  <data name="MessageSaveFailed" xml:space="preserve"><value>A message could not be saved. See /xllog for details.</value></data>
+  <data name="MessageTooLong" xml:space="preserve"><value>This message exceeds the game&apos;s 500-byte input limit.</value></data>
+  <data name="Minimum" xml:space="preserve"><value>Min</value></data>
+  <data name="Minutes" xml:space="preserve"><value>Minutes</value></data>
+  <data name="Model" xml:space="preserve"><value>Model</value></data>
+  <data name="NoMatchingChats" xml:space="preserve"><value>No matching conversations.</value></data>
+  <data name="NoMatchingFriends" xml:space="preserve"><value>No matching friends.</value></data>
+  <data name="NoMatchingGroups" xml:space="preserve"><value>No matching groups.</value></data>
+  <data name="NoMessages" xml:space="preserve"><value>No messages yet.</value></data>
+  <data name="NoMessagesPreview" xml:space="preserve"><value>No messages yet</value></data>
+  <data name="OpenChat" xml:space="preserve"><value>Open chat</value></data>
+  <data name="OpenFriendsToSendTell" xml:space="preserve"><value>Open the in-game Friend List to send a Tell.</value></data>
+  <data name="OpenLodestone" xml:space="preserve"><value>Open Lodestone</value></data>
+  <data name="OpenStaticGroup" xml:space="preserve"><value>Open Static Group</value></data>
+  <data name="OutgoingPreview" xml:space="preserve"><value>You: {0}</value></data>
+  <data name="PartyMembers" xml:space="preserve"><value>Party Members ({0})</value></data>
+  <data name="ReadConversationsFailed" xml:space="preserve"><value>Failed to read conversations.</value></data>
+  <data name="ReadHistoryFailed" xml:space="preserve"><value>History could not be read.</value></data>
+  <data name="RenameGroup" xml:space="preserve"><value>Rename Group</value></data>
+  <data name="Reply" xml:space="preserve"><value>Reply</value></data>
+  <data name="ResetToDefault" xml:space="preserve"><value>Reset to Default</value></data>
+  <data name="Retry" xml:space="preserve"><value>Retry</value></data>
+  <data name="RetryNoteByClick" xml:space="preserve"><value>Click to retry saving the note</value></data>
+  <data name="RetryNoteWithEnter" xml:space="preserve"><value>Press Enter to retry saving the note.</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>Save failed</value></data>
+  <data name="SaveStaticFailed" xml:space="preserve"><value>Could not save the static group. Try again.</value></data>
+  <data name="Saving" xml:space="preserve"><value>Saving...</value></data>
+  <data name="SearchChats" xml:space="preserve"><value>Search chats...</value></data>
+  <data name="SearchFriends" xml:space="preserve"><value>Search friends...</value></data>
+  <data name="SearchGroups" xml:space="preserve"><value>Search groups...</value></data>
+  <data name="SelectFriend" xml:space="preserve"><value>Select a friend to view profile.</value></data>
+  <data name="SelectGroup" xml:space="preserve"><value>Select a group to view details.</value></data>
+  <data name="Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="Show" xml:space="preserve"><value>Show</value></data>
+  <data name="ShowFloatingEntry" xml:space="preserve"><value>Show Floating Entry</value></data>
+  <data name="ShowIntroAnimation" xml:space="preserve"><value>Show Intro Animation</value></data>
+  <data name="ShowSelfAvatar" xml:space="preserve"><value>Show Self Avatar</value></data>
+  <data name="SortAscendingHint" xml:space="preserve"><value>Ascending (click for Descending)</value></data>
+  <data name="SortDescendingHint" xml:space="preserve"><value>Descending (click for Ascending)</value></data>
+  <data name="SortName" xml:space="preserve"><value>Name</value></data>
+  <data name="SortNameHint" xml:space="preserve"><value>Sorted by name (click for Recent)</value></data>
+  <data name="SortRecent" xml:space="preserve"><value>Recent</value></data>
+  <data name="SortRecentHint" xml:space="preserve"><value>Sorted by recent message (click for Name)</value></data>
+  <data name="Static" xml:space="preserve"><value>Static</value></data>
+  <data name="StaticMembers" xml:space="preserve"><value>Static · Members: {0}</value></data>
+  <data name="StaticNeedsFullParty" xml:space="preserve"><value>Form a party with all static members to send messages.</value></data>
+  <data name="StaticPartyMatched" xml:space="preserve"><value>Party matched — active in current party</value></data>
+  <data name="StaticPartyNotMatched" xml:space="preserve"><value>Not currently in full static party</value></data>
+  <data name="StaticUnavailable" xml:space="preserve"><value>This static group is unavailable.</value></data>
+  <data name="SystemPrompt" xml:space="preserve"><value>System Prompt</value></data>
+  <data name="TellCannotReplyOutsideDuty" xml:space="preserve"><value>Unable to reply to a Tell from outside the current duty.</value></data>
+  <data name="TellChatRestricted" xml:space="preserve"><value>Unable to send the Tell because chat is restricted.</value></data>
+  <data name="TellCommandUnavailableInDuty" xml:space="preserve"><value>Unable to use Tell commands in the current duty.</value></data>
+  <data name="TellCommandUnavailableNow" xml:space="preserve"><value>Unable to use the Tell command right now.</value></data>
+  <data name="TellDisallowedText" xml:space="preserve"><value>Unable to send the Tell because it contains disallowed text.</value></data>
+  <data name="TellFailed" xml:space="preserve"><value>Unable to send the Tell.</value></data>
+  <data name="TellFailedCheckGameChat" xml:space="preserve"><value>Failed to send Tell. Check the in-game chat for details.</value></data>
+  <data name="TellParticipationDisabled" xml:space="preserve"><value>Unable to send the Tell because chat participation is disabled.</value></data>
+  <data name="TellRateLimited" xml:space="preserve"><value>Unable to send the Tell due to chat rate limiting.</value></data>
+  <data name="TellRecipientBlacklisted" xml:space="preserve"><value>Unable to send the Tell because the recipient is blacklisted.</value></data>
+  <data name="TellRecipientBusy" xml:space="preserve"><value>Unable to send the Tell because the recipient is busy.</value></data>
+  <data name="TellRecipientInDifferentDataCenter" xml:space="preserve"><value>Unable to send the Tell because the recipient&apos;s World is not in this Data Center.</value></data>
+  <data name="TellRecipientInDifferentDuty" xml:space="preserve"><value>Unable to send the Tell because the recipient is not in the same duty.</value></data>
+  <data name="TellRecipientInDuty" xml:space="preserve"><value>Unable to send the Tell because the recipient is in a duty.</value></data>
+  <data name="TellRecipientInPvP" xml:space="preserve"><value>Unable to send the Tell because the recipient is in PvP.</value></data>
+  <data name="TellRecipientInRestrictedArea" xml:space="preserve"><value>Unable to send the Tell because the recipient is in a restricted area.</value></data>
+  <data name="TellRecipientMayBeOffline" xml:space="preserve"><value>Unable to send the Tell. The recipient may be offline or unavailable.</value></data>
+  <data name="TellRecipientMutedOrBlocked" xml:space="preserve"><value>Unable to send the Tell because the recipient is muted or blocked.</value></data>
+  <data name="TellRecipientNotFound" xml:space="preserve"><value>Unable to send the Tell. The recipient is offline or could not be found.</value></data>
+  <data name="TellRecipientOffline" xml:space="preserve"><value>Unable to send the Tell because the recipient is offline.</value></data>
+  <data name="TellRecipientUnavailable" xml:space="preserve"><value>This character is unavailable.</value></data>
+  <data name="TellRecipientWorldInvalid" xml:space="preserve"><value>Unable to send the Tell because the recipient&apos;s World is invalid.</value></data>
+  <data name="TellRecruitmentEnded" xml:space="preserve"><value>Unable to send the Tell because the Party Finder recruitment has ended.</value></data>
+  <data name="TellRefreshFriendList" xml:space="preserve"><value>Unable to send the Tell. Open the Friend List to refresh recipient info and try again.</value></data>
+  <data name="TellUnavailableInCustomPvP" xml:space="preserve"><value>Unable to use Tell during a custom PvP match.</value></data>
+  <data name="TellUnavailableInDuty" xml:space="preserve"><value>Unable to use Tell in the current duty.</value></data>
+  <data name="TellUnavailableInPvP" xml:space="preserve"><value>Unable to use Tell during PvP.</value></data>
+  <data name="TestConnection" xml:space="preserve"><value>Test Connection</value></data>
+  <data name="Testing" xml:space="preserve"><value>Testing...</value></data>
+  <data name="UnsupportedConversation" xml:space="preserve"><value>Unsupported conversation type.</value></data>
+  <data name="VerifyTellRecipient" xml:space="preserve"><value>Open the in-game Friend List so MomoTalk can verify the recipient.</value></data>
+  <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>Message CWLS...</value></data>
+  <data name="WriteFreeCompany" xml:space="preserve"><value>Message Free Company...</value></data>
+  <data name="WriteLinkshell" xml:space="preserve"><value>Message Linkshell...</value></data>
+  <data name="WriteMessage" xml:space="preserve"><value>Write a message...</value></data>
+  <data name="WriteStatic" xml:space="preserve"><value>Message Static...</value></data>
+  <data name="WriteTell" xml:space="preserve"><value>Write a Tell...</value></data>
+  <data name="You" xml:space="preserve"><value>You</value></data>
+</root>

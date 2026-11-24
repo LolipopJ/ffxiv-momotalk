@@ -136,7 +136,7 @@ internal sealed class FloatingEntryWindow : Window
             onToggleMain();
 
         if (hovered && !dragging)
-            ImGui.SetTooltip("MomoTalk");
+            ImGui.SetTooltip(Loc.Text("AppName"));
 
         if (entryTexture.GetWrapOrDefault() is not { } wrap)
             return;

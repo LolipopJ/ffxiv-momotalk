@@ -132,12 +132,12 @@ internal sealed record SocialSnapshot(
     {
         if (Friends is null)
         {
-            unavailable = "Open the in-game Friend List to send a Tell.";
+            unavailable = "OpenFriendsToSendTell";
             return null;
         }
 
         var friend = Friends.GetValueOrDefault(contentId);
-        unavailable = friend is null ? "This character is no longer on your Friend List." : null;
+        unavailable = friend is null ? "FriendRemoved" : null;
         return friend;
     }
 
@@ -148,7 +148,7 @@ internal sealed record SocialSnapshot(
             case ConversationKind.Tell:
                 if (!key.TryGetTellContentId(out var cid))
                 {
-                    unavailable = "This character is unavailable.";
+                    unavailable = "TellRecipientUnavailable";
                     return null;
                 }
 
@@ -160,7 +160,7 @@ internal sealed record SocialSnapshot(
             case ConversationKind.FreeCompany:
                 if ((LiveChannels & ChannelAvailability.FreeCompany) == 0)
                 {
-                    unavailable = "Free Company chat is unavailable right now.";
+                    unavailable = "FreeCompanyUnavailable";
                     return null;
                 }
 
@@ -170,13 +170,13 @@ internal sealed record SocialSnapshot(
                     return new SendTarget(key, "/fc");
                 }
 
-                unavailable = "You are no longer a member of this Free Company.";
+                unavailable = "FreeCompanyLeft";
                 return null;
 
             case ConversationKind.Linkshell:
                 if ((LiveChannels & ChannelAvailability.Linkshells) == 0)
                 {
-                    unavailable = "Linkshell chat is unavailable right now.";
+                    unavailable = "LinkshellUnavailable";
                     return null;
                 }
 
@@ -186,13 +186,13 @@ internal sealed record SocialSnapshot(
                     return new SendTarget(key, $"/l{lsSlot}");
                 }
 
-                unavailable = "You are no longer a member of this Linkshell.";
+                unavailable = "LinkshellLeft";
                 return null;
 
             case ConversationKind.CrossWorldLinkshell:
                 if ((LiveChannels & ChannelAvailability.CrossWorldLinkshells) == 0)
                 {
-                    unavailable = "Cross-World Linkshell chat is unavailable right now.";
+                    unavailable = "CrossWorldLinkshellUnavailable";
                     return null;
                 }
 
@@ -202,19 +202,19 @@ internal sealed record SocialSnapshot(
                     return new SendTarget(key, $"/cwl{cwSlot}");
                 }
 
-                unavailable = "You are no longer a member of this Cross-World Linkshell.";
+                unavailable = "CrossWorldLinkshellLeft";
                 return null;
 
             case ConversationKind.Static:
                 if (Statics is null || !Statics.TryGetValue(key.StableKey, out var group))
                 {
-                    unavailable = "This static group is unavailable.";
+                    unavailable = "StaticUnavailable";
                     return null;
                 }
 
                 if (Party is not { } party || !StringComparer.Ordinal.Equals(party.RosterKey, group.StableKey))
                 {
-                    unavailable = "Form a party with all static members to send messages.";
+                    unavailable = "StaticNeedsFullParty";
                     return null;
                 }
 
@@ -222,7 +222,7 @@ internal sealed record SocialSnapshot(
                 return new SendTarget(key, "/p");
 
             default:
-                unavailable = "Unsupported conversation type.";
+                unavailable = "UnsupportedConversation";
                 return null;
         }
     }

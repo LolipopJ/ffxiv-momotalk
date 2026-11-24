@@ -1,8 +1,11 @@
+using Dalamud;
 using Dalamud.Game.Command;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Dalamud.Utility;
 using FFXIVMomoTalk.Chat;
 using FFXIVMomoTalk.Windows;
 
@@ -49,6 +52,9 @@ public sealed class Plugin : IAsyncDalamudPlugin
     internal static IPluginLog Log { get; private set; } = null!;
 
     private readonly WindowSystem windows = new("FFXIVMomoTalk");
+    private readonly CommandInfo commandInfo;
+    private IFontHandle? uiFont;
+    private string clientLanguage = "en";
     private readonly Configuration config;
     private readonly MessageStore messages;
     private readonly NotesStore notes;
@@ -69,6 +75,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         var root = PluginInterface.GetPluginConfigDirectory();
         var charactersRoot = Path.Combine(root, "characters");
         config = Configuration.Load(PluginInterface, Log);
+        commandInfo = new CommandInfo(OnCommand);
         messages = new MessageStore(charactersRoot);
         notes = new NotesStore(charactersRoot);
         statics = new StaticStore(charactersRoot);
@@ -91,6 +98,9 @@ public sealed class Plugin : IAsyncDalamudPlugin
     {
         cancellationToken.ThrowIfCancellationRequested();
         attached = true;
+        clientLanguage = ClientState.ClientLanguage.ToCode();
+        ApplyLanguage();
+        uiFont = CreateUiFont();
         directory.Attach();
         capture.Attach();
         aiReply.Attach();
@@ -101,11 +111,8 @@ public sealed class Plugin : IAsyncDalamudPlugin
         windows.AddWindow(entryWindow);
         windows.AddWindow(mainWindow);
         mainWindow.PreloadAssets();
-        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
-        {
-            HelpMessage = "Toggle the FFXIV MomoTalk window.",
-        });
-        PluginInterface.UiBuilder.Draw += windows.Draw;
+        CommandManager.AddHandler(CommandName, commandInfo);
+        PluginInterface.UiBuilder.Draw += Draw;
         PluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
         PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
     });
@@ -136,11 +143,13 @@ public sealed class Plugin : IAsyncDalamudPlugin
         if (!attached)
             return;
 
-        PluginInterface.UiBuilder.Draw -= windows.Draw;
+        PluginInterface.UiBuilder.Draw -= Draw;
         PluginInterface.UiBuilder.OpenMainUi -= OpenMainUi;
         PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
         CommandManager.RemoveHandler(CommandName);
         windows.RemoveAllWindows();
+        uiFont?.Dispose();
+        uiFont = null;
 
         Framework.Update -= Update;
         partyContextMenu.Dispose();
@@ -170,5 +179,43 @@ public sealed class Plugin : IAsyncDalamudPlugin
 
     private void OpenConfigUi() => mainWindow.OpenSettings();
 
-    private void SaveConfig() => config.Save(PluginInterface);
+    private static IFontHandle CreateUiFont()
+    {
+        var glyphs = new FluentGlyphRangeBuilder()
+            .WithLanguage("zh-Hans")
+            .WithLanguage("zh-Hant")
+            .With(Loc.ChineseGlyphs())
+            .BuildExact();
+
+        var uiBuilder = PluginInterface.UiBuilder;
+        return uiBuilder.FontAtlas.NewDelegateFontHandle(toolkit => toolkit.OnPreBuild(preBuild =>
+        {
+            var fontConfig = new SafeFontConfig
+            {
+                MergeFont = preBuild.AddDalamudDefaultFont(-1),
+                SizePx = uiBuilder.DefaultFontSpec.SizePx,
+                FontNo = 2, // Simplified Chinese face of the Noto Sans CJK collection.
+                GlyphRanges = glyphs,
+            };
+            preBuild.AddDalamudAssetFont(DalamudAsset.NotoSansCjkRegular, fontConfig);
+        }));
+    }
+
+    private void Draw()
+    {
+        using var font = uiFont?.Push();
+        windows.Draw();
+    }
+
+    private void ApplyLanguage()
+    {
+        Loc.SetLanguage(clientLanguage, config.UiLanguage);
+        commandInfo.HelpMessage = Loc.Text("CommandHelp");
+    }
+
+    private void SaveConfig()
+    {
+        ApplyLanguage();
+        config.Save(PluginInterface);
+    }
 }

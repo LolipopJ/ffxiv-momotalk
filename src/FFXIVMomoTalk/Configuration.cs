@@ -41,6 +41,7 @@ public sealed class Configuration : IPluginConfiguration
 
     public int Version { get; set; } = CurrentVersion;
 
+    public string? UiLanguage { get; set; }
     public bool ShowFloatingEntry { get; set; } = true;
 
     public bool ShowIntroAnimation { get; set; } = true;

@@ -34,6 +34,8 @@ https://raw.githubusercontent.com/LolipopJ/ffxiv-momotalk/main/pluginmaster.json
 
 ## 使用方法
 
+插件界面默认跟随游戏客户端语言。可在 **设置 → 常规 → 语言** 选择英语、日语、德语、法语、简体中文或繁体中文。
+
 ### 基本用法
 
 1. 输入 `/momotalk` 或点击悬浮图标打开 MomoTalk。

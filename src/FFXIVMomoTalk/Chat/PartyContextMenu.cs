@@ -32,7 +32,7 @@ internal sealed class PartyContextMenu(
         {
             args.AddMenuItem(new MenuItem
             {
-                Name = "Open Static Group",
+                Name = Loc.Text("OpenStaticGroup"),
                 UseDefaultPrefix = true,
                 OnClicked = _ => onOpenStatic(matched),
             });
@@ -41,7 +41,7 @@ internal sealed class PartyContextMenu(
 
         args.AddMenuItem(new MenuItem
         {
-            Name = "Create Static Group",
+            Name = Loc.Text("CreateStaticGroup"),
             UseDefaultPrefix = true,
             OnClicked = _ => onCreateStatic(party),
         });
