@@ -15,7 +15,7 @@
 ## Goals / Non-Goals
 
 **Goals:**
-- 将会话、消息、采集、发送、历史存储与头像缓存演进为统一的多频道抽象，同时支持私聊（Tell）、部队（FC）、跨服通信贝（CWLS 1–8）、本服通信贝（LS 1–8）与固定队（Static）。
+- 将会话、消息、采集、发送、历史存储与头像缓存演进为统一的多频道抽象，同时支持私聊（Tell）、部队（FC）、跨服通讯贝（CWLS 1–8）、通讯贝（LS 1–8）与固定队（Static）。
 - 确保 FC、LS 与 CWLS 使用不随名称或槽位改变的稳定主键，支持退群留存、重加复用与改名同步。
 - 通过游戏原生小队列表右键菜单无缝创建/打开固定队，并在普通/副本小队与跨服小队间实现严格的 1:1 成员集合匹配。
 - 在群聊中为每位发言者展示 Lodestone 圆形头像，同时沿用视口懒加载避免大群触发 Lodestone 限流。
@@ -51,8 +51,8 @@
 扩展/重组 `FriendDirectory` 为统一的 `SocialDirectory`（保持单一不可变快照供 UI 与采集/发送线程无锁读取），每帧（及采集/发送前）在框架线程更新：
 - **好友**：保留原有 `InfoProxyFriendList` 钩子与 SQLite 本地缓存机制，并额外挂钩 `ClearListData` 与 `HandleZoneInitPacket`、在跨服副本（`IsInCrossWorldDuty()`）或切图加载（`!playerState.IsLoaded`）期间保持会话与已缓存好友列表不被清空或覆盖。
 - **部队（FC）**：读取 `InfoProxyFreeCompany.Instance()` 的 `Id` 与 `NameString`。当 `Id != 0` 且名称非空时记为当前活跃部队，并在名称变更时同步更新已有会话的 `display_name`。
-- **本服通信贝（LS 1–8）**：遍历 `InfoProxyLinkshell.Instance()->LinkShells`（索引 `0..7`），对 `Id != 0` 的槽位读取 `GetLinkshellName(entry.Id)`（必要时回退 `InfoProxyChat.GetLinkShellName(i)`），维护 `slot <-> (Id, Name)` 双向映射并同步改名。
-- **跨服通信贝（CWLS 1–8）**：遍历 `InfoProxyCrossWorldLinkshell.Instance()->CrossWorldLinkshells`（索引 `0..7`），对 `FoundationTime != 0` 的槽位读取 `Name.ToString()`，维护 `slot <-> (FoundationTime, Name)` 双向映射并同步改名。
+- **通讯贝（LS 1–8）**：遍历 `InfoProxyLinkshell.Instance()->LinkShells`（索引 `0..7`），对 `Id != 0` 的槽位读取 `GetLinkshellName(entry.Id)`（必要时回退 `InfoProxyChat.GetLinkShellName(i)`），维护 `slot <-> (Id, Name)` 双向映射并同步改名。
+- **跨服通讯贝（CWLS 1–8）**：遍历 `InfoProxyCrossWorldLinkshell.Instance()->CrossWorldLinkshells`（索引 `0..7`），对 `FoundationTime != 0` 的槽位读取 `Name.ToString()`，维护 `slot <-> (FoundationTime, Name)` 双向映射并同步改名。
 - **当前小队（普通/副本 + 跨服）**：
   - 先检查 `GroupManager.Instance()->MainGroup`：读取 `PartyMembers[0..MemberCount]` 中 `ContentId != 0` 的成员（自动排除陆行鸟搭档与剧情辅助 NPC）。
   - 若 `MainGroup` 有效真实玩家不足 2 人，则检查 `InfoProxyCrossRealm.Instance()`：当 `IsInCrossRealmParty()` 为真时，读取 `CrossRealmGroups[LocalPlayerGroupIndex].GroupMembers` 中 `ContentId != 0` 的成员。
@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS static_members (
 - 将 `AvatarCache` 的缓存键由 `ulong ContentId` 扩展为结构化 `AvatarKey`：
   - `ContentId != 0`：沿用 `{ContentId:X16}` 文件前缀（保持改名复用 `LodestoneId` 与现有磁盘文件命名规则）。
   - `ContentId == 0`：采用 `w{WorldId}-{Sha256(lower(trim(Name)))[..16]}` 作为稳定磁盘前缀，同样走 1 天复核周期、条件 HTTP 请求与内容哈希热刷新。
-- 维持单并发 `SemaphoreSlim(1)` 与时间线 `ImGui.IsRectVisible` 视口触发策略，确保大型部队/通信贝仅拉取当前屏幕可见的发言者头像。
+- 维持单并发 `SemaphoreSlim(1)` 与时间线 `ImGui.IsRectVisible` 视口触发策略，确保大型部队/通讯贝仅拉取当前屏幕可见的发言者头像。
 
 ### 8. 三 Tab MomoTalk 界面与交互编排
 

@@ -4,6 +4,10 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve cached Free Company, Linkshell, and Cross-World Linkshell groups after relogging while the game loads its channel lists.
+
 ## [v1.0.0.2] - 2026-11-23
 
 ### Changed

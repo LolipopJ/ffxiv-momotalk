@@ -19,7 +19,7 @@
 ## 4. 三 Tab 界面、群组视图、群聊气泡与原生小队右键入口
 
 - [x] 4.1 扩展 `src/FFXIVMomoTalk/Windows/ChatVisuals.cs` 新增「群组」导航矢量图标及 FC / CWLS / LS / Static 圆形频道徽章绘制原语，并更新 `src/FFXIVMomoTalk/Windows/ConversationHistory.cs` 适配统一 `ConversationKey` 与带发言者信息的消息分页；验证 `dotnet build .\FFXIVMomoTalk.slnx -c Debug` 通过。
-- [x] 4.2 更新 `src/FFXIVMomoTalk/Windows/MomoTalkWindow.cs` 导航为「好友 / 群组 / 会话」三 Tab（宽屏左侧自上而下、窄屏底栏自左而右，群组位于会话上方，导航图标使用不透明次级色），实现「群组」列表与右侧群组详情卡（含固定队成员头像与名单及全员匹配状态），以及「会话」统一混排列表（群聊预览 `发言者: 内容` / `You: 内容`、行尾频道标签、已退出 FC/通信贝正常展示无特殊样式）与右键菜单（固定队支持 `Rename Group`，全部会话支持 `Delete Chat` 隐藏并永久保留历史，不提供删除固定队）。
+- [x] 4.2 更新 `src/FFXIVMomoTalk/Windows/MomoTalkWindow.cs` 导航为「好友 / 群组 / 会话」三 Tab（宽屏左侧自上而下、窄屏底栏自左而右，群组位于会话上方，导航图标使用不透明次级色），实现「群组」列表与右侧群组详情卡（含固定队成员头像与名单及全员匹配状态），以及「会话」统一混排列表（群聊预览 `发言者: 内容` / `You: 内容`、行尾频道标签、已退出 FC/通讯贝正常展示无特殊样式）与右键菜单（固定队支持 `Rename Group`，全部会话支持 `Delete Chat` 隐藏并永久保留历史，不提供删除固定队）。
 - [x] 4.3 更新 `MomoTalkWindow.cs` 对话画布与输入栏：群聊时间线按发言者分组聚合连续气泡，为每位他人发言者展示 Lodestone 头像与角色名（不显示跨服服务器），本人消息沿用 `Show Self Avatar` 设置并在开启时右对齐显示 `You` 名称；输入栏按频道切换占位提示并在已退出频道或未与固定队全员组队时禁用发送并展示系统灰条提示；验证 `dotnet build .\FFXIVMomoTalk.slnx -c Debug` 通过。
 - [x] 4.4 在 `MomoTalkWindow.cs` 实现与设置弹窗一致的「创建固定队」弹窗（展示当前小队全员与群名输入框）与「修改固定队名称」弹窗，并在 `src/FFXIVMomoTalk/Plugin.cs` 注入 `IContextMenu` 监听原生小队列表右键菜单，按当前小队是否匹配已保存固定队动态显示「从当前小队创建」或「打开固定队群组」；验证 `dotnet build .\FFXIVMomoTalk.slnx -c Debug` 与 `dotnet build .\FFXIVMomoTalk.slnx -c Release` 均成功。
 

@@ -521,10 +521,13 @@ internal sealed unsafe class SocialDirectory(
         if (!ReferenceEquals(snapshot.Session, owner))
             return;
 
+        // A new native buffer can be empty before it receives membership data.
+        // Only a list that was already live can confirm departures with an empty read.
         var liveChannels = ChannelAvailability.None;
         var nextFc = snapshot.FreeCompany;
         var persistFc = false;
-        if (onHomeWorld && TryReadFreeCompany(out var liveFc))
+        if (onHomeWorld && TryReadFreeCompany(out var liveFc)
+            && (liveFc is not null || snapshot.LiveChannels.HasFlag(ChannelAvailability.FreeCompany)))
         {
             nextFc = MergeChannelName(liveFc, snapshot.FreeCompany);
             liveChannels |= ChannelAvailability.FreeCompany;
@@ -534,7 +537,8 @@ internal sealed unsafe class SocialDirectory(
 
         var nextLs = snapshot.Linkshells;
         var persistLs = false;
-        if (liveLs is not null)
+        if (liveLs is not null
+            && (liveLs.Count > 0 || snapshot.LiveChannels.HasFlag(ChannelAvailability.Linkshells)))
         {
             nextLs = MergeChannelNames(liveLs, snapshot.Linkshells);
             liveChannels |= ChannelAvailability.Linkshells;
@@ -544,7 +548,8 @@ internal sealed unsafe class SocialDirectory(
 
         var nextCwls = snapshot.CrossWorldLinkshells;
         var persistCwls = false;
-        if (liveCwls is not null)
+        if (liveCwls is not null
+            && (liveCwls.Count > 0 || snapshot.LiveChannels.HasFlag(ChannelAvailability.CrossWorldLinkshells)))
         {
             nextCwls = MergeChannelNames(liveCwls, snapshot.CrossWorldLinkshells);
             liveChannels |= ChannelAvailability.CrossWorldLinkshells;
