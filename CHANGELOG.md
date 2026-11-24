@@ -27,12 +27,12 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 ### Changed
 - Automatically roll `CHANGELOG.md` `[Unreleased]` entries into the released version section and update compare links in the release workflow.
 
-## [v1.0.0.1] - 2026-11-24
+## [v1.0.0.1] - 2026-11-24 (UTC+8)
 
 ### Fixed
 - Move the release tag and GitHub Release target to the `chore(release)` commit created by the release workflow instead of leaving it on the previous commit.
 
-## [v1.0.0.0] - 2026-11-24
+## [v1.0.0.0] - 2026-11-24 (UTC+8)
 
 ### Added
 - Group consecutive messages from the same sender within 500 ms into a single timeline bubble.
@@ -58,7 +58,7 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Verify the published ZIP before updating the plugin catalog and resume interrupted releases for the same tag and commit.
 - Inject `IconUrl` into the packaged plugin manifest during custom repository releases so installed plugins display the MomoTalk icon in Dalamud.
 
-## [v0.2.0.0] - 2026-11-23
+## [v0.2.0.0] - 2026-11-23 (UTC+8)
 
 ### Added
 - Free Company (`/fc`), Linkshell 1–8 (`/l1`–`/l8`), and Cross-World Linkshell 1–8 (`/cwl1`–`/cwl8`) group chat capture and sending, using stable channel keys (FC `Id`, Linkshell `Id`, CWLS `FoundationTime`) so history is preserved across leave/rejoin, slot moves, and renames.
@@ -76,7 +76,7 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 ### Fixed
 - Preserved the active character session and cached Friends list across loading screens, zone list resets, and cross-world duties instead of clearing `cached_friends`.
 
-## [v0.1.0.0] - 2026-11-22
+## [v0.1.0.0] - 2026-11-22 (UTC+8)
 
 ### Added
 - Initial MomoTalk in-game messenger (`/momotalk`) for FINAL FANTASY XIV Global (Windows x64, .NET 10, Dalamud API 15) with real friend `/tell` capture, sending, and per-character SQLite history keyed by immutable `ContentId`.
