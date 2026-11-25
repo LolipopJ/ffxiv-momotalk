@@ -260,7 +260,7 @@ internal sealed partial class MomoTalkWindow
             ImGui.Spacing();
         }
 
-        if (rows.Count == 0)
+        if (rows.Length == 0)
         {
             var loading = summaryQuery is not null || (!hiddenLoaded && hiddenQuery is not null);
             DrawListNotice(loading

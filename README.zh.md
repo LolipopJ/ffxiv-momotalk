@@ -65,6 +65,18 @@ dotnet restore .\FFXIVMomoTalk.slnx --locked-mode
 dotnet build .\FFXIVMomoTalk.slnx -c Release
 ```
 
+### 格式化与 lint
+
+还原依赖后，在仓库根目录运行以下命令。
+
+```powershell
+dotnet format .\FFXIVMomoTalk.slnx --no-restore
+dotnet format whitespace .\tests --folder
+dotnet build .\FFXIVMomoTalk.slnx --no-restore -warnaserror
+```
+
+为两条 `dotnet format` 命令加上 `--verify-no-changes` 即可只检查格式。CI 会运行这些检查，并将编译器和分析器警告视为错误。
+
 ## 致谢与引用说明
 
 - 界面设计、配色、布局和交互参考开源项目 **[U1805/momotalk](https://github.com/U1805/momotalk)**。

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading.Channels;
 using Microsoft.Data.Sqlite;
 
@@ -128,7 +129,7 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
             {
                 using var versionCmd = next.CreateCommand();
                 versionCmd.CommandText = "PRAGMA user_version;";
-                var version = Convert.ToInt32(versionCmd.ExecuteScalar());
+                var version = Convert.ToInt32(versionCmd.ExecuteScalar(), CultureInfo.InvariantCulture);
                 if (version != schemaVersion)
                 {
                     Volatile.Write(ref incompatibleOwner, owner);

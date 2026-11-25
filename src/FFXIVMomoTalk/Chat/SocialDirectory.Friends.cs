@@ -188,12 +188,12 @@ internal sealed unsafe partial class SocialDirectory
             PersistFriends(owner.ContentId, friends.Values.ToArray());
     }
 
-    private void PersistFriends(ulong owner, IReadOnlyList<PlayerIdentity> friends)
+    private void PersistFriends(ulong owner, PlayerIdentity[] friends)
     {
         if (cache.IncompatibleOwner != owner)
             ObserveTask(cache.SyncFriendsAsync(owner, friends), "Failed to update cached friends list.");
 
-        if (friends.Count > 0)
+        if (friends.Length > 0)
         {
             if (statics.IncompatibleOwner != owner)
                 ObserveTask(statics.SyncMemberIdentitiesAsync(owner, friends), "Failed to update static member names.");

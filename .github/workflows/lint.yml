@@ -1,0 +1,45 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download Dalamud assemblies
+        shell: bash
+        run: |
+          dalamud_dir="$RUNNER_TEMP/dalamud"
+          mkdir -p "$dalamud_dir"
+          download_url="$(curl -fsSL --retry 3 'https://kamori.goats.dev/Dalamud/Release/VersionInfo?track=release' | jq -er '.downloadUrl | select(length > 0)')"
+          curl -fsSL --retry 3 "$download_url" -o "$RUNNER_TEMP/dalamud.zip"
+          unzip -q "$RUNNER_TEMP/dalamud.zip" -d "$dalamud_dir"
+          test -f "$dalamud_dir/Dalamud.dll"
+          echo "DALAMUD_HOME=$dalamud_dir" >> "$GITHUB_ENV"
+
+      - name: Restore locked dependencies
+        run: dotnet restore ./FFXIVMomoTalk.slnx --locked-mode
+
+      - name: Check C# formatting
+        run: |
+          dotnet format ./FFXIVMomoTalk.slnx --no-restore --verify-no-changes
+          dotnet format whitespace ./tests --folder --verify-no-changes
+
+      - name: Run compiler and analyzer checks
+        run: dotnet build ./FFXIVMomoTalk.slnx --no-restore -warnaserror

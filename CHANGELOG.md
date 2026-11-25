@@ -6,6 +6,7 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ### Added
 
+- Check C# formatting and lint on pull requests and pushes to main, with matching local commands.
 - Open in-game social lists from compact sync buttons that sit side by side when several lists are available.
 
 ### Changed
@@ -15,6 +16,7 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 ### Fixed
 
 - Allow sending to cached friends and group channels after relogging while the in-game lists load.
+- Use consistent dates and times in AI reply prompts across regional settings.
 
 ## [v1.1.0.0] - 2026-11-24
 

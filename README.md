@@ -65,6 +65,18 @@ dotnet restore .\FFXIVMomoTalk.slnx --locked-mode
 dotnet build .\FFXIVMomoTalk.slnx -c Release
 ```
 
+### Formatting and lint
+
+After restoring dependencies, run these commands from the repository root.
+
+```powershell
+dotnet format .\FFXIVMomoTalk.slnx --no-restore
+dotnet format whitespace .\tests --folder
+dotnet build .\FFXIVMomoTalk.slnx --no-restore -warnaserror
+```
+
+Add `--verify-no-changes` to both `dotnet format` commands to check formatting without editing files. CI runs those checks and treats compiler and analyzer warnings as errors.
+
 ## Credits & Acknowledgements
 
 - Visual design, color palette, layout, and UI interaction references are adapted from **[U1805/momotalk](https://github.com/U1805/momotalk)**.

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
@@ -186,7 +187,7 @@ public sealed class Configuration : IPluginConfiguration
             using var reader = new JsonTextReader(new StringReader(File.ReadAllText(file.FullName)));
             var json = new JsonSerializer { DateParseHandling = DateParseHandling.None, CheckAdditionalContent = true }
                 .Deserialize<JObject>(reader);
-            if (json?["Version"] is { Type: JTokenType.Integer } versionToken)
+            if (json?[nameof(Version)] is { Type: JTokenType.Integer } versionToken)
                 version = versionToken.Value<long>();
 
             if (version == 1)
@@ -199,12 +200,12 @@ public sealed class Configuration : IPluginConfiguration
             }
 
             log.Error("Configuration version check failed (source {SourceVersion}, target v{TargetVersion}). The existing file was preserved.",
-                version?.ToString() ?? "unknown", CurrentVersion);
+                version?.ToString(CultureInfo.InvariantCulture) ?? "unknown", CurrentVersion);
         }
         catch (Exception exception)
         {
             log.Error("Configuration {Step} failed (source {SourceVersion}, target v{TargetVersion}, {ErrorType}). The existing file was preserved.",
-                step, version?.ToString() ?? "unknown", CurrentVersion, exception.GetType().Name);
+                step, version?.ToString(CultureInfo.InvariantCulture) ?? "unknown", CurrentVersion, exception.GetType().Name);
         }
 
         return new Configuration { PreserveExistingFile = true };

@@ -49,7 +49,7 @@ internal sealed partial class MomoTalkWindow : Window
     private ConversationDescriptor? selected;
     private ConversationHistory? conversation;
     private IReadOnlyList<ConversationSummary> summaries = [];
-    private IReadOnlyList<ConversationSummary> rows = [];
+    private ConversationSummary[] rows = [];
     private Task<IReadOnlyList<ConversationSummary>>? summaryQuery;
     private Task<IReadOnlyDictionary<ConversationKey, string>>? notesQuery;
     private Task<HashSet<ConversationKey>>? hiddenQuery;

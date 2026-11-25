@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -43,7 +44,7 @@ internal sealed partial class AiReplyService
         }
 
         var maxBodyBytes = Math.Max(64, ChatSender.MaxCommandBytes - Encoding.UTF8.GetByteCount(target.CommandPrefix) - 1);
-        return prompt.Append($$"""
+        return prompt.Append(CultureInfo.InvariantCulture, $$"""
             Mandatory output format constraints (always follow):
             - Return ONLY valid JSON in the exact shape: {"replies": ["...", "..."]}.
             - Provide 1 to {{AiReplyParser.MaxReplyOptions}} distinct, ready-to-send reply options.
@@ -114,13 +115,13 @@ internal sealed partial class AiReplyService
                 ? conversation.DisplayName
                 : $"{conversation.DisplayName} [{channelTag}]";
 
-        sb.AppendLine($"Channel: {channelType}");
-        sb.AppendLine($"Conversation: {targetName}");
-        sb.AppendLine($"Your character ([You]): {session.Player.Name}");
-        sb.AppendLine($"Current time: {nowLocal:yyyy-MM-dd HH:mm}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Channel: {channelType}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Conversation: {targetName}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Your character ([You]): {session.Player.Name}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Current time: {nowLocal:yyyy-MM-dd HH:mm}");
 
         if (!string.IsNullOrWhiteSpace(note))
-            sb.AppendLine($"User note: {note}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"User note: {note}");
 
         sb.AppendLine();
 
@@ -141,8 +142,8 @@ internal sealed partial class AiReplyService
                         : conversation.DisplayName;
                 var sentLocal = DateTimeOffset.FromUnixTimeMilliseconds(message.SentAt).ToLocalTime();
                 var timestamp = sentLocal.Date == nowLocal.Date
-                    ? sentLocal.ToString("HH:mm")
-                    : sentLocal.ToString("yyyy-MM-dd HH:mm");
+                    ? sentLocal.ToString("HH:mm", CultureInfo.InvariantCulture)
+                    : sentLocal.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
                 sb.Append('[').Append(timestamp).Append("] [").Append(speaker).Append("]: ").AppendLine(message.Body);
             }
 

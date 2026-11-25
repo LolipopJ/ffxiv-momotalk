@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace FFXIVMomoTalk.Chat;
@@ -260,7 +261,7 @@ internal sealed class CacheStore(string charactersDirectory)
             ON CONFLICT (key) DO UPDATE SET value = excluded.value
             """;
         meta.Parameters.AddWithValue("$key", key);
-        meta.Parameters.AddWithValue("$value", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+        meta.Parameters.AddWithValue("$value", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
         meta.ExecuteNonQuery();
     }
 
