@@ -6,6 +6,7 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.Group;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel;
@@ -53,7 +54,9 @@ internal sealed unsafe class SocialDirectory(
 
     public SocialSnapshot Current => Volatile.Read(ref current);
 
-    public bool HasLiveFriendList { get; private set; }
+    public bool IsPlayerReady(PlayerSession session) =>
+        playerState.IsLoaded && playerState.ContentId == session.ContentId
+        && !condition[ConditionFlag.BetweenAreas] && !condition[ConditionFlag.BetweenAreas51];
 
     public void Attach()
     {
@@ -69,6 +72,28 @@ internal sealed unsafe class SocialDirectory(
         DisposeFriendHooks();
     }
 
+    public void OpenNativeList(PlayerSession owner, ConversationKind kind)
+    {
+        if (!ReferenceEquals(UpdateSession(), owner) || !IsPlayerReady(owner))
+            return;
+
+        var agentId = kind switch
+        {
+            ConversationKind.Tell => AgentId.Friendlist,
+            ConversationKind.FreeCompany => AgentId.FreeCompany,
+            ConversationKind.Linkshell => AgentId.Linkshell,
+            ConversationKind.CrossWorldLinkshell => AgentId.CrossWorldLinkShell,
+            _ => (AgentId?)null,
+        };
+        var agents = AgentModule.Instance();
+        if (agents is null || agentId is not { } id)
+            return;
+
+        var agent = agents->GetAgentByInternalId(id);
+        if (agent is not null && agent->IsActivatable())
+            agent->Show();
+    }
+
     // Called by the framework update, and immediately before handling a chat message, submitting one, or opening context menu.
     public SocialSnapshot Update(bool rereadFriends = false, bool rereadSocial = false)
     {
@@ -80,10 +105,8 @@ internal sealed unsafe class SocialDirectory(
         PollCachedChannels(session);
         PollStatics(session);
 
-        if (!playerState.IsLoaded || playerState.ContentId != session.ContentId
-            || condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51])
+        if (!IsPlayerReady(session))
         {
-            HasLiveFriendList = false;
             var snapshot = Current;
             if (snapshot.LiveChannels != ChannelAvailability.None || snapshot.Party is not null)
                 Publish(snapshot with { LiveChannels = ChannelAvailability.None, Party = null });
@@ -99,8 +122,6 @@ internal sealed unsafe class SocialDirectory(
         var shouldReadFriends = rereadFriends
             || lastFriendsRead == 0
             || Stopwatch.GetElapsedTime(lastFriendsRead) >= TimeSpan.FromMilliseconds(500);
-        if (shouldReadFriends)
-            HasLiveFriendList = false;
 
         if (shouldReadFriends && !IsInCrossWorldDuty() && friendProxy is not null)
         {
@@ -1136,7 +1157,6 @@ internal sealed unsafe class SocialDirectory(
 
         var previous = Current.Friends;
         Publish(Current with { Friends = friends });
-        HasLiveFriendList = true;
 
         if (forcePersist || FriendsChanged(previous, friends))
             PersistFriends(owner.ContentId, friends.Values.ToArray());

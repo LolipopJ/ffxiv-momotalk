@@ -158,51 +158,39 @@ internal sealed record SocialSnapshot(
                     : new SendTarget(key, $"/tell {friend.Name}@{friend.World}", friend);
 
             case ConversationKind.FreeCompany:
-                if ((LiveChannels & ChannelAvailability.FreeCompany) == 0)
-                {
-                    unavailable = "FreeCompanyUnavailable";
-                    return null;
-                }
-
                 if (FreeCompany?.Key == key)
                 {
                     unavailable = null;
                     return new SendTarget(key, "/fc");
                 }
 
-                unavailable = "FreeCompanyLeft";
+                unavailable = LiveChannels.HasFlag(ChannelAvailability.FreeCompany)
+                    ? "FreeCompanyLeft"
+                    : "FreeCompanyUnavailable";
                 return null;
 
             case ConversationKind.Linkshell:
-                if ((LiveChannels & ChannelAvailability.Linkshells) == 0)
-                {
-                    unavailable = "LinkshellUnavailable";
-                    return null;
-                }
-
                 if (FindActiveSlot(key) is int lsSlot and >= 1 and <= 8)
                 {
                     unavailable = null;
                     return new SendTarget(key, $"/l{lsSlot}");
                 }
 
-                unavailable = "LinkshellLeft";
+                unavailable = LiveChannels.HasFlag(ChannelAvailability.Linkshells)
+                    ? "LinkshellLeft"
+                    : "LinkshellUnavailable";
                 return null;
 
             case ConversationKind.CrossWorldLinkshell:
-                if ((LiveChannels & ChannelAvailability.CrossWorldLinkshells) == 0)
-                {
-                    unavailable = "CrossWorldLinkshellUnavailable";
-                    return null;
-                }
-
                 if (FindActiveSlot(key) is int cwSlot and >= 1 and <= 8)
                 {
                     unavailable = null;
                     return new SendTarget(key, $"/cwl{cwSlot}");
                 }
 
-                unavailable = "CrossWorldLinkshellLeft";
+                unavailable = LiveChannels.HasFlag(ChannelAvailability.CrossWorldLinkshells)
+                    ? "CrossWorldLinkshellLeft"
+                    : "CrossWorldLinkshellUnavailable";
                 return null;
 
             case ConversationKind.Static:

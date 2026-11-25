@@ -133,9 +133,9 @@ internal sealed class ChatSender(
         if (!ReferenceEquals(request.Session, snapshot.Session))
             return;
 
-        if (isTell && !directory.HasLiveFriendList)
+        if (!directory.IsPlayerReady(request.Session))
         {
-            Warn(request, "VerifyTellRecipient");
+            Warn(request, "GameChatUnavailable");
             return;
         }
 

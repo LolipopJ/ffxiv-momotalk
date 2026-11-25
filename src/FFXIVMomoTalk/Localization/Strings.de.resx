@@ -71,6 +71,7 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Du bist nicht mehr Mitglied dieser Freien Gesellschaft.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FG</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>Der Chat der Freien Gesellschaft ist momentan nicht verfügbar.</value></data>
+  <data name="FriendList" xml:space="preserve"><value>Freundesliste</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>Dieser Charakter steht nicht mehr auf deiner Freundesliste.</value></data>
   <data name="Friends" xml:space="preserve"><value>Freunde</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>Deine Freundesliste im Spiel ist leer.</value></data>
@@ -186,7 +187,6 @@
   <data name="TestConnection" xml:space="preserve"><value>Verbindung testen</value></data>
   <data name="Testing" xml:space="preserve"><value>Wird geprüft…</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>Dieser Chattyp wird nicht unterstützt.</value></data>
-  <data name="VerifyTellRecipient" xml:space="preserve"><value>Öffne die Freundesliste im Spiel, damit MomoTalk den Empfänger prüfen kann.</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>An den WKK schreiben…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>An die FG schreiben…</value></data>
   <data name="WriteLinkshell" xml:space="preserve"><value>An den Kontaktkreis schreiben…</value></data>

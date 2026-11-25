@@ -71,6 +71,7 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>You are no longer a member of this Free Company.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>Free Company chat is unavailable right now.</value></data>
+  <data name="FriendList" xml:space="preserve"><value>Friend List</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>This character is no longer on your Friend List.</value></data>
   <data name="Friends" xml:space="preserve"><value>Friends</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>Your in-game Friend List is empty.</value></data>
@@ -186,7 +187,6 @@
   <data name="TestConnection" xml:space="preserve"><value>Test Connection</value></data>
   <data name="Testing" xml:space="preserve"><value>Testing...</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>Unsupported conversation type.</value></data>
-  <data name="VerifyTellRecipient" xml:space="preserve"><value>Open the in-game Friend List so MomoTalk can verify the recipient.</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>Message CWLS...</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>Message Free Company...</value></data>
   <data name="WriteLinkshell" xml:space="preserve"><value>Message Linkshell...</value></data>

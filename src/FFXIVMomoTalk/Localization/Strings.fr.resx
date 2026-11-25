@@ -71,6 +71,7 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette compagnie libre.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>CL</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>La discussion de compagnie libre est actuellement indisponible.</value></data>
+  <data name="FriendList" xml:space="preserve"><value>Liste d’amis</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>Ce personnage ne figure plus dans votre liste d’amis.</value></data>
   <data name="Friends" xml:space="preserve"><value>Amis</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>Votre liste d’amis en jeu est vide.</value></data>
@@ -186,7 +187,6 @@
   <data name="TestConnection" xml:space="preserve"><value>Tester la connexion</value></data>
   <data name="Testing" xml:space="preserve"><value>Test en cours…</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>Ce type de discussion n’est pas pris en charge.</value></data>
-  <data name="VerifyTellRecipient" xml:space="preserve"><value>Ouvrez la liste d’amis en jeu pour que MomoTalk puisse vérifier le destinataire.</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>Écrire à la LSIM…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>Écrire à la compagnie libre…</value></data>
   <data name="WriteLinkshell" xml:space="preserve"><value>Écrire à la linkshell…</value></data>

@@ -71,6 +71,7 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>このフリーカンパニーには所属していません。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>現在フリーカンパニーチャットは利用できません。</value></data>
+  <data name="FriendList" xml:space="preserve"><value>フレンドリスト</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>このキャラクターはフレンドリストにいません。</value></data>
   <data name="Friends" xml:space="preserve"><value>フレンド</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>ゲーム内のフレンドリストにフレンドがいません。</value></data>
@@ -186,7 +187,6 @@
   <data name="TestConnection" xml:space="preserve"><value>接続をテスト</value></data>
   <data name="Testing" xml:space="preserve"><value>テスト中…</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>この種類の会話には対応していません。</value></data>
-  <data name="VerifyTellRecipient" xml:space="preserve"><value>モモトークで宛先を確認するには、ゲーム内のフレンドリストを開いてください。</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>CWLSにメッセージを入力…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>FCにメッセージを入力…</value></data>
   <data name="WriteLinkshell" xml:space="preserve"><value>LSにメッセージを入力…</value></data>

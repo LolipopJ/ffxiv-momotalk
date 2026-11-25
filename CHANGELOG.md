@@ -4,6 +4,14 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+
+- Open in-game social lists from compact sync buttons that sit side by side when several lists are available.
+
+### Fixed
+
+- Allow sending to cached friends and group channels after relogging while the in-game lists load.
+
 ## [v1.1.0.0] - 2026-11-24
 
 ### Added

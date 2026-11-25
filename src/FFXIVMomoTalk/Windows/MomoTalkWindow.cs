@@ -16,6 +16,7 @@ internal sealed class MomoTalkWindow : Window
     private const float NarrowThreshold = 640f;
     private const string LogoResourceName = "FFXIVMomoTalk.Assets.momo-logo.png";
     private const string CoverResourceName = "FFXIVMomoTalk.Assets.momotalk-cover.png";
+    private const float NativeListButtonHeight = 28f;
     private const float IntroSolidDuration = 0.62f;
     private const float IntroTotalDuration = 0.84f;
     private const float SettingsTransitionDuration = 0.20f;
@@ -2057,6 +2058,7 @@ internal sealed class MomoTalkWindow : Window
         if (snapshot.Friends is null)
         {
             DrawListNotice(Loc.Text("LoadFriends"), scale);
+            DrawListSyncButtons(snapshot.Session, scale, [ConversationKind.Tell]);
             return;
         }
 
@@ -2119,9 +2121,9 @@ internal sealed class MomoTalkWindow : Window
         var items = BuildActiveGroupItems(snapshot);
         if (items.Count == 0)
         {
-            DrawListNotice(
-                Loc.Text("GroupsEmpty"),
-                scale);
+            DrawListNotice(Loc.Text("GroupsEmpty"), scale);
+            DrawListSyncButtons(snapshot.Session, scale,
+                [ConversationKind.FreeCompany, ConversationKind.Linkshell, ConversationKind.CrossWorldLinkshell]);
             return;
         }
 
@@ -2252,6 +2254,42 @@ internal sealed class MomoTalkWindow : Window
         ImGui.PushTextWrapPos(ImGui.GetContentRegionAvail().X - pad);
         ImGui.TextColored(ChatVisuals.Muted, message);
         ImGui.PopTextWrapPos();
+    }
+
+    private void DrawListSyncButtons(PlayerSession? owner, float scale, ReadOnlySpan<ConversationKind> kinds)
+    {
+        if (owner is null)
+            return;
+
+        var pad = 16f * scale;
+        var gap = 4f * scale;
+        ImGui.SetCursorPosX(pad);
+        var maxWidth = (ImGui.GetContentRegionAvail().X - pad - gap * (kinds.Length - 1)) / kinds.Length;
+        for (var index = 0; index < kinds.Length; index++)
+        {
+            if (index > 0)
+                ImGui.SameLine(0f, gap);
+            DrawNativeListButton(owner, kinds[index], ImGui.GetCursorScreenPos(), maxWidth, scale);
+        }
+    }
+
+    private void DrawNativeListButton(PlayerSession owner, ConversationKind kind, Vector2 pos, float maxWidth, float scale)
+    {
+        var label = Loc.Text(kind switch
+        {
+            ConversationKind.Tell => "FriendList",
+            ConversationKind.FreeCompany => "FreeCompanyTag",
+            ConversationKind.Linkshell => "LinkshellTag",
+            ConversationKind.CrossWorldLinkshell => "CrossWorldLinkshellTag",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        });
+        var width = ChatVisuals.MeasureCompactModalButton(label, scale, maxWidth);
+        var size = new Vector2(width, NativeListButtonHeight * scale);
+        if (ChatVisuals.DrawCompactModalButton(ImGui.GetWindowDrawList(), $"##open-native-{kind}", label, pos,
+            size, enabled: true, scale, alpha: 1f))
+        {
+            _ = Plugin.Framework.RunOnFrameworkThread(() => directory.OpenNativeList(owner, kind));
+        }
     }
 
     private void DrawListRow(ConversationDescriptor conversationDesc, string? subtitle, string trailingTag,
@@ -2689,6 +2727,8 @@ internal sealed class MomoTalkWindow : Window
 
         var sendTarget = snapshot.FindSendTarget(currentConv.Key, out var unavailableReason);
         var unavailable = unavailableReason is not null ? Loc.Reason(unavailableReason) : null;
+        var needsNativeList = unavailableReason is "OpenFriendsToSendTell" or "FreeCompanyUnavailable"
+            or "LinkshellUnavailable" or "CrossWorldLinkshellUnavailable";
         var replyState = config.IsAiReplyConfigured ? aiReply.GetState(currentConv.Key) : AiReplySnapshot.Idle;
         var warning = draft.Warning is { AttachedToMessage: false } local ? local : unassignedWarning;
         var warningText = warning is { AttachedToMessage: false } visible ? Loc.Reason(visible.Message) : null;
@@ -2712,7 +2752,8 @@ internal sealed class MomoTalkWindow : Window
             ? ChatVisuals.MeasureSystemBanner(writeErrorText, bannerMaxWidth, scale, closable: true)
             : null;
 
-        var infoHeight = infoBanner?.Height ?? 0f;
+        var nativeListHeight = needsNativeList ? (NativeListButtonHeight + 4f) * scale : 0f;
+        var infoHeight = (infoBanner?.Height ?? 0f) + nativeListHeight;
         var errorHeight = errorBanner?.Height ?? 0f;
         var writeErrHeight = writeErrorBanner?.Height ?? 0f;
         var bannersHeight = infoHeight + errorHeight + writeErrHeight;
@@ -2747,6 +2788,12 @@ internal sealed class MomoTalkWindow : Window
         {
             ChatVisuals.DrawSystemBanner(draw, footerPos, size.X, unavailable, isAlert: false, scale, ib);
             footerPos.Y += ib.Height;
+            if (needsNativeList && snapshot.Session is { } owner)
+            {
+                var buttonPos = footerPos + new Vector2((size.X - ib.BannerSize.X) * 0.5f, 0);
+                DrawNativeListButton(owner, currentConv.Key.Kind, buttonPos, ib.BannerSize.X, scale);
+                footerPos.Y += nativeListHeight;
+            }
         }
 
         if (errorStatus is not null && errorBanner is { } eb)

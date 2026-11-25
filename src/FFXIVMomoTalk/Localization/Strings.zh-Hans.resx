@@ -71,6 +71,7 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不属于该部队。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>部队</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>当前无法使用部队聊天。</value></data>
+  <data name="FriendList" xml:space="preserve"><value>好友列表</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>该角色已不在你的好友列表中。</value></data>
   <data name="Friends" xml:space="preserve"><value>好友</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>游戏内的好友列表为空。</value></data>
@@ -186,7 +187,6 @@
   <data name="TestConnection" xml:space="preserve"><value>测试连接</value></data>
   <data name="Testing" xml:space="preserve"><value>正在测试…</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>不支持该会话类型。</value></data>
-  <data name="VerifyTellRecipient" xml:space="preserve"><value>请打开游戏内的好友列表，以便 MomoTalk 核实收件人。</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>输入跨服通讯贝消息…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>输入部队消息…</value></data>
   <data name="WriteLinkshell" xml:space="preserve"><value>输入通讯贝消息…</value></data>

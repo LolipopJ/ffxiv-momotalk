@@ -71,6 +71,7 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不屬於此公會。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>公會</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>目前無法使用公會聊天。</value></data>
+  <data name="FriendList" xml:space="preserve"><value>好友名單</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>此角色已從你的好友名單移除。</value></data>
   <data name="Friends" xml:space="preserve"><value>好友</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>遊戲內的好友名單是空的。</value></data>
@@ -186,7 +187,6 @@
   <data name="TestConnection" xml:space="preserve"><value>測試連線</value></data>
   <data name="Testing" xml:space="preserve"><value>測試中…</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>不支援此對話類型。</value></data>
-  <data name="VerifyTellRecipient" xml:space="preserve"><value>請開啟遊戲內的好友名單，讓 MomoTalk 確認收件人。</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>輸入跨界通訊貝訊息…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>輸入公會訊息…</value></data>
   <data name="WriteLinkshell" xml:space="preserve"><value>輸入通訊貝訊息…</value></data>
