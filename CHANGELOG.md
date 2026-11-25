@@ -8,6 +8,10 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 - Open in-game social lists from compact sync buttons that sit side by side when several lists are available.
 
+### Changed
+
+- Organize the chat window, drawing helpers, social directory, and AI reply code into smaller files by responsibility.
+
 ### Fixed
 
 - Allow sending to cached friends and group channels after relogging while the in-game lists load.
