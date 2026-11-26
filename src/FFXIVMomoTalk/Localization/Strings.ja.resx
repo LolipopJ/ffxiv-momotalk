@@ -6,6 +6,7 @@
   <data name="AddExample" xml:space="preserve"><value>+ 追加</value></data>
   <data name="AddNote" xml:space="preserve"><value>メモを追加…</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ 返信を追加</value></data>
+  <data name="AddTag" xml:space="preserve"><value>タグを追加</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>認証エラー（HTTP {0}）。APIキーを確認してください。</value></data>
   <data name="AiConnected" xml:space="preserve"><value>接続できました（{0} ms）。</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>接続テストに失敗しました。</value></data>
@@ -47,6 +48,9 @@
   <data name="ChatsEmpty" xml:space="preserve"><value>会話がありません。フレンドかグループを選んでチャットを始めましょう。</value></data>
   <data name="ChatUnavailableNow" xml:space="preserve"><value>現在チャットを利用できません。</value></data>
   <data name="ChooseConversation" xml:space="preserve"><value>会話を選択してください。</value></data>
+  <data name="Clear" xml:space="preserve"><value>クリア</value></data>
+  <data name="ColorHexHint" xml:space="preserve"><value>#RRGGBB</value></data>
+  <data name="ColorPresets" xml:space="preserve"><value>プリセット</value></data>
   <data name="CommandHelp" xml:space="preserve"><value>FFXIV モモトークのウィンドウを開閉します。</value></data>
   <data name="ConfigReadError" xml:space="preserve"><value>既存の設定ファイルを読み込めなかったため、そのまま保持しました。</value></data>
   <data name="ContextMaximumHint" xml:space="preserve"><value>AIに送信するメッセージの最大件数（1～500件）。</value></data>
@@ -61,22 +65,29 @@
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>このクロスワールドリンクシェルには所属していません。</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>CWLS</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>現在クロスワールドリンクシェルチャットは利用できません。</value></data>
+  <data name="CustomColor" xml:space="preserve"><value>パレット</value></data>
   <data name="DatabaseError" xml:space="preserve"><value>データベースエラー（{0}）。既存のファイルは保持しました。詳細は /xllog を確認してください。</value></data>
   <data name="DeleteChat" xml:space="preserve"><value>チャットを削除</value></data>
+  <data name="EditNameColor" xml:space="preserve"><value>ネームプレートの色を変更</value></data>
   <data name="EditNote" xml:space="preserve"><value>クリックでメモを編集</value></data>
   <data name="Endpoint" xml:space="preserve"><value>エンドポイント</value></data>
   <data name="EnterGroupName" xml:space="preserve"><value>グループ名を入力…</value></data>
   <data name="EnterMessageBeforeSending" xml:space="preserve"><value>メッセージを入力してから送信してください。</value></data>
+  <data name="EnterTagName" xml:space="preserve"><value>タグを入力…</value></data>
   <data name="ExampleContext" xml:space="preserve"><value>状況</value></data>
   <data name="ExampleContextHint" xml:space="preserve"><value>相手の発言を入力</value></data>
   <data name="ExampleItemTitle" xml:space="preserve"><value>例 {0}</value></data>
   <data name="ExampleReplies" xml:space="preserve"><value>返信</value></data>
   <data name="ExampleReplyHint" xml:space="preserve"><value>返信例を入力</value></data>
+  <data name="ExistingTags" xml:space="preserve"><value>既存のタグ</value></data>
+  <data name="Filter" xml:space="preserve"><value>絞り込み</value></data>
+  <data name="FilterByTags" xml:space="preserve"><value>タグで絞り込み</value></data>
   <data name="FollowClient" xml:space="preserve"><value>クライアントに従う</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>フリーカンパニー</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>このフリーカンパニーには所属していません。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>現在フリーカンパニーチャットは利用できません。</value></data>
+  <data name="FriendAddedOn" xml:space="preserve"><value>フレンド登録日: {0}</value></data>
   <data name="FriendList" xml:space="preserve"><value>フレンドリスト</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>このキャラクターはフレンドリストにいません。</value></data>
   <data name="Friends" xml:space="preserve"><value>フレンド</value></data>
@@ -91,6 +102,7 @@
   <data name="Groups" xml:space="preserve"><value>グループ</value></data>
   <data name="GroupsEmpty" xml:space="preserve"><value>グループがありません。ゲーム内でフリーカンパニー、リンクシェル、クロスワールドリンクシェルのリストを開いて同期するか、パーティメンバーを右クリックして固定パーティを作成してください。</value></data>
   <data name="Hide" xml:space="preserve"><value>隠す</value></data>
+  <data name="InvalidHexColor" xml:space="preserve"><value>3桁または6桁の16進カラーコードを入力してください（例: #4A8AC6）。</value></data>
   <data name="Language" xml:space="preserve"><value>言語</value></data>
   <data name="Linkshell" xml:space="preserve"><value>リンクシェル</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>このリンクシェルには所属していません。</value></data>
@@ -116,12 +128,14 @@
   <data name="Minimum" xml:space="preserve"><value>最小</value></data>
   <data name="Minutes" xml:space="preserve"><value>分</value></data>
   <data name="Model" xml:space="preserve"><value>モデル</value></data>
+  <data name="NameColor" xml:space="preserve"><value>リスト名の色</value></data>
   <data name="NoExamplesYet" xml:space="preserve"><value>会話例はまだありません。</value></data>
   <data name="NoMatchingChats" xml:space="preserve"><value>該当する会話がありません。</value></data>
   <data name="NoMatchingFriends" xml:space="preserve"><value>該当するフレンドがいません。</value></data>
   <data name="NoMatchingGroups" xml:space="preserve"><value>該当するグループがありません。</value></data>
   <data name="NoMessages" xml:space="preserve"><value>メッセージはまだありません。</value></data>
   <data name="NoMessagesPreview" xml:space="preserve"><value>メッセージなし</value></data>
+  <data name="NoTagsYet" xml:space="preserve"><value>タグはまだありません。</value></data>
   <data name="OpenChat" xml:space="preserve"><value>チャットを開く</value></data>
   <data name="OpenFriendsToSendTell" xml:space="preserve"><value>Tellを送るにはゲーム内のフレンドリストを開いてください。</value></data>
   <data name="OpenLodestone" xml:space="preserve"><value>Lodestoneを開く</value></data>
@@ -131,8 +145,10 @@
   <data name="ReadConversationsFailed" xml:space="preserve"><value>会話を読み込めませんでした。</value></data>
   <data name="ReadHistoryFailed" xml:space="preserve"><value>チャット履歴を読み込めませんでした。</value></data>
   <data name="Remove" xml:space="preserve"><value>削除</value></data>
+  <data name="RemoveTag" xml:space="preserve"><value>タグを削除</value></data>
   <data name="RenameGroup" xml:space="preserve"><value>グループ名を変更</value></data>
   <data name="Reply" xml:space="preserve"><value>返信</value></data>
+  <data name="ResetColor" xml:space="preserve"><value>リセット</value></data>
   <data name="Retry" xml:space="preserve"><value>再試行</value></data>
   <data name="RetryNoteByClick" xml:space="preserve"><value>クリックでメモの保存を再試行</value></data>
   <data name="RetryNoteWithEnter" xml:space="preserve"><value>Enterキーでメモの保存を再試行します。</value></data>

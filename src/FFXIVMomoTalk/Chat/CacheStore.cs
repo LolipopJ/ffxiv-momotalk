@@ -4,9 +4,9 @@ using Microsoft.Data.Sqlite;
 namespace FFXIVMomoTalk.Chat;
 
 internal sealed class CacheStore(string charactersDirectory)
-    : CharacterSqliteStore(charactersDirectory, "cache.sqlite3", "cache", SchemaVersion, Schema)
+    : CharacterSqliteStore(charactersDirectory, "cache.sqlite3", "cache", SchemaVersion, Schema, migrations: [Migrations.Cache.V1ToV2.Migration])
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
     private const string FriendsCachedMetaKey = "friends_cached_at";
     private const string FreeCompanyCachedMetaKey = "fc_cached_at";
     private const string LinkshellsCachedMetaKey = "ls_cached_at";
@@ -17,7 +17,8 @@ internal sealed class CacheStore(string charactersDirectory)
             content_id INTEGER PRIMARY KEY,
             display_name TEXT NOT NULL,
             world_id INTEGER NOT NULL,
-            world_name TEXT NOT NULL
+            world_name TEXT NOT NULL,
+            added_at INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS cached_channels (
@@ -45,8 +46,8 @@ internal sealed class CacheStore(string charactersDirectory)
 
     public long HiddenRevision => Interlocked.Read(ref hiddenRevision);
 
-    public Task<IReadOnlyList<PlayerIdentity>?> ReadCachedFriendsAsync(ulong owner) =>
-        Enqueue<IReadOnlyList<PlayerIdentity>?>(owner, connection =>
+    public Task<IReadOnlyList<CachedFriend>?> ReadCachedFriendsAsync(ulong owner) =>
+        Enqueue<IReadOnlyList<CachedFriend>?>(owner, connection =>
         {
             using var meta = connection.CreateCommand();
             meta.CommandText = "SELECT 1 FROM store_meta WHERE key = $key";
@@ -55,22 +56,23 @@ internal sealed class CacheStore(string charactersDirectory)
                 return null;
 
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT content_id, display_name, world_id, world_name FROM cached_friends";
+            command.CommandText = "SELECT content_id, display_name, world_id, world_name, added_at FROM cached_friends";
             using var reader = command.ExecuteReader();
-            var friends = new List<PlayerIdentity>();
+            var friends = new List<CachedFriend>();
             while (reader.Read())
             {
-                friends.Add(new PlayerIdentity(
+                var player = new PlayerIdentity(
                     ReadContentId(reader, 0),
                     reader.GetString(1),
                     (uint)reader.GetInt64(2),
-                    reader.GetString(3)));
+                    reader.GetString(3));
+                friends.Add(new CachedFriend(player, reader.GetInt64(4)));
             }
 
             return friends;
         });
 
-    public Task SyncFriendsAsync(ulong owner, IReadOnlyList<PlayerIdentity> friends) => Enqueue(owner, connection =>
+    public Task SyncFriendsAsync(ulong owner, IReadOnlyList<CachedFriend> friends) => Enqueue(owner, connection =>
     {
         using var transaction = connection.BeginTransaction();
 
@@ -84,20 +86,22 @@ internal sealed class CacheStore(string charactersDirectory)
         using var insert = connection.CreateCommand();
         insert.Transaction = transaction;
         insert.CommandText = """
-            INSERT INTO cached_friends (content_id, display_name, world_id, world_name)
-            VALUES ($cid, $name, $world, $worldName)
+            INSERT INTO cached_friends (content_id, display_name, world_id, world_name, added_at)
+            VALUES ($cid, $name, $world, $worldName, $addedAt)
             """;
         var insertCid = insert.Parameters.Add("$cid", SqliteType.Integer);
         var insertName = insert.Parameters.Add("$name", SqliteType.Text);
         var insertWorld = insert.Parameters.Add("$world", SqliteType.Integer);
         var insertWorldName = insert.Parameters.Add("$worldName", SqliteType.Text);
+        var insertAddedAt = insert.Parameters.Add("$addedAt", SqliteType.Integer);
 
-        foreach (var friend in friends)
+        foreach (var entry in friends)
         {
-            insertCid.Value = unchecked((long)friend.ContentId);
-            insertName.Value = friend.Name;
-            insertWorld.Value = (long)friend.WorldId;
-            insertWorldName.Value = friend.World;
+            insertCid.Value = unchecked((long)entry.Player.ContentId);
+            insertName.Value = entry.Player.Name;
+            insertWorld.Value = (long)entry.Player.WorldId;
+            insertWorldName.Value = entry.Player.World;
+            insertAddedAt.Value = entry.AddedAt;
             insert.ExecuteNonQuery();
         }
 

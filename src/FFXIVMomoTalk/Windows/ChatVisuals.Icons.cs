@@ -234,6 +234,31 @@ internal static partial class ChatVisuals
         draw.AddTriangleFilled(bottomLeft, innerLeft, tip, col);
     }
 
+    public static void DrawCalendarIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
+    {
+        var halfW = size * 0.40f;
+        var topY = center.Y - size * 0.34f;
+        var bottomY = center.Y + size * 0.42f;
+        var leftX = center.X - halfW;
+        var rightX = center.X + halfW;
+        var headerH = size * 0.24f;
+        var thickness = MathF.Max(1.2f, size * 0.11f);
+        var rounding = size * 0.12f;
+
+        draw.AddRect(new Vector2(leftX, topY), new Vector2(rightX, bottomY), col, rounding, ImDrawFlags.None, thickness);
+        draw.AddRectFilled(new Vector2(leftX, topY), new Vector2(rightX, topY + headerH), col, rounding, ImDrawFlags.RoundCornersTop);
+
+        var ringOffsetX = halfW * 0.46f;
+        var ringTop = topY - size * 0.12f;
+        var ringBottom = topY + size * 0.08f;
+        draw.AddLine(new Vector2(center.X - ringOffsetX, ringTop), new Vector2(center.X - ringOffsetX, ringBottom), col, thickness);
+        draw.AddLine(new Vector2(center.X + ringOffsetX, ringTop), new Vector2(center.X + ringOffsetX, ringBottom), col, thickness);
+
+        var dotSize = MathF.Max(2f, size * 0.16f);
+        var dotCenter = new Vector2(center.X, (topY + headerH + bottomY) * 0.5f);
+        draw.AddRectFilled(dotCenter - new Vector2(dotSize * 0.5f), dotCenter + new Vector2(dotSize * 0.5f), col, dotSize * 0.2f);
+    }
+
     public static void DrawAiSparkleIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
     {
         DrawFourPointStar(draw, center + new Vector2(-size * 0.10f, size * 0.08f), size * 0.36f, col);

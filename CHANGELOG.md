@@ -4,6 +4,16 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+
+- Display the friend added date (when available from the game's friend list) in a MomoTalk birthday-style badge on the Friend Detail Card, moving `@ World` into a subtitle beneath the friend's name.
+- Add custom friend tags on the Friend Detail Card with inline creation, quick assignment from existing tags, removal, search matching, and multi-select (AND) tag filtering in the Friends list.
+- Add customizable friend list name colors on the Friend Detail Card supporting hex input, curated MomoTalk presets, and a color palette picker, applied across the Friends list, private Chats rows, the Friend Detail Card, and group chat speaker names.
+
+### Changed
+
+- **Breaking:** Upgraded per-character `cache.sqlite3` schema from version 1 to version 2 (`cached_friends.added_at`). Upgrading automatically migrates existing cached friends, channels, and hidden conversation state in place; downgrading to an earlier plugin version rejects the v2 cache file until `cache.sqlite3` is removed and re-synced from the game, without affecting chat history, notes, static rosters, or friend profiles.
+
 ## [v1.1.1.0] - 2026-11-26
 
 ### Added

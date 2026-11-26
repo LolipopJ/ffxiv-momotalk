@@ -6,6 +6,7 @@
   <data name="AddExample" xml:space="preserve"><value>+ 新增</value></data>
   <data name="AddNote" xml:space="preserve"><value>新增備註…</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ 新增回覆</value></data>
+  <data name="AddTag" xml:space="preserve"><value>新增標籤</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>驗證失敗（HTTP {0}）。請檢查 API 金鑰。</value></data>
   <data name="AiConnected" xml:space="preserve"><value>連線成功（{0} 毫秒）。</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>連線測試失敗。</value></data>
@@ -47,6 +48,9 @@
   <data name="ChatsEmpty" xml:space="preserve"><value>目前沒有對話。選擇一位好友或一個群組開始聊天。</value></data>
   <data name="ChatUnavailableNow" xml:space="preserve"><value>目前無法聊天。</value></data>
   <data name="ChooseConversation" xml:space="preserve"><value>請選擇一個對話。</value></data>
+  <data name="Clear" xml:space="preserve"><value>清除</value></data>
+  <data name="ColorHexHint" xml:space="preserve"><value>#RRGGBB</value></data>
+  <data name="ColorPresets" xml:space="preserve"><value>預設顏色</value></data>
   <data name="CommandHelp" xml:space="preserve"><value>開啟或關閉 FFXIV MomoTalk 視窗。</value></data>
   <data name="ConfigReadError" xml:space="preserve"><value>無法讀取設定檔，已保留原檔案。</value></data>
   <data name="ContextMaximumHint" xml:space="preserve"><value>傳送給 AI 的訊息數量上限（1–500）。</value></data>
@@ -61,22 +65,29 @@
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>你已不屬於此跨界通訊貝。</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>跨界貝</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>目前無法使用跨界通訊貝聊天。</value></data>
+  <data name="CustomColor" xml:space="preserve"><value>調色盤</value></data>
   <data name="DatabaseError" xml:space="preserve"><value>資料庫發生錯誤（{0}），已保留原檔案。詳細資訊請查看 /xllog。</value></data>
   <data name="DeleteChat" xml:space="preserve"><value>刪除對話</value></data>
+  <data name="EditNameColor" xml:space="preserve"><value>修改名牌顏色</value></data>
   <data name="EditNote" xml:space="preserve"><value>點擊編輯備註</value></data>
   <data name="Endpoint" xml:space="preserve"><value>端點</value></data>
   <data name="EnterGroupName" xml:space="preserve"><value>輸入群組名稱…</value></data>
   <data name="EnterMessageBeforeSending" xml:space="preserve"><value>請先輸入訊息再傳送。</value></data>
+  <data name="EnterTagName" xml:space="preserve"><value>輸入標籤…</value></data>
   <data name="ExampleContext" xml:space="preserve"><value>情境</value></data>
   <data name="ExampleContextHint" xml:space="preserve"><value>輸入對方的發言</value></data>
   <data name="ExampleItemTitle" xml:space="preserve"><value>範例 {0}</value></data>
   <data name="ExampleReplies" xml:space="preserve"><value>回覆</value></data>
   <data name="ExampleReplyHint" xml:space="preserve"><value>輸入一條範例回覆</value></data>
+  <data name="ExistingTags" xml:space="preserve"><value>現有標籤</value></data>
+  <data name="Filter" xml:space="preserve"><value>篩選</value></data>
+  <data name="FilterByTags" xml:space="preserve"><value>依標籤篩選</value></data>
   <data name="FollowClient" xml:space="preserve"><value>跟隨遊戲語言</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>公會</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不屬於此公會。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>公會</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>目前無法使用公會聊天。</value></data>
+  <data name="FriendAddedOn" xml:space="preserve"><value>加好友於 {0}</value></data>
   <data name="FriendList" xml:space="preserve"><value>好友名單</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>此角色已從你的好友名單移除。</value></data>
   <data name="Friends" xml:space="preserve"><value>好友</value></data>
@@ -91,6 +102,7 @@
   <data name="Groups" xml:space="preserve"><value>群組</value></data>
   <data name="GroupsEmpty" xml:space="preserve"><value>目前沒有群組。開啟遊戲內的公會、通訊貝或跨界通訊貝名單以同步，或以滑鼠右鍵點擊小隊成員來建立固定隊。</value></data>
   <data name="Hide" xml:space="preserve"><value>隱藏</value></data>
+  <data name="InvalidHexColor" xml:space="preserve"><value>請輸入 3 位或 6 位十六進位色值（例如 #4A8AC6）。</value></data>
   <data name="Language" xml:space="preserve"><value>語言</value></data>
   <data name="Linkshell" xml:space="preserve"><value>通訊貝</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>你已不屬於此通訊貝。</value></data>
@@ -116,12 +128,14 @@
   <data name="Minimum" xml:space="preserve"><value>最少</value></data>
   <data name="Minutes" xml:space="preserve"><value>分鐘</value></data>
   <data name="Model" xml:space="preserve"><value>模型</value></data>
+  <data name="NameColor" xml:space="preserve"><value>名單名稱顏色</value></data>
   <data name="NoExamplesYet" xml:space="preserve"><value>目前沒有對話範例。</value></data>
   <data name="NoMatchingChats" xml:space="preserve"><value>沒有符合條件的對話。</value></data>
   <data name="NoMatchingFriends" xml:space="preserve"><value>沒有符合條件的好友。</value></data>
   <data name="NoMatchingGroups" xml:space="preserve"><value>沒有符合條件的群組。</value></data>
   <data name="NoMessages" xml:space="preserve"><value>目前沒有訊息。</value></data>
   <data name="NoMessagesPreview" xml:space="preserve"><value>目前沒有訊息</value></data>
+  <data name="NoTagsYet" xml:space="preserve"><value>目前沒有標籤。</value></data>
   <data name="OpenChat" xml:space="preserve"><value>開啟對話</value></data>
   <data name="OpenFriendsToSendTell" xml:space="preserve"><value>請開啟遊戲內的好友名單以傳送密語。</value></data>
   <data name="OpenLodestone" xml:space="preserve"><value>開啟 Lodestone</value></data>
@@ -131,8 +145,10 @@
   <data name="ReadConversationsFailed" xml:space="preserve"><value>無法讀取對話。</value></data>
   <data name="ReadHistoryFailed" xml:space="preserve"><value>無法讀取聊天記錄。</value></data>
   <data name="Remove" xml:space="preserve"><value>移除</value></data>
+  <data name="RemoveTag" xml:space="preserve"><value>移除標籤</value></data>
   <data name="RenameGroup" xml:space="preserve"><value>重新命名群組</value></data>
   <data name="Reply" xml:space="preserve"><value>回覆</value></data>
+  <data name="ResetColor" xml:space="preserve"><value>重設</value></data>
   <data name="Retry" xml:space="preserve"><value>重試</value></data>
   <data name="RetryNoteByClick" xml:space="preserve"><value>點擊重試儲存備註</value></data>
   <data name="RetryNoteWithEnter" xml:space="preserve"><value>按 Enter 鍵重試儲存備註。</value></data>

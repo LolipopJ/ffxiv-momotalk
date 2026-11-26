@@ -23,9 +23,11 @@ internal sealed partial class MomoTalkWindow
         bubbleMeasurements.Clear();
         summaryQuery = null;
         notesQuery = null;
+        friendProfilesQuery = null;
         hiddenQuery = null;
         summaryRevision = -1;
         notesRevision = -1;
+        friendProfilesRevision = -1;
         hiddenRevision = -1;
         hiddenLoaded = false;
         summariesLoaded = false;
@@ -34,6 +36,9 @@ internal sealed partial class MomoTalkWindow
         rows = [];
         notes.Clear();
         noteEdits.Clear();
+        friendTags.Clear();
+        friendColors.Clear();
+        activeTagFilters.Clear();
         lastStatics = null;
         hidden.Clear();
         drafts.Clear();
@@ -45,6 +50,22 @@ internal sealed partial class MomoTalkWindow
         groupsSearch = string.Empty;
         editingNoteFor = null;
         focusNoteInput = false;
+        tagDraft = string.Empty;
+        focusTagInput = false;
+        tagPopupFriendId = null;
+        tagSaveFriendId = null;
+        tagSaveTask = null;
+        tagSaveFailed = false;
+        colorPickerFriendId = null;
+        colorPickerOpen = false;
+        colorPickerLivePreview = false;
+        colorPickerDirty = false;
+        colorPickerRgb = default;
+        colorPickerHex = string.Empty;
+        colorPickerHexInvalid = false;
+        colorSaveFriendId = null;
+        colorSaveTask = null;
+        colorSaveFailed = false;
         contextFriend = null;
         contextConversation = null;
         contextStatic = null;
@@ -215,10 +236,11 @@ internal sealed partial class MomoTalkWindow
         var notesFail = notesStore.FailedOwner == owner;
         var staticsFail = staticsStore.FailedOwner == owner;
         var cacheFail = cache.FailedOwner == owner;
-        if (!msgFail && !notesFail && !staticsFail && !cacheFail)
+        var profilesFail = friendProfileStore.FailedOwner == owner;
+        if (!msgFail && !notesFail && !staticsFail && !cacheFail && !profilesFail)
             return null;
 
-        var failed = new List<string>(4);
+        var failed = new List<string>(5);
         if (msgFail)
             failed.Add(messages.FileName);
         if (notesFail)
@@ -227,6 +249,8 @@ internal sealed partial class MomoTalkWindow
             failed.Add(staticsStore.FileName);
         if (cacheFail)
             failed.Add(cache.FileName);
+        if (profilesFail)
+            failed.Add(friendProfileStore.FileName);
 
         return string.Join(", ", failed);
     }

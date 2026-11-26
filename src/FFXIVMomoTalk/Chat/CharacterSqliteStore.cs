@@ -4,6 +4,12 @@ using Microsoft.Data.Sqlite;
 
 namespace FFXIVMomoTalk.Chat;
 
+internal readonly record struct SqliteMigration(
+    int FromVersion,
+    int ToVersion,
+    string Step,
+    Action<SqliteConnection, SqliteTransaction> Apply);
+
 internal abstract class CharacterSqliteStore : IAsyncDisposable
 {
     private readonly string charactersDirectory;
@@ -12,6 +18,7 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
     private readonly int schemaVersion;
     private readonly string schemaSql;
     private readonly string? indexSql;
+    private readonly IReadOnlyList<SqliteMigration> migrations;
     private readonly Channel<Action> requests = Channel.CreateUnbounded<Action>(
         new UnboundedChannelOptions { SingleReader = true });
     private readonly Task worker;
@@ -26,7 +33,8 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
         string storeName,
         int schemaVersion,
         string schemaSql,
-        string? indexSql = null)
+        string? indexSql = null,
+        IReadOnlyList<SqliteMigration>? migrations = null)
     {
         this.charactersDirectory = charactersDirectory;
         this.fileName = fileName;
@@ -34,6 +42,7 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
         this.schemaVersion = schemaVersion;
         this.schemaSql = schemaSql;
         this.indexSql = indexSql;
+        this.migrations = migrations ?? [];
         worker = Task.Run(ProcessRequestsAsync);
     }
 
@@ -130,11 +139,40 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
                 using var versionCmd = next.CreateCommand();
                 versionCmd.CommandText = "PRAGMA user_version;";
                 var version = Convert.ToInt32(versionCmd.ExecuteScalar(), CultureInfo.InvariantCulture);
-                if (version != schemaVersion)
+                if (version < 1 || version > schemaVersion)
                 {
                     Volatile.Write(ref incompatibleOwner, owner);
                     throw new InvalidDataException(
                         $"Unrecognized {storeName} database schema version {version} at '{path}' (expected {schemaVersion}). Existing file was preserved.");
+                }
+
+                while (version < schemaVersion)
+                {
+                    var step = FindMigration(version);
+                    if (step is not { } migration)
+                    {
+                        Volatile.Write(ref incompatibleOwner, owner);
+                        throw new InvalidDataException(
+                            $"Unrecognized {storeName} database schema version {version} at '{path}' (expected {schemaVersion}). Existing file was preserved.");
+                    }
+
+                    try
+                    {
+                        using var transaction = next.BeginTransaction();
+                        migration.Apply(next, transaction);
+                        using var updateVersion = next.CreateCommand();
+                        updateVersion.Transaction = transaction;
+                        updateVersion.CommandText = $"PRAGMA user_version = {migration.ToVersion};";
+                        updateVersion.ExecuteNonQuery();
+                        transaction.Commit();
+                        version = migration.ToVersion;
+                    }
+                    catch (Exception exception)
+                    {
+                        throw new InvalidOperationException(
+                            $"Failed to migrate {storeName} database at '{path}' from v{migration.FromVersion} to v{migration.ToVersion} during '{migration.Step}'. Existing file was preserved at v{version}.",
+                            exception);
+                    }
                 }
 
                 if (indexSql is not null)
@@ -164,5 +202,16 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
             next.Dispose();
             throw;
         }
+    }
+
+    private SqliteMigration? FindMigration(int version)
+    {
+        foreach (var step in migrations)
+        {
+            if (step.FromVersion == version && step.ToVersion > version && step.ToVersion <= schemaVersion)
+                return step;
+        }
+
+        return null;
     }
 }

@@ -107,7 +107,7 @@ internal sealed partial class MomoTalkWindow
             if (view.PrependAnchor == message.Id)
                 ImGui.SetScrollY(MathF.Max(0f, ImGui.GetScrollY() + y - previousFirstY));
 
-            DrawMessageBubble(message, author, isGroupStart, availWidth, fontSize, scale);
+            DrawMessageBubble(snapshot, message, author, currentConv.Key.IsGroup, isGroupStart, availWidth, fontSize, scale);
 
             if (message.Rejection is { } rejection)
                 DrawTimelineBanner(Loc.Reason(rejection), isAlert: true, availWidth, scale);
@@ -195,8 +195,8 @@ internal sealed partial class MomoTalkWindow
         ImGui.Dummy(new Vector2(availWidth, layout.Height));
     }
 
-    private void DrawMessageBubble(ChatMessage message, PlayerIdentity author, bool isGroupStart, float availWidth,
-        float fontSize, float scale)
+    private void DrawMessageBubble(SocialSnapshot snapshot, ChatMessage message, PlayerIdentity author, bool isGroup,
+        bool isGroupStart, float availWidth, float fontSize, float scale)
     {
         var origin = ImGui.GetCursorScreenPos();
         var sideMargin = 16f * scale;
@@ -254,8 +254,9 @@ internal sealed partial class MomoTalkWindow
                 var nameX = message.Outgoing
                     ? origin.X + availWidth - sideMargin - avatarOffset - ChatVisuals.CalcTextSize(nameText, nameFontSize).X
                     : bubbleX;
+                var nameColor = !message.Outgoing && isGroup ? GetGroupSpeakerNameColor(snapshot, author) : ChatVisuals.Ink;
                 ChatVisuals.AddText(draw, new Vector2(nameX, origin.Y - nameTopInset), nameFontSize,
-                    ChatVisuals.Color(ChatVisuals.Ink), nameText);
+                    ChatVisuals.Color(nameColor), nameText);
             }
 
             ChatVisuals.DrawBubble(

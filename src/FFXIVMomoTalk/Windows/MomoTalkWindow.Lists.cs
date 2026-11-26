@@ -15,8 +15,16 @@ internal sealed partial class MomoTalkWindow
         var headerHeight = 52f * scale;
         DrawListToolbar(draw, snapshot, pos, new Vector2(size.X, headerHeight), scale);
 
-        var bodyPos = pos + new Vector2(0, headerHeight);
-        var bodySize = new Vector2(size.X, MathF.Max(1f, size.Y - headerHeight));
+        var bodyTop = pos.Y + headerHeight;
+        if (activeTab == NavTab.Contacts && activeTagFilters.Count > 0)
+        {
+            var filterBarHeight = MeasureContactsTagFilterBar(size.X, scale);
+            DrawContactsTagFilterBar(draw, new Vector2(pos.X, bodyTop), size.X, scale);
+            bodyTop += filterBarHeight;
+        }
+
+        var bodyPos = new Vector2(pos.X, bodyTop);
+        var bodySize = new Vector2(size.X, MathF.Max(1f, pos.Y + size.Y - bodyTop));
         ImGui.SetCursorScreenPos(bodyPos);
         using var spacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
         using var body = ImRaii.Child("##list-body", bodySize, false);
@@ -44,11 +52,13 @@ internal sealed partial class MomoTalkWindow
         var controlY = pos.Y + (size.Y - controlH) * 0.5f;
 
         var showSort = activeTab == NavTab.Chats;
+        var showFilter = activeTab == NavTab.Contacts;
         var sortWidth = showSort ? 74f * scale : 0f;
         var dirWidth = showSort ? 42f * scale : 0f;
-        var gap = showSort ? 8f * scale : 0f;
+        var filterWidth = showFilter ? 74f * scale : 0f;
+        var gap = showSort || showFilter ? 8f * scale : 0f;
         var dirGap = showSort ? 5f * scale : 0f;
-        var searchWidth = MathF.Max(60f * scale, size.X - padX * 2f - sortWidth - dirWidth - gap - dirGap);
+        var searchWidth = MathF.Max(60f * scale, size.X - padX * 2f - sortWidth - dirWidth - filterWidth - gap - dirGap);
 
         switch (activeTab)
         {
@@ -64,6 +74,27 @@ internal sealed partial class MomoTalkWindow
                 DrawSearchPill(draw, "##chats-search", Loc.Text("SearchChats"), ref chatsSearch,
                     new Vector2(pos.X + padX, controlY), new Vector2(searchWidth, controlH), scale);
                 break;
+        }
+
+        if (showFilter)
+        {
+            var filterPos = new Vector2(pos.X + padX + searchWidth + gap, controlY + 1f * scale);
+            var filterSize = new Vector2(filterWidth, controlH - 2f * scale);
+            var filterLabel = activeTagFilters.Count > 0
+                ? $"{Loc.Text("Filter")} ({activeTagFilters.Count})"
+                : Loc.Text("Filter");
+            var indicator = activeTagFilters.Count > 0 ? ChatVisuals.HeaderPink : (Vector4?)null;
+            if (ChatVisuals.SkewButton(draw, "##contacts-tag-filter", filterLabel, filterPos, filterSize, scale,
+                cornerIndicator: true, indicatorColor: indicator))
+            {
+                filterPopupAnchor = new Vector2(filterPos.X, filterPos.Y + filterSize.Y + 4f * scale);
+                ImGui.OpenPopup("##contacts-tag-filter-popup");
+            }
+
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Loc.Text("FilterByTags"));
+
+            DrawContactsTagFilterPopup(snapshot, scale);
         }
 
         if (showSort)
@@ -141,7 +172,9 @@ internal sealed partial class MomoTalkWindow
         }
 
         var filtered = snapshot.Friends.Values
-            .Where(friend => MatchesFriendSearch(friend, contactsSearch, notes.GetValueOrDefault(ConversationKey.Tell(friend.ContentId))))
+            .Where(friend => MatchesFriendTagFilter(friend.ContentId)
+                && MatchesFriendSearch(friend, contactsSearch, notes.GetValueOrDefault(ConversationKey.Tell(friend.ContentId)),
+                    GetFriendTags(friend.ContentId)))
             .OrderBy(friend => friend.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(friend => friend.World, StringComparer.OrdinalIgnoreCase)
             .ThenBy(friend => friend.WorldId)
@@ -159,7 +192,8 @@ internal sealed partial class MomoTalkWindow
             var isSelected = inspectedFriend?.ContentId == friend.ContentId;
             var note = notes.GetValueOrDefault(ConversationKey.Tell(friend.ContentId));
             DrawListRow(ConversationDescriptor.FromFriend(friend), note, friend.World, isSelected,
-                $"##contact-{friend.ContentId:X16}", out var clicked, out var doubleClicked, out var rightClicked, scale);
+                $"##contact-{friend.ContentId:X16}", out var clicked, out var doubleClicked, out var rightClicked, scale,
+                nameColor: GetFriendNameColor(friend.ContentId));
             if (rightClicked)
             {
                 contextFriend = friend;
@@ -284,8 +318,11 @@ internal sealed partial class MomoTalkWindow
             var subtitle = row.Latest is { } latest
                 ? FormatPreview(conversationDesc.Key, latest)
                 : Loc.Text("NoMessagesPreview");
+            Vector4? nameColor = conversationDesc.Key.TryGetTellContentId(out var tellCid)
+                ? GetFriendNameColor(tellCid)
+                : null;
             DrawListRow(display, subtitle, tag, isSelected, $"##chat-{conversationDesc.Key.StorageId}",
-                out var clicked, out _, out var rightClicked, scale);
+                out var clicked, out _, out var rightClicked, scale, nameColor);
             if (rightClicked)
             {
                 contextConversation = conversationDesc;
@@ -365,7 +402,8 @@ internal sealed partial class MomoTalkWindow
     }
 
     private void DrawListRow(ConversationDescriptor conversationDesc, string? subtitle, string trailingTag,
-        bool isSelected, string id, out bool clicked, out bool doubleClicked, out bool rightClicked, float scale)
+        bool isSelected, string id, out bool clicked, out bool doubleClicked, out bool rightClicked, float scale,
+        Vector4? nameColor = null)
     {
         var origin = ImGui.GetCursorScreenPos();
         var width = ImGui.GetContentRegionAvail().X;
@@ -414,6 +452,7 @@ internal sealed partial class MomoTalkWindow
         var nameText = ChatVisuals.TruncateSingleLine(conversationDesc.DisplayName, nameFontSize, textWidth);
         var nameSize = ChatVisuals.CalcTextSize(nameText, nameFontSize);
 
+        var titleColor = ChatVisuals.Color(nameColor ?? ChatVisuals.Ink);
         if (!string.IsNullOrEmpty(subtitle))
         {
             var subFontSize = ImGui.GetFontSize() * 0.88f;
@@ -421,7 +460,7 @@ internal sealed partial class MomoTalkWindow
             var subSize = ChatVisuals.CalcTextSize(subText, subFontSize);
             var lineGap = 3f * scale;
             var blockY = origin.Y + (rowHeight - nameSize.Y - subSize.Y - lineGap) * 0.5f;
-            ChatVisuals.AddBoldText(draw, new Vector2(textLeft, blockY), nameFontSize, ChatVisuals.Color(ChatVisuals.Ink),
+            ChatVisuals.AddBoldText(draw, new Vector2(textLeft, blockY), nameFontSize, titleColor,
                 nameText, scale);
             ChatVisuals.AddText(draw, new Vector2(textLeft, blockY + nameSize.Y + lineGap), subFontSize,
                 ChatVisuals.Color(ChatVisuals.Muted), subText);
@@ -429,7 +468,7 @@ internal sealed partial class MomoTalkWindow
         else
         {
             var nameY = origin.Y + (rowHeight - nameSize.Y) * 0.5f;
-            ChatVisuals.AddBoldText(draw, new Vector2(textLeft, nameY), nameFontSize, ChatVisuals.Color(ChatVisuals.Ink),
+            ChatVisuals.AddBoldText(draw, new Vector2(textLeft, nameY), nameFontSize, titleColor,
                 nameText, scale);
         }
 
@@ -515,15 +554,33 @@ internal sealed partial class MomoTalkWindow
             : latest.Body;
     }
 
-    private static bool MatchesFriendSearch(PlayerIdentity peer, string query, string? note = null)
+    private static bool MatchesFriendSearch(
+        PlayerIdentity peer,
+        string query,
+        string? note = null,
+        IReadOnlyList<string>? tags = null)
     {
         var trimmed = query.Trim();
         if (trimmed.Length == 0)
             return true;
 
-        return peer.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+        if (peer.Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
             || peer.World.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
-            || (!string.IsNullOrEmpty(note) && note.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+            || (!string.IsNullOrEmpty(note) && note.Contains(trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (tags is not null)
+        {
+            foreach (var tag in tags)
+            {
+                if (tag.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool MatchesGroupSearch(GroupListItem item, string displayName, string query, string? note)

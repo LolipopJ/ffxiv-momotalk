@@ -204,7 +204,7 @@ internal static partial class ChatVisuals
     }
 
     public static bool SkewButton(ImDrawListPtr draw, string id, string label, Vector2 position, Vector2 size, float scale,
-        bool cornerIndicator = true)
+        bool cornerIndicator = true, Vector4? indicatorColor = null)
     {
         ImGui.SetCursorScreenPos(position);
         var clicked = ImGui.InvisibleButton(id, size);
@@ -232,13 +232,14 @@ internal static partial class ChatVisuals
                 p2 + new Vector2(-tri, 0),
                 p2,
                 p2 + new Vector2(-tri * 0.24f, tri),
-                Color(RailBg));
+                Color(indicatorColor ?? RailBg));
         }
 
         var fontSize = ImGui.GetFontSize() * 0.94f;
-        var textSize = CalcTextSize(label, fontSize);
+        var visibleLabel = TruncateSingleLine(label, fontSize, MathF.Max(16f * scale, size.X - skew * 2f - 8f * scale));
+        var textSize = CalcTextSize(visibleLabel, fontSize);
         var textPos = position + (size - textSize) * 0.5f;
-        AddBoldText(draw, textPos, fontSize, Color(Ink), label, scale);
+        AddBoldText(draw, textPos, fontSize, Color(Ink), visibleLabel, scale);
         return clicked;
     }
 

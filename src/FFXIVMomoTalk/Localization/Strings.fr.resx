@@ -6,6 +6,7 @@
   <data name="AddExample" xml:space="preserve"><value>+ Ajouter</value></data>
   <data name="AddNote" xml:space="preserve"><value>Ajouter une note…</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ Ajouter une réponse</value></data>
+  <data name="AddTag" xml:space="preserve"><value>Ajouter un tag</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>Erreur d’authentification (HTTP {0}). Vérifiez votre clé API.</value></data>
   <data name="AiConnected" xml:space="preserve"><value>Connexion réussie ({0} ms).</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>Le test de connexion a échoué.</value></data>
@@ -47,6 +48,9 @@
   <data name="ChatsEmpty" xml:space="preserve"><value>Aucune discussion pour le moment. Choisissez un ami ou un groupe pour commencer.</value></data>
   <data name="ChatUnavailableNow" xml:space="preserve"><value>Impossible de discuter pour le moment.</value></data>
   <data name="ChooseConversation" xml:space="preserve"><value>Choisissez une discussion.</value></data>
+  <data name="Clear" xml:space="preserve"><value>Effacer</value></data>
+  <data name="ColorHexHint" xml:space="preserve"><value>#RRGGBB</value></data>
+  <data name="ColorPresets" xml:space="preserve"><value>Préréglages</value></data>
   <data name="CommandHelp" xml:space="preserve"><value>Ouvre ou ferme la fenêtre de FFXIV MomoTalk.</value></data>
   <data name="ConfigReadError" xml:space="preserve"><value>Le fichier de configuration existant n’a pas pu être lu. Il a été conservé.</value></data>
   <data name="ContextMaximumHint" xml:space="preserve"><value>Nombre maximal de messages envoyés à l’IA (1 à 500).</value></data>
@@ -61,22 +65,29 @@
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette linkshell inter-Monde.</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>LSIM</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>La discussion de linkshell inter-Monde est actuellement indisponible.</value></data>
+  <data name="CustomColor" xml:space="preserve"><value>Palette</value></data>
   <data name="DatabaseError" xml:space="preserve"><value>Erreur de base de données ({0}). Les fichiers existants ont été conservés. Consultez /xllog.</value></data>
   <data name="DeleteChat" xml:space="preserve"><value>Supprimer la discussion</value></data>
+  <data name="EditNameColor" xml:space="preserve"><value>Modifier la couleur du nom</value></data>
   <data name="EditNote" xml:space="preserve"><value>Cliquer pour modifier la note</value></data>
   <data name="Endpoint" xml:space="preserve"><value>Point de terminaison</value></data>
   <data name="EnterGroupName" xml:space="preserve"><value>Saisir le nom du groupe…</value></data>
   <data name="EnterMessageBeforeSending" xml:space="preserve"><value>Saisissez un message avant de l’envoyer.</value></data>
+  <data name="EnterTagName" xml:space="preserve"><value>Saisir un tag…</value></data>
   <data name="ExampleContext" xml:space="preserve"><value>Contexte</value></data>
   <data name="ExampleContextHint" xml:space="preserve"><value>Quel est le message reçu ?</value></data>
   <data name="ExampleItemTitle" xml:space="preserve"><value>Exemple {0}</value></data>
   <data name="ExampleReplies" xml:space="preserve"><value>Réponses</value></data>
   <data name="ExampleReplyHint" xml:space="preserve"><value>Saisir un exemple de réponse</value></data>
+  <data name="ExistingTags" xml:space="preserve"><value>Tags existants</value></data>
+  <data name="Filter" xml:space="preserve"><value>Filtrer</value></data>
+  <data name="FilterByTags" xml:space="preserve"><value>Filtrer par tags</value></data>
   <data name="FollowClient" xml:space="preserve"><value>Langue du jeu</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Compagnie libre</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette compagnie libre.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>CL</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>La discussion de compagnie libre est actuellement indisponible.</value></data>
+  <data name="FriendAddedOn" xml:space="preserve"><value>Ami depuis le {0}</value></data>
   <data name="FriendList" xml:space="preserve"><value>Liste d’amis</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>Ce personnage ne figure plus dans votre liste d’amis.</value></data>
   <data name="Friends" xml:space="preserve"><value>Amis</value></data>
@@ -91,6 +102,7 @@
   <data name="Groups" xml:space="preserve"><value>Groupes</value></data>
   <data name="GroupsEmpty" xml:space="preserve"><value>Aucun groupe pour le moment. Ouvrez la liste de compagnie libre, de linkshells ou de linkshells inter-Mondes en jeu pour la synchroniser. Faites un clic droit sur un membre de l’équipe pour créer un groupe fixe.</value></data>
   <data name="Hide" xml:space="preserve"><value>Masquer</value></data>
+  <data name="InvalidHexColor" xml:space="preserve"><value>Saisissez un code couleur hexadécimal à 3 ou 6 chiffres (ex. #4A8AC6).</value></data>
   <data name="Language" xml:space="preserve"><value>Langue</value></data>
   <data name="Linkshell" xml:space="preserve"><value>Linkshell</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette linkshell.</value></data>
@@ -116,12 +128,14 @@
   <data name="Minimum" xml:space="preserve"><value>Min.</value></data>
   <data name="Minutes" xml:space="preserve"><value>Minutes</value></data>
   <data name="Model" xml:space="preserve"><value>Modèle</value></data>
+  <data name="NameColor" xml:space="preserve"><value>Couleur du nom</value></data>
   <data name="NoExamplesYet" xml:space="preserve"><value>Aucun exemple pour le moment.</value></data>
   <data name="NoMatchingChats" xml:space="preserve"><value>Aucune discussion correspondante.</value></data>
   <data name="NoMatchingFriends" xml:space="preserve"><value>Aucun ami correspondant.</value></data>
   <data name="NoMatchingGroups" xml:space="preserve"><value>Aucun groupe correspondant.</value></data>
   <data name="NoMessages" xml:space="preserve"><value>Aucun message pour le moment.</value></data>
   <data name="NoMessagesPreview" xml:space="preserve"><value>Aucun message</value></data>
+  <data name="NoTagsYet" xml:space="preserve"><value>Aucun tag pour le moment.</value></data>
   <data name="OpenChat" xml:space="preserve"><value>Ouvrir la discussion</value></data>
   <data name="OpenFriendsToSendTell" xml:space="preserve"><value>Ouvrez la liste d’amis en jeu pour envoyer un message privé.</value></data>
   <data name="OpenLodestone" xml:space="preserve"><value>Ouvrir le Lodestone</value></data>
@@ -131,8 +145,10 @@
   <data name="ReadConversationsFailed" xml:space="preserve"><value>Impossible de lire les discussions.</value></data>
   <data name="ReadHistoryFailed" xml:space="preserve"><value>Impossible de lire l’historique.</value></data>
   <data name="Remove" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="RemoveTag" xml:space="preserve"><value>Retirer le tag</value></data>
   <data name="RenameGroup" xml:space="preserve"><value>Renommer le groupe</value></data>
   <data name="Reply" xml:space="preserve"><value>Réponses</value></data>
+  <data name="ResetColor" xml:space="preserve"><value>Réinitialiser</value></data>
   <data name="Retry" xml:space="preserve"><value>Réessayer</value></data>
   <data name="RetryNoteByClick" xml:space="preserve"><value>Cliquer pour réessayer d’enregistrer la note</value></data>
   <data name="RetryNoteWithEnter" xml:space="preserve"><value>Appuyez sur Entrée pour réessayer d’enregistrer la note.</value></data>

@@ -23,7 +23,7 @@ internal sealed unsafe partial class SocialDirectory(
     private PlayerSession? requestedFor;
     private PlayerSession? loadedFor;
     private PlayerSession? cachedQueryFor;
-    private Task<IReadOnlyList<PlayerIdentity>?>? cachedFriendsQuery;
+    private Task<IReadOnlyList<CachedFriend>?>? cachedFriendsQuery;
     private PlayerSession? cachedChannelsQueryFor;
     private Task<CachedChannels>? cachedChannelsQuery;
     private bool fcLoadedLive;

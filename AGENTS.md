@@ -55,6 +55,7 @@ openspec validate --all --strict
 - 按角色隔离的 SQLite 数据存放在 `<PluginConfigDir>/characters/{ContentId:X16}/`，按数据域拆分为独立数据库并各自维护独立的 `PRAGMA user_version`：
   - `messages.sqlite3`：聊天记录、会话摘要与发送拒发原因（不可再生的高价值核心数据）。
   - `notes.sqlite3`：用户手动填写的好友与群组备注（不可再生的用户创作数据）。
+  - `friend_profiles.sqlite3`：用户为好友设置的自定义标签与列表名颜色（不可再生的用户个性化数据）。
   - `statics.sqlite3`：固定队配置与成员名单（游戏无原生对应物，不可直接重建）。
   - `cache.sqlite3`：好友缓存、群组频道缓存、隐藏会话状态与同步元数据（可由游戏重建或低损恢复）。
 - 设计新的持久化数据时，必须先评估其**可再生性**、**丢失代价**与 **schema 演进频率**：不可从游戏重建、由用户手工录入或长期累积的高价值数据，MUST 放置在单独的数据库中存储，避免其他模块的 schema 变更连带要求重置该数据；可从游戏重新拉取的缓存、临时状态或低影响 UI 标记应归入 `cache.sqlite3`。

@@ -24,10 +24,15 @@ internal sealed unsafe partial class SocialDirectory
                 return;
 
             var friends = new Dictionary<ulong, PlayerIdentity>(cached.Count);
-            foreach (var friend in cached)
-                friends[friend.ContentId] = friend;
+            var addedAt = new Dictionary<ulong, long>();
+            foreach (var entry in cached)
+            {
+                friends[entry.Player.ContentId] = entry.Player;
+                if (entry.AddedAt > 0)
+                    addedAt[entry.Player.ContentId] = entry.AddedAt;
+            }
 
-            Publish(Current with { Friends = friends });
+            Publish(Current with { Friends = friends, FriendAddedAt = addedAt });
         }
         else if (completed.Exception is { } exception)
         {
@@ -157,8 +162,12 @@ internal sealed unsafe partial class SocialDirectory
             return;
         }
 
+        const int minValidAddedAt = 946_684_800; // 2000-01-01T00:00:00Z
         var worlds = data.GetExcelSheet<World>();
         var friends = new Dictionary<ulong, PlayerIdentity>((int)count);
+        var friendAddedAt = new Dictionary<ulong, long>();
+        var timestamps = list->TimeStamps;
+        var previousAddedAt = Current.FriendAddedAt;
         foreach (ref readonly var entry in list->CharDataSpan)
         {
             if (entry.ContentId == 0
@@ -172,7 +181,18 @@ internal sealed unsafe partial class SocialDirectory
                 continue;
 
             var friend = new PlayerIdentity(entry.ContentId, name, world.RowId, world.Name.ToString());
-            friends.TryAdd(friend.ContentId, friend);
+            if (!friends.TryAdd(friend.ContentId, friend))
+                continue;
+
+            long addedAt = 0;
+            if (entry.Sort < timestamps.Length && timestamps[entry.Sort] >= minValidAddedAt)
+                addedAt = timestamps[entry.Sort];
+            else if (!forcePersist && previousAddedAt is not null && previousAddedAt.TryGetValue(entry.ContentId, out var prevTs)
+                && prevTs >= minValidAddedAt)
+                addedAt = prevTs;
+
+            if (addedAt > 0)
+                friendAddedAt[friend.ContentId] = addedAt;
         }
 
         if (!forcePersist && friends.Count == 0)
@@ -182,30 +202,41 @@ internal sealed unsafe partial class SocialDirectory
         }
 
         var previous = Current.Friends;
-        Publish(Current with { Friends = friends });
+        Publish(Current with { Friends = friends, FriendAddedAt = friendAddedAt });
 
-        if (forcePersist || FriendsChanged(previous, friends))
-            PersistFriends(owner.ContentId, friends.Values.ToArray());
+        if (forcePersist || FriendsChanged(previous, previousAddedAt, friends, friendAddedAt))
+            PersistFriends(owner.ContentId, friends, friendAddedAt);
     }
 
-    private void PersistFriends(ulong owner, PlayerIdentity[] friends)
+    private void PersistFriends(
+        ulong owner,
+        Dictionary<ulong, PlayerIdentity> friends,
+        Dictionary<ulong, long> friendAddedAt)
     {
         if (cache.IncompatibleOwner != owner)
-            ObserveTask(cache.SyncFriendsAsync(owner, friends), "Failed to update cached friends list.");
-
-        if (friends.Length > 0)
         {
-            if (statics.IncompatibleOwner != owner)
-                ObserveTask(statics.SyncMemberIdentitiesAsync(owner, friends), "Failed to update static member names.");
+            var cachedFriends = friends.Values
+                .Select(friend => new CachedFriend(friend, friendAddedAt.GetValueOrDefault(friend.ContentId)))
+                .ToArray();
+            ObserveTask(cache.SyncFriendsAsync(owner, cachedFriends), "Failed to update cached friends list.");
+        }
 
-            ObserveTask(messages.UpdateFriendDescriptorsAsync(owner, friends),
+        if (friends.Count > 0)
+        {
+            var identities = friends.Values.ToArray();
+            if (statics.IncompatibleOwner != owner)
+                ObserveTask(statics.SyncMemberIdentitiesAsync(owner, identities), "Failed to update static member names.");
+
+            ObserveTask(messages.UpdateFriendDescriptorsAsync(owner, identities),
                 "Failed to update friend conversation names.");
         }
     }
 
     private static bool FriendsChanged(
         IReadOnlyDictionary<ulong, PlayerIdentity>? previous,
-        Dictionary<ulong, PlayerIdentity> next)
+        IReadOnlyDictionary<ulong, long>? previousAddedAt,
+        Dictionary<ulong, PlayerIdentity> next,
+        Dictionary<ulong, long> nextAddedAt)
     {
         if (previous is null || previous.Count != next.Count)
             return true;
@@ -213,6 +244,11 @@ internal sealed unsafe partial class SocialDirectory
         foreach (var (cid, friend) in next)
         {
             if (!previous.TryGetValue(cid, out var old) || old != friend)
+                return true;
+
+            var oldTs = previousAddedAt?.GetValueOrDefault(cid) ?? 0;
+            var newTs = nextAddedAt.GetValueOrDefault(cid);
+            if (oldTs != newTs)
                 return true;
         }
 

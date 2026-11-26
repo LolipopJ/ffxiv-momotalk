@@ -24,6 +24,7 @@ internal sealed partial class MomoTalkWindow : Window
     private readonly NotesStore notesStore;
     private readonly StaticStore staticsStore;
     private readonly CacheStore cache;
+    private readonly FriendProfileStore friendProfileStore;
     private readonly ChatCapture capture;
     private readonly ChatSender sender;
     private readonly AvatarCache avatars;
@@ -37,6 +38,9 @@ internal sealed partial class MomoTalkWindow : Window
     private readonly Dictionary<ConversationKey, Draft> drafts = new();
     private readonly Dictionary<ConversationKey, string> notes = new();
     private readonly Dictionary<ConversationKey, NoteEdit> noteEdits = new();
+    private readonly Dictionary<ulong, List<string>> friendTags = new();
+    private readonly Dictionary<ulong, uint> friendColors = new();
+    private readonly HashSet<string> activeTagFilters = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<ConversationKey> hidden = new();
     private readonly Dictionary<long, (string Body, float WrapWidth, Vector2 TextSize)> bubbleMeasurements = new();
     private nint bubbleFont;
@@ -52,9 +56,11 @@ internal sealed partial class MomoTalkWindow : Window
     private ConversationSummary[] rows = [];
     private Task<IReadOnlyList<ConversationSummary>>? summaryQuery;
     private Task<IReadOnlyDictionary<ConversationKey, string>>? notesQuery;
+    private Task<FriendCustomizations>? friendProfilesQuery;
     private Task<HashSet<ConversationKey>>? hiddenQuery;
     private long summaryRevision = -1;
     private long notesRevision = -1;
+    private long friendProfilesRevision = -1;
     private long hiddenRevision = -1;
     private bool hiddenLoaded;
     private bool summariesLoaded;
@@ -91,6 +97,25 @@ internal sealed partial class MomoTalkWindow : Window
     private IReadOnlyDictionary<string, StaticGroup>? lastStatics;
     private ConversationKey? editingNoteFor;
     private bool focusNoteInput;
+    private string tagDraft = string.Empty;
+    private bool focusTagInput;
+    private ulong? tagPopupFriendId;
+    private Vector2 tagPopupAnchor;
+    private ulong? tagSaveFriendId;
+    private Task<IReadOnlyList<string>>? tagSaveTask;
+    private bool tagSaveFailed;
+    private ulong? colorPickerFriendId;
+    private bool colorPickerOpen;
+    private bool colorPickerLivePreview;
+    private bool colorPickerDirty;
+    private Vector3 colorPickerRgb;
+    private string colorPickerHex = string.Empty;
+    private bool colorPickerHexInvalid;
+    private Vector2 colorPopupAnchor;
+    private ulong? colorSaveFriendId;
+    private Task? colorSaveTask;
+    private bool colorSaveFailed;
+    private Vector2 filterPopupAnchor;
     private PlayerIdentity? contextFriend;
     private ConversationDescriptor? contextConversation;
     private StaticGroup? contextStatic;
@@ -109,6 +134,7 @@ internal sealed partial class MomoTalkWindow : Window
         NotesStore notesStore,
         StaticStore staticsStore,
         CacheStore cache,
+        FriendProfileStore friendProfileStore,
         ChatCapture capture,
         ChatSender sender,
         AvatarCache avatars,
@@ -123,6 +149,7 @@ internal sealed partial class MomoTalkWindow : Window
         this.notesStore = notesStore;
         this.staticsStore = staticsStore;
         this.cache = cache;
+        this.friendProfileStore = friendProfileStore;
         this.capture = capture;
         this.sender = sender;
         this.avatars = avatars;
@@ -195,6 +222,7 @@ internal sealed partial class MomoTalkWindow : Window
         if (!staticSaveFailed)
             CloseStaticModal();
         CommitActiveNote();
+        CommitPendingFriendColor();
         inputFocused = false;
         inputFocusedConversation = null;
         wasShowingTyping = false;
@@ -202,7 +230,10 @@ internal sealed partial class MomoTalkWindow : Window
 
     public override void PreDraw()
     {
-        RespectCloseHotkey = !settingsOpen && staticModalMode == StaticModalMode.None && editingNoteFor is null;
+        RespectCloseHotkey = !settingsOpen
+            && staticModalMode == StaticModalMode.None
+            && editingNoteFor is null
+            && !ImGui.IsPopupOpen(string.Empty, ImGuiPopupFlags.AnyPopup);
         var scale = ImGuiHelpers.GlobalScale;
         ImGui.PushStyleColor(ImGuiCol.Text, ChatVisuals.Ink);
         ImGui.PushStyleColor(ImGuiCol.TextDisabled, ChatVisuals.Placeholder);
@@ -258,6 +289,7 @@ internal sealed partial class MomoTalkWindow : Window
             UpdateHidden(snapshot);
             UpdateSummaries(snapshot);
             UpdateNotes();
+            UpdateFriendProfiles();
         }
 
         if (playingIntro && introWaitingCover)

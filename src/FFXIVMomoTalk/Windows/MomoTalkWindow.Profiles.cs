@@ -36,7 +36,7 @@ internal sealed partial class MomoTalkWindow
             return;
         }
 
-        var avatarSize = MathF.Min(112f * scale, MathF.Min(contentSize.X * 0.42f, contentSize.Y * 0.36f));
+        var avatarSize = MathF.Min(112f * scale, MathF.Min(contentSize.X * 0.42f, contentSize.Y * 0.34f));
         avatarSize = MathF.Max(64f * scale, avatarSize);
 
         var maxCardTextWidth = MathF.Max(60f * scale, contentSize.X - 36f * scale);
@@ -44,44 +44,66 @@ internal sealed partial class MomoTalkWindow
         var nameText = ChatVisuals.TruncateSingleLine(friend.Name, nameFontSize, maxCardTextWidth);
         var nameSize = ChatVisuals.CalcTextSize(nameText, nameFontSize);
 
+        var worldFontSize = ImGui.GetFontSize() * 0.90f;
+        var worldText = ChatVisuals.TruncateSingleLine($"@ {friend.World}", worldFontSize, maxCardTextWidth);
+        var worldSize = ChatVisuals.CalcTextSize(worldText, worldFontSize);
+
         var friendKey = ConversationKey.Tell(friend.ContentId);
         var noteLayout = MeasureProfileNote(friendKey, maxCardTextWidth, scale);
 
-        var badgeFontSize = ImGui.GetFontSize() * 0.96f;
-        var badgePad = new Vector2(14f, 5f) * scale;
-        var worldLabel = ChatVisuals.TruncateSingleLine($"@ {friend.World}", badgeFontSize,
-            MathF.Max(40f * scale, maxCardTextWidth - badgePad.X * 2f));
-        var badgeTextSize = ChatVisuals.CalcTextSize(worldLabel, badgeFontSize);
-        var badgeSize = badgeTextSize + badgePad * 2f;
+        long? addedAt = snapshot.FriendAddedAt is not null
+            && snapshot.FriendAddedAt.TryGetValue(friend.ContentId, out var rawAddedAt)
+            && rawAddedAt > 0
+                ? rawAddedAt
+                : null;
+        var badgeFlow = MeasureFriendBadgeFlow(friend.ContentId, addedAt, maxCardTextWidth, scale);
 
-        var totalHeight = avatarSize + 18f * scale + nameSize.Y + 10f * scale + noteLayout.Height + 14f * scale + badgeSize.Y;
-        var startY = contentPos.Y + MathF.Max(24f * scale, (contentSize.Y - totalHeight) * 0.44f);
-        var centerX = contentPos.X + contentSize.X * 0.5f;
+        var totalHeight = avatarSize + 16f * scale + nameSize.Y + 4f * scale + worldSize.Y
+            + 10f * scale + noteLayout.Height + 12f * scale + badgeFlow.TotalHeight;
+
+        ImGui.SetCursorScreenPos(contentPos);
+        using var spacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
+        using var profileChild = ImRaii.Child("##contact-profile-body", contentSize, false);
+        if (!profileChild)
+            return;
+
+        var scrollDraw = ImGui.GetWindowDrawList();
+        var childOrigin = ImGui.GetCursorScreenPos();
+        var startY = childOrigin.Y + MathF.Max(20f * scale, (contentSize.Y - totalHeight) * 0.42f);
+        var centerX = childOrigin.X + contentSize.X * 0.5f;
 
         var avatarPos = new Vector2(centerX - avatarSize * 0.5f, startY);
-        ChatVisuals.Avatar(draw, avatars, friend, avatarPos, avatarSize, dropShadow: true);
+        ChatVisuals.Avatar(scrollDraw, avatars, friend, avatarPos, avatarSize, dropShadow: true);
 
         var actionRadius = MathF.Max(15f * scale, avatarSize * 0.19f);
         var actionCenter = avatarPos + new Vector2(avatarSize * 0.84f, avatarSize * 0.84f);
-        if (ChatVisuals.DrawProfileChatButton(draw, "##profile-start-chat", actionCenter, actionRadius, scale))
+        if (ChatVisuals.DrawProfileChatButton(scrollDraw, "##profile-start-chat", actionCenter, actionRadius, scale))
         {
             CommitActiveNote();
+            CommitPendingFriendColor();
             OpenConversation(ConversationDescriptor.FromFriend(friend));
         }
 
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip(Loc.Text("OpenChat"));
 
-        var namePos = new Vector2(centerX - nameSize.X * 0.5f, startY + avatarSize + 18f * scale);
-        ChatVisuals.AddBoldText(draw, namePos, nameFontSize, ChatVisuals.Color(ChatVisuals.Ink), nameText, scale);
+        var namePos = new Vector2(centerX - nameSize.X * 0.5f, startY + avatarSize + 16f * scale);
+        DrawInteractiveFriendName(scrollDraw, friend.ContentId, nameText, nameFontSize, namePos, nameSize, maxCardTextWidth, scale);
 
-        var notePos = new Vector2(centerX - noteLayout.BoxSize.X * 0.5f, namePos.Y + nameSize.Y + 10f * scale);
-        DrawProfileNote(draw, friendKey, notePos, noteLayout, scale);
+        var worldPos = new Vector2(centerX - worldSize.X * 0.5f, namePos.Y + nameSize.Y + 4f * scale);
+        ChatVisuals.AddText(scrollDraw, worldPos, worldFontSize, ChatVisuals.Color(ChatVisuals.Muted), worldText);
 
-        var badgePos = new Vector2(centerX - badgeSize.X * 0.5f, notePos.Y + noteLayout.Height + 14f * scale);
-        draw.AddRect(badgePos, badgePos + badgeSize, ChatVisuals.Color(ChatVisuals.BadgeBorder),
-            badgeSize.Y * 0.5f, ImDrawFlags.None, MathF.Max(1.5f, 1.6f * scale));
-        ChatVisuals.AddText(draw, badgePos + badgePad, badgeFontSize, ChatVisuals.Color(ChatVisuals.BadgeText), worldLabel);
+        var notePos = new Vector2(centerX - noteLayout.BoxSize.X * 0.5f, worldPos.Y + worldSize.Y + 10f * scale);
+        DrawProfileNote(scrollDraw, friendKey, notePos, noteLayout, scale);
+
+        var flowTop = notePos.Y + noteLayout.Height + 12f * scale;
+        DrawFriendBadgeFlow(scrollDraw, friend.ContentId, centerX, flowTop, badgeFlow, scale);
+
+        ImGui.SetCursorScreenPos(new Vector2(childOrigin.X, flowTop + badgeFlow.TotalHeight + 20f * scale));
+        ImGui.Dummy(new Vector2(MathF.Max(1f, contentSize.X - 16f * scale), 1f));
+
+        DrawAddTagPopup(friend.ContentId, scale);
+        DrawFriendColorPopup(friend.ContentId, scale);
     }
 
     private void DrawGroupDetail(ImDrawListPtr draw, SocialSnapshot snapshot, Vector2 pos, Vector2 size, bool narrow,

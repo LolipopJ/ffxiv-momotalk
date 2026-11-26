@@ -60,6 +60,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
     private readonly NotesStore notes;
     private readonly StaticStore statics;
     private readonly CacheStore cache;
+    private readonly FriendProfileStore friendProfiles;
     private readonly SocialDirectory directory;
     private readonly ChatCapture capture;
     private readonly ChatSender sender;
@@ -80,12 +81,13 @@ public sealed class Plugin : IAsyncDalamudPlugin
         notes = new NotesStore(charactersRoot);
         statics = new StaticStore(charactersRoot);
         cache = new CacheStore(charactersRoot);
+        friendProfiles = new FriendProfileStore(charactersRoot);
         directory = new SocialDirectory(ClientState, PlayerState, Condition, Data, Interop, cache, statics, messages, Log);
         capture = new ChatCapture(Chat, Framework, directory, messages, cache, Log);
         sender = new ChatSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);
         aiReply = new AiReplyService(config, capture, messages, Log);
-        mainWindow = new MomoTalkWindow(directory, messages, notes, statics, cache, capture, sender, avatars, aiReply, config, SaveConfig, Textures, Log);
+        mainWindow = new MomoTalkWindow(directory, messages, notes, statics, cache, friendProfiles, capture, sender, avatars, aiReply, config, SaveConfig, Textures, Log);
         partyContextMenu = new PartyContextMenu(
             ContextMenu,
             directory,
@@ -133,6 +135,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
                 notes.DisposeAsync().AsTask(),
                 statics.DisposeAsync().AsTask(),
                 cache.DisposeAsync().AsTask(),
+                friendProfiles.DisposeAsync().AsTask(),
                 avatars.DisposeAsync().AsTask(),
                 aiReply.DisposeAsync().AsTask()).ConfigureAwait(false);
         }

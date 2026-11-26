@@ -53,6 +53,12 @@ internal sealed record PlayerIdentity(ulong ContentId, string Name, uint WorldId
     public string DisplayName => string.IsNullOrEmpty(World) ? Name : $"{Name} @ {World}";
 }
 
+internal sealed record CachedFriend(PlayerIdentity Player, long AddedAt);
+
+internal sealed record FriendCustomizations(
+    IReadOnlyDictionary<ulong, IReadOnlyList<string>> Tags,
+    IReadOnlyDictionary<ulong, uint> NameColors);
+
 internal sealed class PlayerSession(ulong contentId, PlayerIdentity player)
 {
     public ulong ContentId { get; } = contentId;
@@ -123,7 +129,8 @@ internal sealed record SocialSnapshot(
     IReadOnlyDictionary<int, ChannelInfo> CrossWorldLinkshells,
     IReadOnlyDictionary<string, StaticGroup>? Statics,
     ActiveParty? Party,
-    ChannelAvailability LiveChannels = ChannelAvailability.None)
+    ChannelAvailability LiveChannels = ChannelAvailability.None,
+    IReadOnlyDictionary<ulong, long>? FriendAddedAt = null)
 {
     public static SocialSnapshot Empty(PlayerSession? session) =>
         new(session, null, null, new Dictionary<int, ChannelInfo>(), new Dictionary<int, ChannelInfo>(), null, null);
