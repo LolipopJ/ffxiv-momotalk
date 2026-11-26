@@ -126,12 +126,32 @@ try
         Check(File.ReadAllText(configPath) == unsupported, "Saving should leave a protected configuration untouched.");
     }
 
-    foreach (var preset in new[] { "default", "sensei", "tavern-reliable", "tavern-cunning", "tavern-wise", "tavern-aloof", "tavern-cheerful" })
+    foreach (var preset in new[]
+    {
+        "default",
+        "sensei",
+        "paladin-reliable",
+        "rogue-cunning",
+        "sage-wise",
+        "dark-knight-aloof",
+        "bard-cheerful",
+        "red-mage-flamboyant",
+        "white-mage-mercy",
+        "black-mage-fervor",
+        "astrologian-oracle",
+        "hero-paragon",
+        "demon-lord-chaos",
+    })
     {
         reloaded.LlmPromptPreset = preset;
         var promptText = (string)reloaded.EffectiveLlmPrompt;
         var examples = ((IEnumerable)reloaded.EffectiveLlmExamples).Cast<object>().ToArray();
-        var expectedExamples = preset == "sensei" ? 10 : 5;
+        var expectedExamples = preset switch
+        {
+            "default" => 5,
+            "sensei" => 10,
+            _ => 6,
+        };
         Check(reloaded.LlmPromptPreset == preset
             && !string.IsNullOrWhiteSpace(promptText)
             && !promptText.Contains('\r')
@@ -158,14 +178,14 @@ try
     reloaded.LlmPromptPreset = "custom";
     Check(reloaded.LlmCustomPrompt == customPrompt && reloaded.LlmCustomExamples.Count == 0,
         "Selecting built-in presets should leave custom content intact.");
-    reloaded.LlmPromptPreset = "tavern-wise";
+    reloaded.LlmPromptPreset = "sage-wise";
     var wisePrompt = (string)reloaded.EffectiveLlmPrompt;
     var wiseReply = Replies(((IEnumerable)reloaded.EffectiveLlmExamples).Cast<object>().First()).First();
-    reloaded.CopyPresetToCustom("tavern-wise");
+    reloaded.CopyPresetToCustom("sage-wise");
     Check(reloaded.IsCustomPreset && reloaded.LlmCustomPrompt == wisePrompt
         && reloaded.LlmCustomExamples[0].Replies[0] == wiseReply, "Copy should switch to Custom with the complete preset.");
     reloaded.LlmCustomExamples[0].Replies[0] = "Change the copy.";
-    reloaded.LlmPromptPreset = "tavern-wise";
+    reloaded.LlmPromptPreset = "sage-wise";
     Check(Replies(((IEnumerable)reloaded.EffectiveLlmExamples).Cast<object>().First()).First() == wiseReply,
         "Editing a copied reply should leave the built-in preset intact.");
 

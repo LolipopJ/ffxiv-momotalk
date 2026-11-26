@@ -19,14 +19,20 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLM 响应缺少消息内容。</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLM 响应不包含任何选项。</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AI 未返回适用于此频道的有效回复。</value></data>
+  <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>「占星术士」之神谕</value></data>
+  <data name="AiPresetBardCheerful" xml:space="preserve"><value>「吟游诗人」之活泼</value></data>
+  <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>「黑魔法师」之狂热</value></data>
   <data name="AiPresetCustom" xml:space="preserve"><value>自定义</value></data>
+  <data name="AiPresetDarkKnightAloof" xml:space="preserve"><value>「暗黑骑士」之高冷</value></data>
   <data name="AiPresetDefault" xml:space="preserve"><value>默认</value></data>
-  <data name="AiPresetSensei" xml:space="preserve"><value>蔚蓝档案 - 老师</value></data>
-  <data name="AiPresetTavernAloof" xml:space="preserve"><value>酒馆角色扮演 - 高冷</value></data>
-  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>酒馆角色扮演 - 活泼</value></data>
-  <data name="AiPresetTavernCunning" xml:space="preserve"><value>酒馆角色扮演 - 狡诈</value></data>
-  <data name="AiPresetTavernReliable" xml:space="preserve"><value>酒馆角色扮演 - 可靠</value></data>
-  <data name="AiPresetTavernWise" xml:space="preserve"><value>酒馆角色扮演 - 睿智</value></data>
+  <data name="AiPresetDemonLordChaos" xml:space="preserve"><value>「魔王」之混沌</value></data>
+  <data name="AiPresetHeroParagon" xml:space="preserve"><value>「勇者」之无瑕</value></data>
+  <data name="AiPresetPaladinReliable" xml:space="preserve"><value>「骑士」之可靠</value></data>
+  <data name="AiPresetRedMageFlamboyant" xml:space="preserve"><value>「赤魔法师」之华丽</value></data>
+  <data name="AiPresetRogueCunning" xml:space="preserve"><value>「双剑师」之狡黠</value></data>
+  <data name="AiPresetSageWise" xml:space="preserve"><value>「贤者」之睿智</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>「基沃托斯」之老师</value></data>
+  <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>「白魔法师」之慈悲</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>请求过于频繁（HTTP 429）。请稍后重试。</value></data>
   <data name="AiReply" xml:space="preserve"><value>AI 回复</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AI 请求超时。</value></data>

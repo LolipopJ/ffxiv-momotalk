@@ -19,14 +19,20 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>Le contenu du message est absent de la réponse du LLM.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>La réponse du LLM ne contient aucune proposition.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>L’IA n’a renvoyé aucune réponse valide pour ce canal.</value></data>
+  <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>Astromancien - Oracle</value></data>
+  <data name="AiPresetBardCheerful" xml:space="preserve"><value>Barde - Enjoué</value></data>
+  <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>Mage noir - Ferveur</value></data>
   <data name="AiPresetCustom" xml:space="preserve"><value>Personnalisé</value></data>
+  <data name="AiPresetDarkKnightAloof" xml:space="preserve"><value>Chevalier noir - Distant</value></data>
   <data name="AiPresetDefault" xml:space="preserve"><value>Par défaut</value></data>
-  <data name="AiPresetSensei" xml:space="preserve"><value>Blue Archive - Sensei</value></data>
-  <data name="AiPresetTavernAloof" xml:space="preserve"><value>RP taverne - Distant</value></data>
-  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>RP taverne - Enjoué</value></data>
-  <data name="AiPresetTavernCunning" xml:space="preserve"><value>RP taverne - Rusé</value></data>
-  <data name="AiPresetTavernReliable" xml:space="preserve"><value>RP taverne - Fiable</value></data>
-  <data name="AiPresetTavernWise" xml:space="preserve"><value>RP taverne - Sage</value></data>
+  <data name="AiPresetDemonLordChaos" xml:space="preserve"><value>Seigneur démon - Chaos</value></data>
+  <data name="AiPresetHeroParagon" xml:space="preserve"><value>Héros - Irréprochable</value></data>
+  <data name="AiPresetPaladinReliable" xml:space="preserve"><value>Paladin - Fiable</value></data>
+  <data name="AiPresetRedMageFlamboyant" xml:space="preserve"><value>Mage rouge - Flamboyant</value></data>
+  <data name="AiPresetRogueCunning" xml:space="preserve"><value>Surineur - Rusé</value></data>
+  <data name="AiPresetSageWise" xml:space="preserve"><value>Sage - Sagesse</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>Kivotos - Sensei</value></data>
+  <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>Mage blanc - Miséricorde</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Limite de requêtes atteinte (HTTP 429). Patientez, puis réessayez.</value></data>
   <data name="AiReply" xml:space="preserve"><value>Réponses IA</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>La requête à l’IA a expiré.</value></data>

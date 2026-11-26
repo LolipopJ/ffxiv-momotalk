@@ -19,14 +19,20 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLM response was missing message content.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLM response did not contain any choices.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AI returned no valid reply options for this channel.</value></data>
+  <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>Astrologian - Oracle</value></data>
+  <data name="AiPresetBardCheerful" xml:space="preserve"><value>Bard - Cheerful</value></data>
+  <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>Black Mage - Fervor</value></data>
   <data name="AiPresetCustom" xml:space="preserve"><value>Custom</value></data>
+  <data name="AiPresetDarkKnightAloof" xml:space="preserve"><value>Dark Knight - Aloof</value></data>
   <data name="AiPresetDefault" xml:space="preserve"><value>Default</value></data>
-  <data name="AiPresetSensei" xml:space="preserve"><value>Blue Archive - Sensei</value></data>
-  <data name="AiPresetTavernAloof" xml:space="preserve"><value>Tavern RP - Aloof</value></data>
-  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>Tavern RP - Cheerful</value></data>
-  <data name="AiPresetTavernCunning" xml:space="preserve"><value>Tavern RP - Cunning</value></data>
-  <data name="AiPresetTavernReliable" xml:space="preserve"><value>Tavern RP - Reliable</value></data>
-  <data name="AiPresetTavernWise" xml:space="preserve"><value>Tavern RP - Wise</value></data>
+  <data name="AiPresetDemonLordChaos" xml:space="preserve"><value>Demon Lord - Chaos</value></data>
+  <data name="AiPresetHeroParagon" xml:space="preserve"><value>Hero - Unblemished</value></data>
+  <data name="AiPresetPaladinReliable" xml:space="preserve"><value>Paladin - Steadfast</value></data>
+  <data name="AiPresetRedMageFlamboyant" xml:space="preserve"><value>Red Mage - Flamboyant</value></data>
+  <data name="AiPresetRogueCunning" xml:space="preserve"><value>Rogue - Shrewd</value></data>
+  <data name="AiPresetSageWise" xml:space="preserve"><value>Sage - Wise</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>Kivotos - Sensei</value></data>
+  <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>White Mage - Merciful</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Rate limit exceeded (HTTP 429). Please wait and try again.</value></data>
   <data name="AiReply" xml:space="preserve"><value>AI Reply</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AI request timed out.</value></data>

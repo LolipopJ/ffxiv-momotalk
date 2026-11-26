@@ -19,14 +19,20 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>In der LLM-Antwort fehlt der Nachrichteninhalt.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>Die LLM-Antwort enthält keine Antwortmöglichkeiten.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>Die KI hat keine gültigen Antwortvorschläge für diesen Kanal geliefert.</value></data>
+  <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>Astrologe - Orakel</value></data>
+  <data name="AiPresetBardCheerful" xml:space="preserve"><value>Barde - Fröhlich</value></data>
+  <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>Schwarzmagier - Inbrunst</value></data>
   <data name="AiPresetCustom" xml:space="preserve"><value>Eigener Stil</value></data>
+  <data name="AiPresetDarkKnightAloof" xml:space="preserve"><value>Dunkelritter - Distanziert</value></data>
   <data name="AiPresetDefault" xml:space="preserve"><value>Standard</value></data>
-  <data name="AiPresetSensei" xml:space="preserve"><value>Blue Archive - Sensei</value></data>
-  <data name="AiPresetTavernAloof" xml:space="preserve"><value>Tavernen-RP - Distanziert</value></data>
-  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>Tavernen-RP - Fröhlich</value></data>
-  <data name="AiPresetTavernCunning" xml:space="preserve"><value>Tavernen-RP - Gewitzt</value></data>
-  <data name="AiPresetTavernReliable" xml:space="preserve"><value>Tavernen-RP - Verlässlich</value></data>
-  <data name="AiPresetTavernWise" xml:space="preserve"><value>Tavernen-RP - Weise</value></data>
+  <data name="AiPresetDemonLordChaos" xml:space="preserve"><value>Dämonenkönig - Chaos</value></data>
+  <data name="AiPresetHeroParagon" xml:space="preserve"><value>Held - Makellos</value></data>
+  <data name="AiPresetPaladinReliable" xml:space="preserve"><value>Paladin - Verlässlich</value></data>
+  <data name="AiPresetRedMageFlamboyant" xml:space="preserve"><value>Rotmagier - Extravagant</value></data>
+  <data name="AiPresetRogueCunning" xml:space="preserve"><value>Schurke - Gerissen</value></data>
+  <data name="AiPresetSageWise" xml:space="preserve"><value>Weiser - Weise</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>Kivotos - Sensei</value></data>
+  <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>Weißmagier - Barmherzig</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Anfragelimit erreicht (HTTP 429). Warte kurz und versuche es erneut.</value></data>
   <data name="AiReply" xml:space="preserve"><value>KI-Antworten</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>Die KI-Anfrage hat das Zeitlimit überschritten.</value></data>

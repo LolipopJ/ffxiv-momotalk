@@ -19,14 +19,20 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLMのレスポンスにメッセージの本文がありません。</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLMのレスポンスに応答候補が含まれていません。</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AIからこのチャネルの有効な返信候補が返されませんでした。</value></data>
+  <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>「占星術師」の神託</value></data>
+  <data name="AiPresetBardCheerful" xml:space="preserve"><value>「吟遊詩人」の陽気</value></data>
+  <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>「黒魔道士」の狂熱</value></data>
   <data name="AiPresetCustom" xml:space="preserve"><value>カスタム</value></data>
+  <data name="AiPresetDarkKnightAloof" xml:space="preserve"><value>「暗黒騎士」の孤高</value></data>
   <data name="AiPresetDefault" xml:space="preserve"><value>デフォルト</value></data>
-  <data name="AiPresetSensei" xml:space="preserve"><value>ブルーアーカイブ - 先生</value></data>
-  <data name="AiPresetTavernAloof" xml:space="preserve"><value>酒場RP - クール</value></data>
-  <data name="AiPresetTavernCheerful" xml:space="preserve"><value>酒場RP - 陽気</value></data>
-  <data name="AiPresetTavernCunning" xml:space="preserve"><value>酒場RP - 策士</value></data>
-  <data name="AiPresetTavernReliable" xml:space="preserve"><value>酒場RP - 頼れる仲間</value></data>
-  <data name="AiPresetTavernWise" xml:space="preserve"><value>酒場RP - 賢者</value></data>
+  <data name="AiPresetDemonLordChaos" xml:space="preserve"><value>「魔王」の混沌</value></data>
+  <data name="AiPresetHeroParagon" xml:space="preserve"><value>「勇者」の無垢</value></data>
+  <data name="AiPresetPaladinReliable" xml:space="preserve"><value>「ナイト」の頼もしさ</value></data>
+  <data name="AiPresetRedMageFlamboyant" xml:space="preserve"><value>「赤魔道士」の華麗</value></data>
+  <data name="AiPresetRogueCunning" xml:space="preserve"><value>「双剣士」の狡猾</value></data>
+  <data name="AiPresetSageWise" xml:space="preserve"><value>「賢者」の叡智</value></data>
+  <data name="AiPresetSensei" xml:space="preserve"><value>「キヴォトス」の先生</value></data>
+  <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>「白魔道士」の慈悲</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>リクエスト数の上限に達しました（HTTP 429）。時間をおいて再試行してください。</value></data>
   <data name="AiReply" xml:space="preserve"><value>AI返信</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AIへのリクエストがタイムアウトしました。</value></data>

@@ -215,7 +215,7 @@
 - **THEN** 插件输出与发布目录均包含 `images/icon.png`，插件列表可读取并显示该封面图标
 
 ### Requirement: MomoTalk 风格设置弹窗与配置持久化
-插件 SHALL 在珊瑚粉顶栏关闭按钮左侧提供设置齿轮按钮，点击后带过渡动画展示 MomoTalk 风格双标签页设置弹窗：`General` 保留常规设置（界面语言、全局入口、入场动画与本人右侧头像）；`AI Reply` 提供端点、可显隐 API 密钥、模型、`Test Connection`、`Chat Context`、系统提示词上方的风格预设下拉框（`Custom` 与七套预设）及预设选中时右侧的 `Copy to Custom` 按钮、系统提示词框与结构化对话示例区（移除恢复默认按钮）。弹窗按钮具备悬浮/按压与手型指针反馈，界面标签适配六语言本地化，窄窗口下支持内部滚动，且支持从 Dalamud 设置直达。
+插件 SHALL 在珊瑚粉顶栏关闭按钮左侧提供设置齿轮按钮，点击后带过渡动画展示 MomoTalk 风格双标签页设置弹窗：`General` 保留常规设置（界面语言、全局入口、入场动画与本人右侧头像）；`AI Reply` 提供端点、可显隐 API 密钥、模型、`Test Connection`、`Chat Context`、系统提示词上方的风格预设下拉框（`Custom` 与十三套内置预设）及预设选中时右侧的 `Copy to Custom` 按钮、系统提示词框与结构化对话示例区（移除恢复默认按钮）。弹窗按钮具备悬浮/按压与手型指针反馈，界面标签适配六语言本地化，窄窗口下支持内部滚动，且支持从 Dalamud 设置直达。
 
 #### Scenario: 通过顶栏齿轮开关配置并立即生效
 - **WHEN** 玩家点击顶栏齿轮打开设置弹窗并在 `General` 标签页切换 `Show Floating Entry`、`Show Intro Animation` 或 `Show Self Avatar` 开关

@@ -6,11 +6,13 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ### Added
 
+- Add six FFXIV job and classic RPG AI reply presets (`Hero`, `Demon Lord`, `Red Mage`, `White Mage`, `Black Mage`, and `Astrologian`) with six curated conversation examples each.
 - Check C# formatting and lint on pull requests and pushes to main, with matching local commands.
 - Open in-game social lists from compact sync buttons that sit side by side when several lists are available.
 
 ### Changed
 
+- **Breaking:** Rename built-in AI reply presets to FFXIV job and character role titles (including Kivotos Sensei), replace the `tavern-*` preset IDs with job-based IDs (`paladin-reliable`, `rogue-cunning`, `sage-wise`, `dark-knight-aloof`, `bard-cheerful`), and rework those five presets with job-flavored prompts and six varied examples each. Saved `v1.1.0.0` selections using the old `tavern-*` IDs reset to `Default` on upgrade, and downgrading to `v1.1.0.0` resets renamed or new preset selections to `Default`, without losing endpoints, keys, or custom prompts and examples.
 - Organize the chat window, drawing helpers, social directory, and AI reply code into smaller files by responsibility.
 
 ### Fixed
