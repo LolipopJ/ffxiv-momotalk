@@ -4,6 +4,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [v1.1.1.0] - 2026-11-26
+
 ### Added
 
 - Add six FFXIV job and classic RPG AI reply presets (`Hero`, `Demon Lord`, `Red Mage`, `White Mage`, `Black Mage`, and `Astrologian`) with six curated conversation examples each.
@@ -105,7 +107,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Attached native in-game outgoing Tell rejection errors to matching message bubbles or conversation banners.
 - Hidden the floating entry button while logged out or on the title/character select screens.
 
-[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.1.0.0...main
+[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.1.1.0...main
+[v1.1.1.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.1.0.0...v1.1.1.0
 [v1.1.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.2...v1.1.0.0
 [v1.0.0.2]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.1...v1.0.0.2
 [v1.0.0.1]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.0...v1.0.0.1
