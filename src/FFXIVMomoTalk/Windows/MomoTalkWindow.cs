@@ -122,6 +122,7 @@ internal sealed partial class MomoTalkWindow : Window
     private StaticGroup? contextStatic;
     private long? contextMessageId;
     private string? contextMessageBody;
+    private bool contextMessageIsSystem;
     private ConversationKey? inputFocusedConversation;
     private bool inputFocused;
     private bool wasShowingTyping;

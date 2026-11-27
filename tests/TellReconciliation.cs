@@ -27,14 +27,14 @@ var plugin = Assembly.LoadFrom(pluginPath);
 var directory = Directory.CreateTempSubdirectory("momotalk-tells-");
 try
 {
-    await using var store = (IAsyncDisposable)New("MessageStore", directory.FullName);
+    await using var store = (IAsyncDisposable)New("MessageStore", directory.FullName, null);
     var owner = New("PlayerIdentity", 1UL, "Local Player", 1U, "World A");
     var session = New("PlayerSession", 1UL, owner);
     var peer = New("PlayerIdentity", 2UL, "Example Name", 1U, "World A");
     var conversation = TypeOf("ConversationDescriptor").GetMethod("FromFriend")!.Invoke(null, [peer])!;
     var key = Get(conversation, "Key");
     var target = New("SendTarget", key, "/tell Example Name@World A", peer);
-    var capture = New("ChatCapture", null, null, null, store, null, null);
+    var capture = New("ChatCapture", null, null, null, store, null, null, null);
     var social = New("SocialDirectory", null, null, null, null, null, null, null, null, null);
     var snapshot = TypeOf("SocialSnapshot").GetMethod("Empty")!.Invoke(null, [session]);
     SetField(social, "current", snapshot);
@@ -45,7 +45,7 @@ try
     var rejected = Submit();
     Call(sender, "Reject", rejected, busy);
     var retry = Submit();
-    var outgoing = New("CapturedMessage", session, conversation, owner, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), true, body);
+    var outgoing = New("CapturedMessage", session, conversation, owner, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), true, body, Enum.ToObject(TypeOf("MessageKind"), 0));
     var echo = (Task<long>)Call(store, "RecordAsync", outgoing, true)!;
     Call(sender, "OnCaptured", outgoing, echo);
     Check(Get(retry, "Echo") == echo && Get(rejected, "Echo") is null,

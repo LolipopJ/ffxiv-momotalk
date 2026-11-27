@@ -7,6 +7,7 @@
   <data name="AddNote" xml:space="preserve"><value>新增備註…</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ 新增回覆</value></data>
   <data name="AddTag" xml:space="preserve"><value>新增標籤</value></data>
+  <data name="Advanced" xml:space="preserve"><value>進階</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>驗證失敗（HTTP {0}）。請檢查 API 金鑰。</value></data>
   <data name="AiConnected" xml:space="preserve"><value>連線成功（{0} 毫秒）。</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>連線測試失敗。</value></data>
@@ -66,6 +67,7 @@
   <data name="CreateStaticGroup" xml:space="preserve"><value>建立固定隊</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>跨界通訊貝</value></data>
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>你已不屬於此跨界通訊貝。</value></data>
+  <data name="CrossWorldLinkshellRenamed" xml:space="preserve"><value>跨界通訊貝已從「{0}」更名為「{1}」。</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>跨界貝</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>目前無法使用跨界通訊貝聊天。</value></data>
   <data name="CustomColor" xml:space="preserve"><value>調色盤</value></data>
@@ -97,6 +99,7 @@
   <data name="FollowPluginLanguage" xml:space="preserve"><value>跟隨插件語言</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>公會</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不屬於此公會。</value></data>
+  <data name="FreeCompanyRenamed" xml:space="preserve"><value>公會已從「{0}」更名為「{1}」。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>公會</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>目前無法使用公會聊天。</value></data>
   <data name="FriendAddedToday" xml:space="preserve"><value>你們今天剛剛成為好友</value></data>
@@ -107,6 +110,9 @@
   <data name="FriendDuration" xml:space="preserve"><value>你們已經成為好友 {0}了</value></data>
   <data name="FriendList" xml:space="preserve"><value>好友名單</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>此角色已從你的好友名單移除。</value></data>
+  <data name="FriendRenamed" xml:space="preserve"><value>{0} 已更名為 {1}。</value></data>
+  <data name="FriendRenamedAndTransferred" xml:space="preserve"><value>{0}（{1}）已更名為 {2} 並轉服至 {3}。</value></data>
+  <data name="FriendWorldTransferred" xml:space="preserve"><value>{0} 已從 {1} 轉服至 {2}。</value></data>
   <data name="Friends" xml:space="preserve"><value>好友</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>遊戲內的好友名單是空的。</value></data>
   <data name="GameCannotSendText" xml:space="preserve"><value>訊息包含遊戲無法傳送的文字。</value></data>
@@ -120,9 +126,11 @@
   <data name="GroupsEmpty" xml:space="preserve"><value>目前沒有群組。開啟遊戲內的公會、通訊貝或跨界通訊貝名單以同步，或以滑鼠右鍵點擊小隊成員來建立固定隊。</value></data>
   <data name="Hide" xml:space="preserve"><value>隱藏</value></data>
   <data name="InvalidHexColor" xml:space="preserve"><value>請輸入 3 位或 6 位十六進位色值（例如 #4A8AC6）。</value></data>
+  <data name="InvalidRegex" xml:space="preserve"><value>無效的正規表達式：{0}</value></data>
   <data name="Language" xml:space="preserve"><value>語言</value></data>
   <data name="Linkshell" xml:space="preserve"><value>通訊貝</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>你已不屬於此通訊貝。</value></data>
+  <data name="LinkshellRenamed" xml:space="preserve"><value>通訊貝已從「{0}」更名為「{1}」。</value></data>
   <data name="LinkshellTag" xml:space="preserve"><value>通訊貝</value></data>
   <data name="LinkshellUnavailable" xml:space="preserve"><value>目前無法使用通訊貝聊天。</value></data>
   <data name="LoadEarlierMessages" xml:space="preserve"><value>載入較早的訊息</value></data>
@@ -137,6 +145,8 @@
   <data name="MessageChatRestricted" xml:space="preserve"><value>聊天受到限制，無法傳送訊息。</value></data>
   <data name="MessageDisallowedText" xml:space="preserve"><value>訊息包含不允許的內容，無法傳送。</value></data>
   <data name="MessageFailedCheckGameChat" xml:space="preserve"><value>訊息傳送失敗，詳細資訊請查看遊戲聊天欄。</value></data>
+  <data name="MessageFilterHint" xml:space="preserve"><value>符合任一正規表達式的訊息將被過濾不予記錄，留空則不啟用。</value></data>
+  <data name="MessageFilterRegex" xml:space="preserve"><value>訊息內容過濾正規式</value></data>
   <data name="MessageMustBeSingleLine" xml:space="preserve"><value>訊息須為單行，且不可包含控制字元。</value></data>
   <data name="MessageParticipationDisabled" xml:space="preserve"><value>聊天參與已停用，無法傳送訊息。</value></data>
   <data name="MessageRateLimited" xml:space="preserve"><value>傳送過於頻繁，無法傳送訊息。</value></data>
@@ -178,6 +188,7 @@
   <data name="SearchGroups" xml:space="preserve"><value>搜尋群組…</value></data>
   <data name="SelectFriend" xml:space="preserve"><value>選擇一位好友以查看個人資料。</value></data>
   <data name="SelectGroup" xml:space="preserve"><value>選擇一個群組以查看詳細資料。</value></data>
+  <data name="SenderFilterRegex" xml:space="preserve"><value>人名過濾正規式</value></data>
   <data name="Settings" xml:space="preserve"><value>設定</value></data>
   <data name="Show" xml:space="preserve"><value>顯示</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>顯示浮動按鈕</value></data>
@@ -195,6 +206,7 @@
   <data name="StaticNeedsFullParty" xml:space="preserve"><value>與固定隊全員組成小隊後即可傳送訊息。</value></data>
   <data name="StaticPartyMatched" xml:space="preserve"><value>目前的小隊包含固定隊全員</value></data>
   <data name="StaticPartyNotMatched" xml:space="preserve"><value>目前的小隊尚未集齊固定隊全員</value></data>
+  <data name="StaticRenamed" xml:space="preserve"><value>固定隊已從「{0}」更名為「{1}」。</value></data>
   <data name="StaticUnavailable" xml:space="preserve"><value>此固定隊目前無法使用。</value></data>
   <data name="SystemPrompt" xml:space="preserve"><value>系統提示詞</value></data>
   <data name="TellCannotReplyOutsideDuty" xml:space="preserve"><value>無法回覆來自目前任務外的密語。</value></data>

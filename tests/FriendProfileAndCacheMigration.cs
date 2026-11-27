@@ -20,6 +20,7 @@ try
     await VerifyV1ToV2CacheMigrationAsync(directory.FullName);
     await VerifyUnknownVersionPreservedAsync(directory.FullName);
     await VerifyFailedMigrationRollbackAndRetryAsync(directory.FullName);
+    await VerifyFailedBackupMigrationRollbackAndRetryAsync(directory.FullName);
     await VerifyFriendProfileStoreAndParsingAsync(directory.FullName);
 
     Console.WriteLine("CacheStore v1->v2 migration, rollback/retry, version guard, and FriendProfileStore checks passed.");
@@ -208,6 +209,57 @@ static async Task VerifyFailedMigrationRollbackAndRetryAsync(string root)
         throw new InvalidOperationException("Retry after migration failure did not preserve existing data.");
 }
 
+static async Task VerifyFailedBackupMigrationRollbackAndRetryAsync(string root)
+{
+    const ulong owner = 0x4005UL;
+    var storeRoot = Path.Combine(root, "retry-backup");
+    var charDir = Path.Combine(storeRoot, $"{owner:X16}");
+    Directory.CreateDirectory(charDir);
+    var dbPath = Path.Combine(charDir, "retry.sqlite3");
+
+    using (var seed = new SqliteConnection($"Data Source={dbPath};Pooling=False"))
+    {
+        seed.Open();
+        using var cmd = seed.CreateCommand();
+        cmd.CommandText = "CREATE TABLE base_data (val TEXT NOT NULL); INSERT INTO base_data (val) VALUES ('keep-bak'); PRAGMA user_version = 1;";
+        cmd.ExecuteNonQuery();
+    }
+
+    var infoLogs = new List<string>();
+    await using var store = FlakyMigrationStore.Create(storeRoot, backupBeforeMigrate: true, onInfo: msg => infoLogs.Add(msg));
+    try
+    {
+        await store.PingAsync(owner);
+        throw new InvalidOperationException("Expected first backup-enabled migration attempt to fail.");
+    }
+    catch (InvalidOperationException ex)
+    {
+        if (store.IncompatibleOwner != 0 || !ex.Message.Contains("v1", StringComparison.Ordinal)
+            || !ex.Message.Contains("Backup path:", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Failed backup-enabled migration should report step and backup path without setting IncompatibleOwner.");
+        }
+    }
+
+    var firstBak = dbPath + ".v1.bak";
+    if (!File.Exists(firstBak) || infoLogs.Count != 1)
+        throw new InvalidOperationException("First migration attempt did not create a v1 backup before failing.");
+
+    using (var checkMid = new SqliteConnection($"Data Source={dbPath};Pooling=False"))
+    {
+        checkMid.Open();
+        using var ver = checkMid.CreateCommand();
+        ver.CommandText = "PRAGMA user_version;";
+        if (Convert.ToInt32(ver.ExecuteScalar(), CultureInfo.InvariantCulture) != 1)
+            throw new InvalidOperationException("Rolled-back backup migration did not preserve user_version 1.");
+    }
+
+    var kept = await store.PingAsync(owner);
+    var secondBak = dbPath + ".v1.bak.1";
+    if (kept != "keep-bak" || !File.Exists(secondBak) || !File.Exists(firstBak))
+        throw new InvalidOperationException("Retry after backup migration failure did not preserve original backup or complete.");
+}
+
 static async Task VerifyFriendProfileStoreAndParsingAsync(string root)
 {
     if (FriendProfileStore.NormalizeTag("  Raid\tStatic   Team  ") != "Raid Static Team")
@@ -255,12 +307,15 @@ static async Task VerifyFriendProfileStoreAndParsingAsync(string root)
 
 internal sealed class FlakyMigrationStore : CharacterSqliteStore
 {
-    private FlakyMigrationStore(string charactersDirectory, IReadOnlyList<SqliteMigration> migrations)
-        : base(charactersDirectory, "retry.sqlite3", "retry test", 2, "CREATE TABLE base_data (val TEXT NOT NULL);", migrations: migrations)
+    private FlakyMigrationStore(string charactersDirectory, IReadOnlyList<SqliteMigration> migrations, Action<string>? onInfo)
+        : base(charactersDirectory, "retry.sqlite3", "retry test", 2, "CREATE TABLE base_data (val TEXT NOT NULL);", migrations: migrations, onInfo: onInfo)
     {
     }
 
-    public static FlakyMigrationStore Create(string charactersDirectory)
+    public static FlakyMigrationStore Create(
+        string charactersDirectory,
+        bool backupBeforeMigrate = false,
+        Action<string>? onInfo = null)
     {
         var holder = new AttemptHolder();
         return new FlakyMigrationStore(
@@ -274,8 +329,9 @@ internal sealed class FlakyMigrationStore : CharacterSqliteStore
                     cmd.ExecuteNonQuery();
                     if (Interlocked.Increment(ref holder.Attempts) == 1)
                         throw new IOException("Simulated failure mid-migration.");
-                }),
-            ]);
+                }, backupBeforeMigrate),
+            ],
+            onInfo);
     }
 
     public Task<string> PingAsync(ulong owner) =>

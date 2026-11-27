@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using Lumina.Excel.Sheets;
 
@@ -44,104 +45,6 @@ internal sealed unsafe partial class SocialDirectory
     {
         var list = (InfoProxyFriendList*)proxy;
         return proxy->EntryCount is > 0 and <= 200 && list->CharData is not null;
-    }
-
-    private void WatchProxy(InfoProxyInterface* proxy)
-    {
-        DisposeFriendHooks();
-        friendProxy = proxy;
-        requestedFor = null;
-        loadedFor = null;
-        if (proxy is null)
-            return;
-
-        try
-        {
-            requestHook = interop.HookFromAddress<InfoProxyInterface.Delegates.RequestData>(
-                (nint)proxy->VirtualTable->RequestData, OnRequestData);
-            endHook = interop.HookFromAddress<InfoProxyInterface.Delegates.EndRequest>(
-                (nint)proxy->VirtualTable->EndRequest, OnEndRequest);
-            clearListHook = interop.HookFromAddress<InfoProxyInterface.Delegates.ClearListData>(
-                (nint)proxy->VirtualTable->ClearListData, OnClearListData);
-            zoneInitHook = interop.HookFromAddress<InfoProxyInterface.Delegates.HandleZoneInitPacket>(
-                (nint)proxy->VirtualTable->HandleZoneInitPacket, OnHandleZoneInitPacket);
-            clearListHook.Enable();
-            zoneInitHook.Enable();
-            endHook.Enable();
-            requestHook.Enable();
-        }
-        catch (Exception exception)
-        {
-            DisposeFriendHooks();
-            log.Error(exception, "Unable to observe the native friend list.");
-        }
-    }
-
-    private void DisposeFriendHooks()
-    {
-        requestHook?.Dispose();
-        endHook?.Dispose();
-        clearListHook?.Dispose();
-        zoneInitHook?.Dispose();
-        requestHook = null;
-        endHook = null;
-        clearListHook = null;
-        zoneInitHook = null;
-    }
-
-    private void OnClearListData(InfoProxyInterface* self)
-    {
-        clearListHook!.Original(self);
-        if (self == friendProxy)
-        {
-            requestedFor = null;
-            loadedFor = null;
-        }
-    }
-
-    private void OnHandleZoneInitPacket(InfoProxyInterface* self, FFXIVClientStructs.FFXIV.Client.Game.Network.ZoneInitPacket* packet)
-    {
-        zoneInitHook!.Original(self, packet);
-        if (self == friendProxy)
-        {
-            requestedFor = null;
-            loadedFor = null;
-        }
-    }
-
-    private bool OnRequestData(InfoProxyInterface* self)
-    {
-        if (self != friendProxy)
-            return requestHook!.Original(self);
-
-        var session = UpdateSession();
-        var previousRequest = requestedFor;
-        var previousLoad = loadedFor;
-        requestedFor = session;
-        loadedFor = null;
-
-        var sent = requestHook!.Original(self);
-        if (!sent && ReferenceEquals(requestedFor, session))
-        {
-            requestedFor = previousRequest;
-            loadedFor = previousLoad;
-        }
-
-        return sent;
-    }
-
-    private void OnEndRequest(InfoProxyInterface* self)
-    {
-        endHook!.Original(self);
-        if (self != friendProxy || requestedFor is not { } owner || !ReferenceEquals(UpdateSession(), owner))
-            return;
-
-        requestedFor = null;
-        if (IsInCrossWorldDuty())
-            return;
-
-        loadedFor = owner;
-        ReadFriends(owner, forcePersist: true);
     }
 
     private void ReadFriends(PlayerSession owner, bool forcePersist)
@@ -227,9 +130,37 @@ internal sealed unsafe partial class SocialDirectory
             if (statics.IncompatibleOwner != owner)
                 ObserveTask(statics.SyncMemberIdentitiesAsync(owner, identities), "Failed to update static member names.");
 
-            ObserveTask(messages.UpdateFriendDescriptorsAsync(owner, identities),
+            var culture = Loc.Culture;
+            ObserveTask(
+                messages.UpdateFriendDescriptorsAsync(
+                    owner,
+                    identities,
+                    (oldName, oldWorld, newName, newWorld) => FormatFriendChangeNotice(culture, oldName, oldWorld, newName, newWorld)),
                 "Failed to update friend conversation names.");
         }
+    }
+
+    internal static string FormatFriendChangeNotice(
+        CultureInfo culture,
+        string oldName,
+        string oldWorld,
+        string newName,
+        string newWorld)
+    {
+        var nameChanged = !string.IsNullOrWhiteSpace(oldName)
+            && !StringComparer.Ordinal.Equals(oldName, newName);
+        var worldChanged = !string.IsNullOrWhiteSpace(oldWorld)
+            && !string.IsNullOrWhiteSpace(newWorld)
+            && !StringComparer.OrdinalIgnoreCase.Equals(oldWorld, newWorld);
+
+        if (nameChanged && worldChanged)
+            return string.Format(culture, Loc.TextFor(culture, "FriendRenamedAndTransferred"), oldName, oldWorld, newName, newWorld);
+        if (nameChanged)
+            return string.Format(culture, Loc.TextFor(culture, "FriendRenamed"), oldName, newName);
+        if (worldChanged)
+            return string.Format(culture, Loc.TextFor(culture, "FriendWorldTransferred"), newName, oldWorld, newWorld);
+
+        return string.Empty;
     }
 
     private static bool FriendsChanged(

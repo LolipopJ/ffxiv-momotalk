@@ -7,6 +7,7 @@
   <data name="AddNote" xml:space="preserve"><value>Ajouter une note…</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ Ajouter une réponse</value></data>
   <data name="AddTag" xml:space="preserve"><value>Ajouter un tag</value></data>
+  <data name="Advanced" xml:space="preserve"><value>Avancé</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>Erreur d’authentification (HTTP {0}). Vérifiez votre clé API.</value></data>
   <data name="AiConnected" xml:space="preserve"><value>Connexion réussie ({0} ms).</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>Le test de connexion a échoué.</value></data>
@@ -66,6 +67,7 @@
   <data name="CreateStaticGroup" xml:space="preserve"><value>Créer un groupe fixe</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Linkshell inter-Monde</value></data>
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette linkshell inter-Monde.</value></data>
+  <data name="CrossWorldLinkshellRenamed" xml:space="preserve"><value>La linkshell inter-Monde a été renommée de « {0} » en « {1} ».</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>LSIM</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>La discussion de linkshell inter-Monde est actuellement indisponible.</value></data>
   <data name="CustomColor" xml:space="preserve"><value>Palette</value></data>
@@ -97,6 +99,7 @@
   <data name="FollowPluginLanguage" xml:space="preserve"><value>Langue du plugin</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Compagnie libre</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette compagnie libre.</value></data>
+  <data name="FreeCompanyRenamed" xml:space="preserve"><value>La compagnie libre a été renommée de « {0} » en « {1} ».</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>CL</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>La discussion de compagnie libre est actuellement indisponible.</value></data>
   <data name="FriendAddedToday" xml:space="preserve"><value>Vous êtes amis depuis aujourd’hui.</value></data>
@@ -107,6 +110,9 @@
   <data name="FriendDuration" xml:space="preserve"><value>Vous êtes amis depuis {0}.</value></data>
   <data name="FriendList" xml:space="preserve"><value>Liste d’amis</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>Ce personnage ne figure plus dans votre liste d’amis.</value></data>
+  <data name="FriendRenamed" xml:space="preserve"><value>{0} a changé de nom pour {1}.</value></data>
+  <data name="FriendRenamedAndTransferred" xml:space="preserve"><value>{0} ({1}) a changé de nom pour {2} et a transféré vers {3}.</value></data>
+  <data name="FriendWorldTransferred" xml:space="preserve"><value>{0} a transféré de {1} vers {2}.</value></data>
   <data name="Friends" xml:space="preserve"><value>Amis</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>Votre liste d’amis en jeu est vide.</value></data>
   <data name="GameCannotSendText" xml:space="preserve"><value>Le message contient des caractères que le jeu ne peut pas envoyer.</value></data>
@@ -120,9 +126,11 @@
   <data name="GroupsEmpty" xml:space="preserve"><value>Aucun groupe pour le moment. Ouvrez la liste de compagnie libre, de linkshells ou de linkshells inter-Mondes en jeu pour la synchroniser. Faites un clic droit sur un membre de l’équipe pour créer un groupe fixe.</value></data>
   <data name="Hide" xml:space="preserve"><value>Masquer</value></data>
   <data name="InvalidHexColor" xml:space="preserve"><value>Saisissez un code couleur hexadécimal à 3 ou 6 chiffres (ex. #4A8AC6).</value></data>
+  <data name="InvalidRegex" xml:space="preserve"><value>Expression régulière invalide : {0}</value></data>
   <data name="Language" xml:space="preserve"><value>Langue</value></data>
   <data name="Linkshell" xml:space="preserve"><value>Linkshell</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette linkshell.</value></data>
+  <data name="LinkshellRenamed" xml:space="preserve"><value>La linkshell a été renommée de « {0} » en « {1} ».</value></data>
   <data name="LinkshellTag" xml:space="preserve"><value>LS</value></data>
   <data name="LinkshellUnavailable" xml:space="preserve"><value>La discussion de linkshell est actuellement indisponible.</value></data>
   <data name="LoadEarlierMessages" xml:space="preserve"><value>Charger les messages précédents</value></data>
@@ -137,6 +145,8 @@
   <data name="MessageChatRestricted" xml:space="preserve"><value>Impossible d’envoyer le message, car la discussion est restreinte.</value></data>
   <data name="MessageDisallowedText" xml:space="preserve"><value>Impossible d’envoyer le message, car il contient du texte interdit.</value></data>
   <data name="MessageFailedCheckGameChat" xml:space="preserve"><value>Impossible d’envoyer le message. Consultez la discussion en jeu pour plus de détails.</value></data>
+  <data name="MessageFilterHint" xml:space="preserve"><value>Les messages correspondant à l&apos;une des expressions régulières sont ignorés. Laisser vide pour désactiver.</value></data>
+  <data name="MessageFilterRegex" xml:space="preserve"><value>Regex de filtre de message</value></data>
   <data name="MessageMustBeSingleLine" xml:space="preserve"><value>Le message doit tenir sur une ligne et ne contenir aucun caractère de contrôle.</value></data>
   <data name="MessageParticipationDisabled" xml:space="preserve"><value>Impossible d’envoyer le message, car la participation à la discussion est désactivée.</value></data>
   <data name="MessageRateLimited" xml:space="preserve"><value>Impossible d’envoyer le message, car la fréquence d’envoi est limitée.</value></data>
@@ -178,6 +188,7 @@
   <data name="SearchGroups" xml:space="preserve"><value>Rechercher des groupes…</value></data>
   <data name="SelectFriend" xml:space="preserve"><value>Choisissez un ami pour afficher son profil.</value></data>
   <data name="SelectGroup" xml:space="preserve"><value>Sélectionnez un groupe pour afficher ses détails.</value></data>
+  <data name="SenderFilterRegex" xml:space="preserve"><value>Regex de filtre d&apos;expéditeur</value></data>
   <data name="Settings" xml:space="preserve"><value>Paramètres</value></data>
   <data name="Show" xml:space="preserve"><value>Afficher</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>Afficher le bouton flottant</value></data>
@@ -195,6 +206,7 @@
   <data name="StaticNeedsFullParty" xml:space="preserve"><value>Formez une équipe avec tous les membres du groupe fixe pour envoyer des messages.</value></data>
   <data name="StaticPartyMatched" xml:space="preserve"><value>Groupe fixe complet dans l’équipe actuelle</value></data>
   <data name="StaticPartyNotMatched" xml:space="preserve"><value>Groupe fixe incomplet dans l’équipe actuelle</value></data>
+  <data name="StaticRenamed" xml:space="preserve"><value>Le groupe fixe a été renommé de « {0} » en « {1} ».</value></data>
   <data name="StaticUnavailable" xml:space="preserve"><value>Ce groupe fixe est indisponible.</value></data>
   <data name="SystemPrompt" xml:space="preserve"><value>Instruction système</value></data>
   <data name="TellCannotReplyOutsideDuty" xml:space="preserve"><value>Impossible de répondre à un message privé envoyé depuis l’extérieur de la mission actuelle.</value></data>

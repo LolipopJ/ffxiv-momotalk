@@ -6,17 +6,22 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ### Added
 
+- Add an `Advanced` tab to Settings with optional user-defined regular expression filters for sender names and message content (filtering out messages matching either pattern).
+- Capture interactive and silent system messages across conversations via a shared `LogMessage` observation pipeline:
+  - Interactive system messages (`MessageKind.System`, waking/bumping conversations and entering AI reply context): bidirectional friend standard emotes, friend duel outcomes, completed friend trades, and newly added friend notices.
+  - Silent archived system messages (`MessageKind.SilentSystem`, persisted to timelines without unhiding/bumping conversations or entering AI reply context): Free Company member changes, governance/housing milestones, deduplicated Free Company announcements, Linkshell and Cross-World Linkshell member/leadership/lifecycle events, matched Static duty milestones (start, end, completion time, first-timer notice, vote abandon), friend removals on existing conversations, and solidified rename/world-transfer notices for friends, Free Companies, Linkshells, Cross-World Linkshells, and Statics.
 - Right-click any chat message bubble when AI is configured to choose `Translate Chat`, translating up to 5 preceding messages, the selected message, and up to 4 following messages via the configured LLM and displaying each translation inside its bubble beneath a divider with distinct font size and color.
 - Add a `Translation Language` setting in the `AI Settings` tab (defaulting to the current plugin UI language) for chat message translation.
 - Store translated messages in an in-memory cache capped at 1,000 entries and add a `Copy Translation` item to the right-click context menu of translated message bubbles.
 
 ### Changed
 
+- **Breaking:** Upgraded per-character `messages.sqlite3` schema from version 1 to version 2 (`messages.kind`). Existing v1 message databases are automatically backed up via SQLite backup to `messages.sqlite3.v1.bak` before migrating in place while preserving all messages, conversations, and rejections. To downgrade to an earlier plugin version, close the game and replace `messages.sqlite3` with a copy of `messages.sqlite3.v1.bak` (messages recorded after upgrading are not included in the v1 backup).
 - Rename the `AI Reply` settings tab to `AI Settings` (`AI 配置` in Simplified Chinese) across all six localized catalogs.
 
 ### Fixed
 
-- Ignore plugin-injected synthetic chat messages (such as Chat Translate lines with non-player sender prefixes like `[CT] ...`) by validating Global FFXIV player sender names before recording.
+- Preserve cached Free Company, Linkshell, and Cross-World Linkshell memberships when a native proxy polls empty without a completed refresh request, and show the native list button on left-channel notices.
 
 ## [v1.3.0.0] - 2026-11-27
 

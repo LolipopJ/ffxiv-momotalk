@@ -184,11 +184,13 @@ internal sealed partial class AiReplyService
             sb.AppendLine("Recent messages (oldest to newest):");
             foreach (var message in recentMessages)
             {
-                var speaker = message.Outgoing
-                    ? "You"
-                    : !string.IsNullOrWhiteSpace(message.Sender.Name)
-                        ? message.Sender.Name
-                        : conversation.DisplayName;
+                var speaker = message.IsSystem
+                    ? "System"
+                    : message.Outgoing
+                        ? "You"
+                        : !string.IsNullOrWhiteSpace(message.Sender.Name)
+                            ? message.Sender.Name
+                            : conversation.DisplayName;
                 var sentLocal = DateTimeOffset.FromUnixTimeMilliseconds(message.SentAt).ToLocalTime();
                 var timestamp = sentLocal.Date == nowLocal.Date
                     ? sentLocal.ToString("HH:mm", CultureInfo.InvariantCulture)

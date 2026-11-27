@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Dalamud.Game.Chat;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
@@ -6,15 +7,17 @@ using Dalamud.Plugin.Services;
 
 namespace FFXIVMomoTalk.Chat;
 
-internal sealed class ChatCapture(
+internal sealed partial class ChatCapture(
     IChatGui chat,
     IFramework framework,
     SocialDirectory directory,
     MessageStore messages,
     CacheStore cache,
-    IPluginLog log) : IDisposable
+    IPluginLog log,
+    Configuration? config = null) : IDisposable
 {
     private const int PendingLimit = 128;
+    private static readonly PlayerIdentity SystemSender = new(0, string.Empty, 0, string.Empty);
     private readonly Queue<UnresolvedTell> waitingTells = new();
     private readonly Queue<UnresolvedPartyMessage> waitingParty = new();
     private PlayerSession? owner;
@@ -37,14 +40,21 @@ internal sealed class ChatCapture(
         _ = ObserveWriteAsync(session.ContentId, messages.RecordFailedTellAsync(attempt, reason));
     }
 
-    public void Attach() => chat.ChatMessageUnhandled += OnChatMessage;
+    public void Attach()
+    {
+        chat.ChatMessageUnhandled += OnChatMessage;
+        chat.LogMessage += OnLogMessage;
+    }
 
     public void Dispose()
     {
         disposed = true;
         chat.ChatMessageUnhandled -= OnChatMessage;
+        chat.LogMessage -= OnLogMessage;
         waitingTells.Clear();
         waitingParty.Clear();
+        ClearObservedLogs();
+        ClearSystemTrackingState();
     }
 
     public void Update(SocialSnapshot snapshot)
@@ -54,7 +64,11 @@ internal sealed class ChatCapture(
             owner = snapshot.Session;
             waitingTells.Clear();
             waitingParty.Clear();
+            ClearObservedLogs();
+            ClearSystemTrackingState();
         }
+
+        TrackLastKnownState(snapshot);
 
         if (snapshot.Friends is not null)
         {
@@ -67,6 +81,8 @@ internal sealed class ChatCapture(
             while (waitingParty.TryDequeue(out var partyMessage))
                 ArchiveIfMatchedStatic(snapshot, partyMessage);
         }
+
+        FlushPendingSystemQueues(snapshot);
     }
 
     internal static TellPeer? ReadPeer(SeString sender)
@@ -84,12 +100,39 @@ internal sealed class ChatCapture(
         return new TellPeer(name, 0, world, HasPlayerPayload: false);
     }
 
-    internal static bool IsValidPlayerSender(SeString sender, TellPeer peer)
+    internal static bool ShouldFilterMessage(Configuration? config, SeString sender, TellPeer? peer, string body)
     {
-        if (!IsValidGlobalPlayerName(peer.Name))
+        if (config is null)
             return false;
 
-        return !TryReadVisiblePeer(sender, out var visibleName, out _) || IsValidGlobalPlayerName(visibleName);
+        if (config.CompiledSenderFilterRegex is { } senderRegex)
+        {
+            var visibleSender = StripPrivateUse(sender.TextValue.Replace(SeIconChar.CrossWorld.ToIconString(), "@")).Trim();
+            if (IsRegexMatch(senderRegex, visibleSender)
+                || (peer is { } resolvedPeer
+                    && !StringComparer.Ordinal.Equals(resolvedPeer.Name, visibleSender)
+                    && IsRegexMatch(senderRegex, resolvedPeer.Name)))
+            {
+                return true;
+            }
+        }
+
+        return config.CompiledMessageFilterRegex is { } messageRegex && IsRegexMatch(messageRegex, body);
+    }
+
+    private static bool IsRegexMatch(Regex regex, string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return false;
+
+        try
+        {
+            return regex.IsMatch(value);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return false;
+        }
     }
 
     internal static bool IsValidGlobalPlayerName(string? name)
@@ -142,8 +185,9 @@ internal sealed class ChatCapture(
         }
         else
         {
-            name = text[..separator].Trim();
-            world = text[(separator + 1)..].Trim();
+            name = text.AsSpan(..separator).Trim().ToString();
+            var trimmedWorld = text.AsSpan(separator + 1).Trim().ToString();
+            world = trimmedWorld.Length > 0 ? trimmedWorld : null;
         }
 
         return name.Length > 0;
@@ -215,6 +259,44 @@ internal sealed class ChatCapture(
 
     private void OnChatMessage(IChatMessage message)
     {
+        if (TryClassifyTargetedEmote(message.LogKind, message.SourceKind, message.TargetKind, out var emoteOutgoing))
+        {
+            var emoteBody = message.OriginalMessage.ExtractText();
+            if (string.IsNullOrWhiteSpace(emoteBody))
+                return;
+
+            var emotePeer = TryResolveEmotePeer(
+                message.OriginalSender,
+                message.OriginalMessage,
+                emoteBody,
+                emoteOutgoing,
+                directory.Current.Session?.Player);
+            if (emotePeer is null)
+                return;
+
+            var senderSe = message.OriginalSender.IsEmpty
+                ? SeString.Empty
+                : SeString.Parse(message.OriginalSender.Data.Span);
+            if (ShouldFilterMessage(config, senderSe, emotePeer, emoteBody))
+                return;
+
+            DispatchIncoming(new IncomingChat(
+                message.LogKind,
+                ConversationKind.Tell,
+                0,
+                emotePeer,
+                IsLocalPlayer: emoteOutgoing,
+                TellOutgoing: emoteOutgoing,
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                emoteBody,
+                MessageKind.System,
+                SystemCategory: SystemLogCategory.StandardEmote));
+            return;
+        }
+
+        if (TryHandleSystemLogMessage(message))
+            return;
+
         if (!TryMapChatType(message.LogKind, out var kind, out var slot))
             return;
 
@@ -227,15 +309,18 @@ internal sealed class ChatCapture(
         var isLocalPlayer = message.SourceKind == XivChatRelationKind.LocalPlayer;
         if (kind == ConversationKind.Tell)
         {
-            if (peer is null || !IsValidPlayerSender(senderSeString, peer.Value))
+            if (peer is null)
                 return;
         }
-        else if (!isLocalPlayer && (peer is null || !IsValidPlayerSender(senderSeString, peer.Value)))
+        else if (!isLocalPlayer && peer is null)
         {
             return;
         }
 
-        var incoming = new IncomingChat(
+        if (ShouldFilterMessage(config, senderSeString, peer, body))
+            return;
+
+        DispatchIncoming(new IncomingChat(
             message.LogKind,
             kind,
             slot,
@@ -243,11 +328,16 @@ internal sealed class ChatCapture(
             isLocalPlayer,
             message.LogKind == XivChatType.TellOutgoing,
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            body);
+            body));
+    }
 
+    private void DispatchIncoming(IncomingChat incoming)
+    {
+        var rereadFriends = !incoming.SkipPreDispatchReread && incoming.Kind == ConversationKind.Tell;
+        var rereadSocial = !incoming.SkipPreDispatchReread && incoming.Kind != ConversationKind.Tell;
         if (framework.IsInFrameworkUpdateThread)
         {
-            Receive(incoming, directory.Update(rereadFriends: kind == ConversationKind.Tell, rereadSocial: kind != ConversationKind.Tell));
+            Receive(incoming, directory.Update(rereadFriends: rereadFriends, rereadSocial: rereadSocial));
         }
         else if (directory.Current.Session is { } observed)
         {
@@ -256,7 +346,7 @@ internal sealed class ChatCapture(
                 if (disposed)
                     return;
 
-                var snapshot = directory.Update(rereadFriends: kind == ConversationKind.Tell, rereadSocial: kind != ConversationKind.Tell);
+                var snapshot = directory.Update(rereadFriends: rereadFriends, rereadSocial: rereadSocial);
                 if (ReferenceEquals(observed, snapshot.Session))
                     Receive(incoming, snapshot);
             });
@@ -269,9 +359,20 @@ internal sealed class ChatCapture(
         if (snapshot.Session is not { } session)
             return;
 
+        if (incoming.SystemCategory is { } systemCategory && systemCategory != SystemLogCategory.StandardEmote)
+        {
+            ReceiveSystemMessage(incoming, systemCategory, snapshot, session);
+            return;
+        }
+
         if (incoming.Kind == ConversationKind.Tell)
         {
-            var tell = new UnresolvedTell(incoming.Peer!.Value, incoming.SentAt, incoming.TellOutgoing, incoming.Body);
+            var tell = new UnresolvedTell(
+                incoming.Peer!.Value,
+                incoming.SentAt,
+                incoming.TellOutgoing,
+                incoming.Body,
+                incoming.MessageKind);
             if (snapshot.Friends is not null)
             {
                 ArchiveIfFriend(snapshot, tell);
@@ -334,7 +435,7 @@ internal sealed class ChatCapture(
 
         var sender = tell.Outgoing ? session.Player : friend;
         var captured = new CapturedMessage(session, ConversationDescriptor.FromFriend(friend), sender, tell.SentAt,
-            tell.Outgoing, tell.Body);
+            tell.Outgoing, tell.Body, tell.Kind);
         Archive(captured, updateDisplayName: true);
     }
 
@@ -347,15 +448,17 @@ internal sealed class ChatCapture(
         }
 
         var captured = new CapturedMessage(session, group.ToDescriptor(), message.Sender, message.SentAt,
-            message.Outgoing, message.Body);
+            message.Outgoing, message.Body, message.Kind);
         Archive(captured, updateDisplayName: true);
     }
 
-    private void Archive(CapturedMessage captured, bool updateDisplayName)
+    private void Archive(CapturedMessage captured, bool updateDisplayName, bool onlyIfConversationExists = false)
     {
-        var write = messages.RecordAsync(captured, updateDisplayName);
+        var write = onlyIfConversationExists
+            ? messages.RecordExistingOnlyAsync(captured, updateDisplayName)
+            : messages.RecordAsync(captured, updateDisplayName);
         _ = ObserveWriteAsync(captured.Session.ContentId, write);
-        if (cache.IncompatibleOwner != captured.Session.ContentId)
+        if (!captured.IsSilentSystem && cache.IncompatibleOwner != captured.Session.ContentId)
             _ = ObserveCacheAsync(cache.UnhideConversationAsync(captured.Session.ContentId, captured.Conversation.Key));
         Captured?.Invoke(captured, write);
     }
@@ -393,9 +496,28 @@ internal sealed class ChatCapture(
         bool IsLocalPlayer,
         bool TellOutgoing,
         long SentAt,
-        string Body);
+        string Body,
+        MessageKind MessageKind = MessageKind.Chat,
+        SystemLogCategory? SystemCategory = null,
+        string? ChannelName = null,
+        string? DedupKey = null,
+        bool AllowLastKnown = false,
+        bool QueueUntilResolved = false,
+        bool ExistingConversationOnly = false,
+        bool SkipPreDispatchReread = false);
 
-    private sealed record UnresolvedTell(TellPeer Peer, long SentAt, bool Outgoing, string Body);
+    private sealed record UnresolvedTell(
+        TellPeer Peer,
+        long SentAt,
+        bool Outgoing,
+        string Body,
+        MessageKind Kind = MessageKind.Chat);
 
-    private sealed record UnresolvedPartyMessage(string RosterKey, PlayerIdentity Sender, long SentAt, bool Outgoing, string Body);
+    private sealed record UnresolvedPartyMessage(
+        string RosterKey,
+        PlayerIdentity Sender,
+        long SentAt,
+        bool Outgoing,
+        string Body,
+        MessageKind Kind = MessageKind.Chat);
 }

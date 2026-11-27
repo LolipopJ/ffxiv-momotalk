@@ -127,31 +127,30 @@ internal sealed unsafe partial class SocialDirectory
 
     private static ulong LookupMemberProxyContentId(ConversationKind kind, string name, uint worldId)
     {
-        var world = (ushort)worldId;
+        InfoProxyCommonList* proxy = null;
         switch (kind)
         {
             case ConversationKind.FreeCompany:
-                return QueryCommonList(InfoProxyFreeCompanyMember.Instance(), name, world);
+                var fc = InfoProxyFreeCompanyMember.Instance();
+                if (fc is not null)
+                    proxy = &fc->InfoProxyCommonList;
+                break;
             case ConversationKind.Linkshell:
-                return QueryCommonList(InfoProxyLinkshellMember.Instance(), name, world);
+                var ls = InfoProxyLinkshellMember.Instance();
+                if (ls is not null)
+                    proxy = &ls->InfoProxyCommonList;
+                break;
             case ConversationKind.CrossWorldLinkshell:
-                return QueryCommonList(InfoProxyCrossWorldLinkshellMember.Instance(), name, world);
-            default:
-                return 0;
+                var cwls = InfoProxyCrossWorldLinkshellMember.Instance();
+                if (cwls is not null)
+                    proxy = &cwls->InfoProxyCommonList;
+                break;
         }
+
+        return QueryCommonList(proxy, name, (ushort)worldId);
     }
 
-    private static ulong QueryCommonList(InfoProxyFreeCompanyMember* proxy, string name, ushort worldId) =>
-        proxy is null || proxy->EntryCount == 0 || proxy->CharData is null
-            ? 0
-            : QueryCommonListSpan(proxy->CharDataSpan, name, worldId);
-
-    private static ulong QueryCommonList(InfoProxyLinkshellMember* proxy, string name, ushort worldId) =>
-        proxy is null || proxy->EntryCount == 0 || proxy->CharData is null
-            ? 0
-            : QueryCommonListSpan(proxy->CharDataSpan, name, worldId);
-
-    private static ulong QueryCommonList(InfoProxyCrossWorldLinkshellMember* proxy, string name, ushort worldId) =>
+    private static ulong QueryCommonList(InfoProxyCommonList* proxy, string name, ushort worldId) =>
         proxy is null || proxy->EntryCount == 0 || proxy->CharData is null
             ? 0
             : QueryCommonListSpan(proxy->CharDataSpan, name, worldId);

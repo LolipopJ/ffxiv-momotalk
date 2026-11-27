@@ -1,13 +1,14 @@
+using FFXIVMomoTalk.Migrations.Messages;
 using Microsoft.Data.Sqlite;
 
 namespace FFXIVMomoTalk.Chat;
 
-internal sealed class MessageStore(string charactersDirectory)
-    : CharacterSqliteStore(charactersDirectory, "messages.sqlite3", "message history", SchemaVersion, Schema, Indexes)
+internal sealed partial class MessageStore(string charactersDirectory, Action<string>? onInfo = null)
+    : CharacterSqliteStore(charactersDirectory, "messages.sqlite3", "message history", SchemaVersion, Schema, Indexes, [V1ToV2.Migration], onInfo)
 {
     internal const long MergeIntervalMs = 500;
     private const int PageSize = 40;
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
 
     private const string Schema = """
         CREATE TABLE IF NOT EXISTS conversations (
@@ -31,7 +32,8 @@ internal sealed class MessageStore(string charactersDirectory)
             sender_name TEXT NOT NULL,
             sender_world_id INTEGER NOT NULL,
             sender_world_name TEXT NOT NULL,
-            body TEXT NOT NULL
+            body TEXT NOT NULL,
+            kind INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS message_rejections (
@@ -49,12 +51,13 @@ internal sealed class MessageStore(string charactersDirectory)
     private const string SelectMessages = """
         SELECT m.id, m.sent_at, m.outgoing,
                m.sender_content_id, m.sender_name, m.sender_world_id, m.sender_world_name,
-               m.body, r.reason
+               m.body, r.reason, m.kind
         FROM messages m JOIN conversations c ON c.id = m.conversation_id
         LEFT JOIN message_rejections r ON r.message_id = m.id
         WHERE c.kind = $kind AND c.stable_key = $stableKey
         """;
 
+    private static readonly PlayerIdentity SystemSender = new(0, string.Empty, 0, string.Empty);
     private long revision;
     private long rejectionRevision;
 
@@ -63,23 +66,58 @@ internal sealed class MessageStore(string charactersDirectory)
     public long RejectionRevision => Interlocked.Read(ref rejectionRevision);
 
     public Task<long> RecordAsync(CapturedMessage captured, bool updateDisplayName = true) =>
-        RecordAsync(captured, updateDisplayName, rejection: null);
+        RecordCoreAsync(captured, updateDisplayName, rejection: null, onlyIfConversationExists: false, deduplicateBody: false);
+
+    public Task<long> RecordExistingOnlyAsync(CapturedMessage captured, bool updateDisplayName = false) =>
+        RecordCoreAsync(captured, updateDisplayName, rejection: null, onlyIfConversationExists: true, deduplicateBody: false);
+
+    public Task<long> RecordUniqueSystemAsync(CapturedMessage captured, bool updateDisplayName = true) =>
+        RecordCoreAsync(captured, updateDisplayName, rejection: null, onlyIfConversationExists: false, deduplicateBody: true);
 
     public Task<long> RecordFailedTellAsync(CapturedMessage attempt, string reason) =>
-        RecordAsync(attempt, updateDisplayName: false, reason);
+        RecordCoreAsync(attempt, updateDisplayName: false, reason, onlyIfConversationExists: false, deduplicateBody: false);
 
-    private Task<long> RecordAsync(CapturedMessage captured, bool updateDisplayName, string? rejection) =>
+    private Task<long> RecordCoreAsync(
+        CapturedMessage captured,
+        bool updateDisplayName,
+        string? rejection,
+        bool onlyIfConversationExists,
+        bool deduplicateBody) =>
         Enqueue(captured.Session.ContentId, connection =>
         {
             using var transaction = connection.BeginTransaction();
-            var (conversationId, lastMessageId, lastSentAt) =
-                UpsertConversation(connection, transaction, captured, updateDisplayName);
+            long conversationId;
+            long? lastMessageId;
+            long? lastSentAt;
+            if (onlyIfConversationExists)
+            {
+                if (!TryFindConversation(connection, transaction, captured.Conversation.Key, out conversationId, out lastMessageId, out lastSentAt))
+                {
+                    transaction.Commit();
+                    return 0L;
+                }
 
-            if (!captured.Outgoing
+                if (updateDisplayName)
+                    UpdateConversationDescriptor(connection, transaction, conversationId, captured.Conversation);
+            }
+            else
+            {
+                (conversationId, lastMessageId, lastSentAt) =
+                    UpsertConversation(connection, transaction, captured, updateDisplayName);
+            }
+
+            if (deduplicateBody && HasSilentSystemBody(connection, transaction, conversationId, captured.Body))
+            {
+                transaction.Commit();
+                return 0L;
+            }
+
+            if (captured.Kind == MessageKind.Chat
+                && !captured.Outgoing
                 && lastMessageId is { } mergeTargetId
                 && lastSentAt is { } previousSentAt
                 && ShouldMergeInterval(previousSentAt, captured.SentAt)
-                && CanMergeIncomingMessage(connection, transaction, mergeTargetId, captured.Sender))
+                && CanMergeIncomingMessage(connection, transaction, conversationId, mergeTargetId, captured.Sender))
             {
                 using var append = connection.CreateCommand();
                 append.Transaction = transaction;
@@ -150,7 +188,7 @@ internal sealed class MessageStore(string charactersDirectory)
             command.CommandText = """
                 SELECT m.id, m.sent_at, m.outgoing,
                        m.sender_content_id, m.sender_name, m.sender_world_id, m.sender_world_name,
-                       m.body, r.reason,
+                       m.body, r.reason, m.kind,
                        c.kind, c.stable_key, c.display_name, c.world_id, c.world_name, c.last_sent_at
                 FROM conversations c JOIN messages m ON m.id = c.last_message_id
                 LEFT JOIN message_rejections r ON r.message_id = m.id
@@ -159,13 +197,13 @@ internal sealed class MessageStore(string charactersDirectory)
             var conversations = new List<ConversationSummary>();
             while (reader.Read())
             {
-                var key = new ConversationKey((ConversationKind)reader.GetInt32(9), reader.GetString(10));
+                var key = new ConversationKey((ConversationKind)reader.GetInt32(10), reader.GetString(11));
                 var descriptor = new ConversationDescriptor(
                     key,
-                    reader.GetString(11),
-                    (uint)reader.GetInt64(12),
-                    reader.GetString(13));
-                conversations.Add(new ConversationSummary(descriptor, ReadMessage(reader), reader.GetInt64(14)));
+                    reader.GetString(12),
+                    (uint)reader.GetInt64(13),
+                    reader.GetString(14));
+                conversations.Add(new ConversationSummary(descriptor, ReadMessage(reader), reader.GetInt64(15)));
             }
 
             return conversations;
@@ -203,7 +241,8 @@ internal sealed class MessageStore(string charactersDirectory)
 
             using var command = connection.CreateCommand();
             BindConversationKey(command, key);
-            command.CommandText = SelectMessages + "\nAND r.reason IS NULL ORDER BY m.sent_at DESC, m.id DESC LIMIT $limit";
+            command.CommandText = SelectMessages + "\nAND r.reason IS NULL AND m.kind <> $silentKind ORDER BY m.sent_at DESC, m.id DESC LIMIT $limit";
+            command.Parameters.AddWithValue("$silentKind", (int)MessageKind.SilentSystem);
             command.Parameters.AddWithValue("$limit", maxCount);
             var messages = ReadMessages(command);
             messages.Reverse();
@@ -231,120 +270,6 @@ internal sealed class MessageStore(string charactersDirectory)
             command.Parameters.AddWithValue("$displayed", latestDisplayedId);
             return ReadMessages(command);
         });
-
-    public Task UpdateFriendDescriptorsAsync(ulong owner, IReadOnlyList<PlayerIdentity> friends)
-    {
-        if (friends.Count == 0)
-            return Task.CompletedTask;
-
-        return Enqueue(owner, connection =>
-        {
-            using var transaction = connection.BeginTransaction();
-            using var updateConv = connection.CreateCommand();
-            updateConv.Transaction = transaction;
-            updateConv.CommandText = """
-                UPDATE conversations
-                SET display_name = $name, world_id = $world, world_name = $worldName
-                WHERE kind = 0 AND stable_key = $stableKey
-                  AND (display_name <> $name OR world_id <> $world OR world_name <> $worldName)
-                """;
-            var updateKey = updateConv.Parameters.Add("$stableKey", SqliteType.Text);
-            var updateName = updateConv.Parameters.Add("$name", SqliteType.Text);
-            var updateWorld = updateConv.Parameters.Add("$world", SqliteType.Integer);
-            var updateWorldName = updateConv.Parameters.Add("$worldName", SqliteType.Text);
-
-            var changed = false;
-            foreach (var friend in friends)
-            {
-                updateKey.Value = ConversationKey.Tell(friend.ContentId).StableKey;
-                updateName.Value = friend.Name;
-                updateWorld.Value = (long)friend.WorldId;
-                updateWorldName.Value = friend.World;
-                if (updateConv.ExecuteNonQuery() != 0)
-                    changed = true;
-            }
-
-            transaction.Commit();
-            if (changed)
-                Interlocked.Increment(ref revision);
-
-            return changed;
-        });
-    }
-
-    public Task UpdateChannelNamesAsync(ulong owner, ConversationKind kind, IReadOnlyList<ChannelInfo> channels)
-    {
-        var hasNamedChannel = false;
-        foreach (var channel in channels)
-        {
-            if (channel.HasRealName)
-            {
-                hasNamedChannel = true;
-                break;
-            }
-        }
-
-        if (!hasNamedChannel)
-            return Task.CompletedTask;
-
-        return Enqueue(owner, connection =>
-        {
-            using var transaction = connection.BeginTransaction();
-            using var updateConv = connection.CreateCommand();
-            updateConv.Transaction = transaction;
-            updateConv.CommandText = """
-                UPDATE conversations
-                SET display_name = $name
-                WHERE kind = $kind AND stable_key = $stableKey AND display_name <> $name
-                """;
-            var convKind = updateConv.Parameters.Add("$kind", SqliteType.Integer);
-            var convKey = updateConv.Parameters.Add("$stableKey", SqliteType.Text);
-            var convName = updateConv.Parameters.Add("$name", SqliteType.Text);
-
-            var changed = false;
-            foreach (var channel in channels)
-            {
-                if (!channel.HasRealName)
-                    continue;
-
-                convKind.Value = (int)kind;
-                convKey.Value = channel.Key.StableKey;
-                convName.Value = channel.Name;
-                if (updateConv.ExecuteNonQuery() != 0)
-                    changed = true;
-            }
-
-            transaction.Commit();
-            if (changed)
-                Interlocked.Increment(ref revision);
-
-            return changed;
-        });
-    }
-
-    public Task RenameConversationAsync(ulong owner, ConversationKey key, string newName)
-    {
-        var trimmed = newName.Trim();
-        if (trimmed.Length == 0)
-            return Task.CompletedTask;
-
-        return Enqueue(owner, connection =>
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                UPDATE conversations
-                SET display_name = $name
-                WHERE kind = $kind AND stable_key = $stableKey AND display_name <> $name
-                """;
-            BindConversationKey(command, key);
-            command.Parameters.AddWithValue("$name", trimmed);
-            var changed = command.ExecuteNonQuery() != 0;
-            if (changed)
-                Interlocked.Increment(ref revision);
-
-            return changed;
-        });
-    }
 
     internal static bool ShouldMergeInterval(long previousSentAt, long currentSentAt)
     {
@@ -380,37 +305,143 @@ internal sealed class MessageStore(string charactersDirectory)
         long conversationId,
         CapturedMessage captured)
     {
+        var messageId = InsertRawMessageRow(
+            connection,
+            transaction,
+            conversationId,
+            captured.SentAt,
+            captured.Outgoing,
+            captured.Sender,
+            captured.Body,
+            captured.Kind);
+
+        if (!captured.IsSilentSystem)
+        {
+            using var latest = connection.CreateCommand();
+            latest.Transaction = transaction;
+            latest.CommandText = """
+                UPDATE conversations SET last_sent_at = $time, last_message_id = $message
+                WHERE id = $conversation AND
+                    (last_message_id IS NULL OR (last_sent_at, last_message_id) < ($time, $message))
+                """;
+            latest.Parameters.AddWithValue("$conversation", conversationId);
+            latest.Parameters.AddWithValue("$time", captured.SentAt);
+            latest.Parameters.AddWithValue("$message", messageId);
+            latest.ExecuteNonQuery();
+        }
+
+        return messageId;
+    }
+
+    private static long InsertSilentSystemRow(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long conversationId,
+        long sentAt,
+        bool outgoing,
+        PlayerIdentity sender,
+        string body) =>
+        InsertRawMessageRow(connection, transaction, conversationId, sentAt, outgoing, sender, body, MessageKind.SilentSystem);
+
+    private static long InsertRawMessageRow(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long conversationId,
+        long sentAt,
+        bool outgoing,
+        PlayerIdentity sender,
+        string body,
+        MessageKind kind)
+    {
         using var message = connection.CreateCommand();
         message.Transaction = transaction;
         message.CommandText = """
             INSERT INTO messages (
                 conversation_id, sent_at, outgoing,
-                sender_content_id, sender_name, sender_world_id, sender_world_name, body)
-            VALUES ($conversation, $time, $outgoing, $senderCid, $senderName, $senderWorld, $senderWorldName, $body)
+                sender_content_id, sender_name, sender_world_id, sender_world_name, body, kind)
+            VALUES ($conversation, $time, $outgoing, $senderCid, $senderName, $senderWorld, $senderWorldName, $body, $kind)
             RETURNING id
             """;
         message.Parameters.AddWithValue("$conversation", conversationId);
-        message.Parameters.AddWithValue("$time", captured.SentAt);
-        message.Parameters.AddWithValue("$outgoing", captured.Outgoing);
-        BindContentId(message, "$senderCid", captured.Sender.ContentId);
-        message.Parameters.AddWithValue("$senderName", captured.Sender.Name);
-        message.Parameters.AddWithValue("$senderWorld", (long)captured.Sender.WorldId);
-        message.Parameters.AddWithValue("$senderWorldName", captured.Sender.World);
-        message.Parameters.AddWithValue("$body", captured.Body);
-        var messageId = (long)message.ExecuteScalar()!;
+        message.Parameters.AddWithValue("$time", sentAt);
+        message.Parameters.AddWithValue("$outgoing", outgoing);
+        BindContentId(message, "$senderCid", sender.ContentId);
+        message.Parameters.AddWithValue("$senderName", sender.Name);
+        message.Parameters.AddWithValue("$senderWorld", (long)sender.WorldId);
+        message.Parameters.AddWithValue("$senderWorldName", sender.World);
+        message.Parameters.AddWithValue("$body", body);
+        message.Parameters.AddWithValue("$kind", (int)kind);
+        return (long)message.ExecuteScalar()!;
+    }
 
-        using var latest = connection.CreateCommand();
-        latest.Transaction = transaction;
-        latest.CommandText = """
-            UPDATE conversations SET last_sent_at = $time, last_message_id = $message
-            WHERE id = $conversation AND
-                (last_message_id IS NULL OR (last_sent_at, last_message_id) < ($time, $message))
+    private static bool TryFindConversation(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ConversationKey key,
+        out long conversationId,
+        out long? lastMessageId,
+        out long? lastSentAt)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT id, last_message_id, last_sent_at
+            FROM conversations
+            WHERE kind = $kind AND stable_key = $stableKey
             """;
-        latest.Parameters.AddWithValue("$conversation", conversationId);
-        latest.Parameters.AddWithValue("$time", captured.SentAt);
-        latest.Parameters.AddWithValue("$message", messageId);
-        latest.ExecuteNonQuery();
-        return messageId;
+        BindConversationKey(command, key);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            conversationId = 0;
+            lastMessageId = null;
+            lastSentAt = null;
+            return false;
+        }
+
+        conversationId = reader.GetInt64(0);
+        lastMessageId = reader.IsDBNull(1) ? null : reader.GetInt64(1);
+        lastSentAt = reader.IsDBNull(2) ? null : reader.GetInt64(2);
+        return true;
+    }
+
+    private static void UpdateConversationDescriptor(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long conversationId,
+        ConversationDescriptor descriptor)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            UPDATE conversations
+            SET display_name = $name, world_id = $world, world_name = $worldName
+            WHERE id = $id
+            """;
+        command.Parameters.AddWithValue("$id", conversationId);
+        command.Parameters.AddWithValue("$name", descriptor.DisplayName);
+        command.Parameters.AddWithValue("$world", (long)descriptor.WorldId);
+        command.Parameters.AddWithValue("$worldName", descriptor.WorldName);
+        command.ExecuteNonQuery();
+    }
+
+    private static bool HasSilentSystemBody(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long conversationId,
+        string body)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT 1 FROM messages
+            WHERE conversation_id = $conversation AND kind = $silentKind AND body = $body
+            LIMIT 1
+            """;
+        command.Parameters.AddWithValue("$conversation", conversationId);
+        command.Parameters.AddWithValue("$silentKind", (int)MessageKind.SilentSystem);
+        command.Parameters.AddWithValue("$body", body);
+        return command.ExecuteScalar() is not null;
     }
 
     private static (long ConversationId, long? LastMessageId, long? LastSentAt) UpsertConversation(
@@ -455,17 +486,24 @@ internal sealed class MessageStore(string charactersDirectory)
     private static bool CanMergeIncomingMessage(
         SqliteConnection connection,
         SqliteTransaction transaction,
+        long conversationId,
         long messageId,
         PlayerIdentity sender)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            SELECT sender_content_id, sender_name, sender_world_id, sender_world_name
-            FROM messages
-            WHERE id = $id AND outgoing = 0
+            SELECT m.sender_content_id, m.sender_name, m.sender_world_id, m.sender_world_name
+            FROM messages m
+            WHERE m.id = $id AND m.outgoing = 0 AND m.kind = 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM messages newer
+                  WHERE newer.conversation_id = $conversation
+                    AND (newer.sent_at, newer.id) > (m.sent_at, m.id)
+              )
             """;
         command.Parameters.AddWithValue("$id", messageId);
+        command.Parameters.AddWithValue("$conversation", conversationId);
 
         using var reader = command.ExecuteReader();
         return reader.Read() && IsSameSender(
@@ -499,6 +537,7 @@ internal sealed class MessageStore(string charactersDirectory)
             reader.GetBoolean(2),
             sender,
             reader.GetString(7),
-            reader.IsDBNull(8) ? null : reader.GetString(8));
+            reader.IsDBNull(8) ? null : reader.GetString(8),
+            (MessageKind)reader.GetInt32(9));
     }
 }

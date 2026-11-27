@@ -8,7 +8,8 @@ internal readonly record struct SqliteMigration(
     int FromVersion,
     int ToVersion,
     string Step,
-    Action<SqliteConnection, SqliteTransaction> Apply);
+    Action<SqliteConnection, SqliteTransaction> Apply,
+    bool BackupBeforeMigrate = false);
 
 internal abstract class CharacterSqliteStore : IAsyncDisposable
 {
@@ -19,6 +20,7 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
     private readonly string schemaSql;
     private readonly string? indexSql;
     private readonly IReadOnlyList<SqliteMigration> migrations;
+    private readonly Action<string>? onInfo;
     private readonly Channel<Action> requests = Channel.CreateUnbounded<Action>(
         new UnboundedChannelOptions { SingleReader = true });
     private readonly Task worker;
@@ -34,7 +36,8 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
         int schemaVersion,
         string schemaSql,
         string? indexSql = null,
-        IReadOnlyList<SqliteMigration>? migrations = null)
+        IReadOnlyList<SqliteMigration>? migrations = null,
+        Action<string>? onInfo = null)
     {
         this.charactersDirectory = charactersDirectory;
         this.fileName = fileName;
@@ -43,6 +46,7 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
         this.schemaSql = schemaSql;
         this.indexSql = indexSql;
         this.migrations = migrations ?? [];
+        this.onInfo = onInfo;
         worker = Task.Run(ProcessRequestsAsync);
     }
 
@@ -156,6 +160,10 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
                             $"Unrecognized {storeName} database schema version {version} at '{path}' (expected {schemaVersion}). Existing file was preserved.");
                     }
 
+                    string? backupPath = null;
+                    if (migration.BackupBeforeMigrate)
+                        backupPath = BackupDatabase(next, path, migration);
+
                     try
                     {
                         using var transaction = next.BeginTransaction();
@@ -169,8 +177,9 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
                     }
                     catch (Exception exception)
                     {
+                        var backupNote = backupPath is not null ? $" Backup path: '{backupPath}'." : string.Empty;
                         throw new InvalidOperationException(
-                            $"Failed to migrate {storeName} database at '{path}' from v{migration.FromVersion} to v{migration.ToVersion} during '{migration.Step}'. Existing file was preserved at v{version}.",
+                            $"Failed to migrate {storeName} database at '{path}' from v{migration.FromVersion} to v{migration.ToVersion} during '{migration.Step}'. Existing file was preserved at v{version}.{backupNote}",
                             exception);
                     }
                 }
@@ -201,6 +210,54 @@ internal abstract class CharacterSqliteStore : IAsyncDisposable
         {
             next.Dispose();
             throw;
+        }
+    }
+
+    private string BackupDatabase(SqliteConnection source, string path, SqliteMigration migration)
+    {
+        var backupBase = $"{path}.v{migration.FromVersion}.bak";
+        var backupPath = backupBase;
+        for (var copy = 1; File.Exists(backupPath); copy++)
+            backupPath = $"{backupBase}.{copy}";
+
+        string? tempPath = $"{backupPath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            var backupOptions = new SqliteConnectionStringBuilder
+            {
+                DataSource = tempPath,
+                Pooling = false,
+            };
+            using (var destination = new SqliteConnection(backupOptions.ToString()))
+            {
+                destination.Open();
+                source.BackupDatabase(destination);
+            }
+
+            File.Move(tempPath, backupPath, overwrite: false);
+            tempPath = null;
+            onInfo?.Invoke(
+                $"{storeName} v{migration.FromVersion} backup created at '{backupPath}'. To roll back, close the game and replace '{path}' with a copy of this backup.");
+            return backupPath;
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException(
+                $"Failed to migrate {storeName} database at '{path}' from v{migration.FromVersion} to v{migration.ToVersion} during 'back up v{migration.FromVersion} database'. Existing file was preserved at v{migration.FromVersion}.",
+                exception);
+        }
+        finally
+        {
+            if (tempPath is not null)
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                }
+            }
         }
     }
 

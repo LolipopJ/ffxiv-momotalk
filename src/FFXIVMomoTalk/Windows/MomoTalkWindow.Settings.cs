@@ -122,12 +122,18 @@ internal sealed partial class MomoTalkWindow
         var testBannerHeight = testBannerLayout is { } tbl ? tbl.Height + 6f * uiScale : 0f;
         var translationSectionHeight = labelHeight + inputHeight + fieldGap;
         var contextSectionHeight = labelHeight + subLabelHeight + inputHeight + fieldGap;
+        var advancedMetrics = shownTab == SettingsTab.Advanced
+            ? MeasureAdvancedSettings(innerW, labelFontSize, labelHeight, inputHeight, fieldGap, uiScale)
+            : default;
 
-        var naturalBodyHeight = shownTab == SettingsTab.General
-            ? padTop + warnHeight + rowHeight * 5f + rowGap * 4f + padBottom
-            : padTop + warnHeight + (labelHeight + inputHeight + fieldGap) * 2f
+        var naturalBodyHeight = shownTab switch
+        {
+            SettingsTab.General => padTop + warnHeight + rowHeight * 5f + rowGap * 4f + padBottom,
+            SettingsTab.AiSettings => padTop + warnHeight + (labelHeight + inputHeight + fieldGap) * 2f
               + labelHeight + inputHeight + 10f * uiScale + testBtnHeight + testBannerHeight + fieldGap
-              + translationSectionHeight + contextSectionHeight + aiSettings.HeaderHeight + examplesHeight + padBottom;
+              + translationSectionHeight + contextSectionHeight + aiSettings.HeaderHeight + examplesHeight + padBottom,
+            _ => padTop + warnHeight + advancedMetrics.BodyHeight + padBottom,
+        };
         var maxCardHeight = MathF.Max(240f * scale, winSize.Y - 28f * scale) * cardScale;
         var cardHeight = MathF.Min(headerHeight + tabBarHeight + naturalBodyHeight, maxCardHeight);
 
@@ -183,19 +189,28 @@ internal sealed partial class MomoTalkWindow
         draw.AddLine(new Vector2(cardPos.X, dividerY), new Vector2(cardPos.X + cardWidth, dividerY),
             ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.ModalDivider, eased)), MathF.Max(1f, uiScale));
 
-        var halfTabW = MathF.Floor(cardWidth * 0.5f);
+        var tabW1 = MathF.Floor(cardWidth / 3f);
+        var tabW2 = MathF.Floor(cardWidth / 3f);
+        var tabW3 = cardWidth - tabW1 - tabW2;
         if (DrawSettingsTab(draw, "##settings-tab-general", Loc.Text("General"),
-            new Vector2(cardPos.X, dividerY), new Vector2(halfTabW, tabBarHeight),
+            new Vector2(cardPos.X, dividerY), new Vector2(tabW1, tabBarHeight),
             shownTab == SettingsTab.General, uiScale, cardScale, eased, interactive))
         {
             settingsTab = SettingsTab.General;
         }
 
         if (DrawSettingsTab(draw, "##settings-tab-aisettings", Loc.Text("AiSettings"),
-            new Vector2(cardPos.X + halfTabW, dividerY), new Vector2(cardWidth - halfTabW, tabBarHeight),
+            new Vector2(cardPos.X + tabW1, dividerY), new Vector2(tabW2, tabBarHeight),
             shownTab == SettingsTab.AiSettings, uiScale, cardScale, eased, interactive))
         {
             settingsTab = SettingsTab.AiSettings;
+        }
+
+        if (DrawSettingsTab(draw, "##settings-tab-advanced", Loc.Text("Advanced"),
+            new Vector2(cardPos.X + tabW1 + tabW2, dividerY), new Vector2(tabW3, tabBarHeight),
+            shownTab == SettingsTab.Advanced, uiScale, cardScale, eased, interactive))
+        {
+            settingsTab = SettingsTab.Advanced;
         }
 
         var tabBottomY = dividerY + tabBarHeight;
@@ -208,7 +223,12 @@ internal sealed partial class MomoTalkWindow
         if (!interactive)
             bodyFlags |= ImGuiWindowFlags.NoInputs;
 
-        var bodyChildId = shownTab == SettingsTab.General ? "##settings-body-general" : "##settings-body-aisettings";
+        var bodyChildId = shownTab switch
+        {
+            SettingsTab.General => "##settings-body-general",
+            SettingsTab.AiSettings => "##settings-body-aisettings",
+            _ => "##settings-body-advanced",
+        };
         ImGui.SetCursorScreenPos(bodyPos);
         using (ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, Vector2.Zero))
         using (ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero))
@@ -270,7 +290,7 @@ internal sealed partial class MomoTalkWindow
 
                     cursorY += rowHeight;
                 }
-                else
+                else if (shownTab == SettingsTab.AiSettings)
                 {
                     ChatVisuals.AddBoldText(bodyDraw, new Vector2(leftX, cursorY), labelFontSize,
                         ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.Ink, eased)), Loc.Text("Endpoint"), uiScale);
@@ -432,6 +452,11 @@ internal sealed partial class MomoTalkWindow
                     cursorY = DrawAiPromptSettings(bodyDraw, new Vector2(leftX, cursorY + inputHeight + fieldGap),
                         aiSettings, customExamples, previewCards, eased, interactive);
                 }
+                else
+                {
+                    cursorY = DrawAdvancedSettings(bodyDraw, contentOrigin.X, leftX, cursorY, cardWidth,
+                        advancedMetrics, eased, interactive);
+                }
 
                 ImGui.SetCursorScreenPos(new Vector2(leftX, cursorY));
                 ImGui.Dummy(new Vector2(innerW, padBottom));
@@ -530,13 +555,14 @@ internal sealed partial class MomoTalkWindow
         }
 
         var fontSize = ImGui.GetFontSize() * 0.98f * fontScale;
-        var textSize = ChatVisuals.CalcTextSize(label, fontSize);
+        var visibleLabel = ChatVisuals.TruncateSingleLine(label, fontSize, MathF.Max(20f * uiScale, size.X - 10f * uiScale));
+        var textSize = ChatVisuals.CalcTextSize(visibleLabel, fontSize);
         var textPos = pos + (size - textSize) * 0.5f;
         var textCol = ChatVisuals.Color(ChatVisuals.ScaleAlpha(active || pressed ? ChatVisuals.Ink : ChatVisuals.Muted, alpha));
         if (active)
-            ChatVisuals.AddBoldText(draw, textPos, fontSize, textCol, label, uiScale);
+            ChatVisuals.AddBoldText(draw, textPos, fontSize, textCol, visibleLabel, uiScale);
         else
-            ChatVisuals.AddText(draw, textPos, fontSize, textCol, label);
+            ChatVisuals.AddText(draw, textPos, fontSize, textCol, visibleLabel);
 
         if (active)
         {
@@ -591,5 +617,6 @@ internal sealed partial class MomoTalkWindow
     {
         General,
         AiSettings,
+        Advanced,
     }
 }

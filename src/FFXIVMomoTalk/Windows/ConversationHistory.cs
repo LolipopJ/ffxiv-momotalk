@@ -176,10 +176,10 @@ internal sealed class ConversationHistory
         {
             var first = messages[index];
             StringBuilder? mergedBody = null;
-            if (first is { Outgoing: true, Rejection: null })
+            if (first is { Outgoing: true, Rejection: null, Kind: MessageKind.Chat })
             {
                 while (index + 1 < messages.Count
-                       && messages[index + 1] is { Outgoing: true, Rejection: null } next
+                       && messages[index + 1] is { Outgoing: true, Rejection: null, Kind: MessageKind.Chat } next
                        && MessageStore.ShouldMergeInterval(messages[index].SentAt, next.SentAt))
                 {
                     mergedBody ??= new StringBuilder(first.Body);

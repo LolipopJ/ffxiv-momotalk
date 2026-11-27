@@ -72,6 +72,7 @@ internal sealed partial class MomoTalkWindow
         contextStatic = null;
         contextMessageId = null;
         contextMessageBody = null;
+        contextMessageIsSystem = false;
         inputFocused = false;
         inputFocusedConversation = null;
         wasShowingTyping = false;
@@ -226,6 +227,7 @@ internal sealed partial class MomoTalkWindow
             bubbleMeasurements.Clear();
             contextMessageId = null;
             contextMessageBody = null;
+            contextMessageIsSystem = false;
             narrowShowingDetail = false;
             inputFocused = false;
             inputFocusedConversation = null;

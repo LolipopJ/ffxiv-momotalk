@@ -77,13 +77,13 @@ public sealed class Plugin : IAsyncDalamudPlugin
         var charactersRoot = Path.Combine(root, "characters");
         config = Configuration.Load(PluginInterface, Log);
         commandInfo = new CommandInfo(OnCommand);
-        messages = new MessageStore(charactersRoot);
+        messages = new MessageStore(charactersRoot, info => Log.Information("{Message}", info));
         notes = new NotesStore(charactersRoot);
         statics = new StaticStore(charactersRoot);
         cache = new CacheStore(charactersRoot);
         friendProfiles = new FriendProfileStore(charactersRoot);
         directory = new SocialDirectory(ClientState, PlayerState, Condition, Data, Interop, cache, statics, messages, Log);
-        capture = new ChatCapture(Chat, Framework, directory, messages, cache, Log);
+        capture = new ChatCapture(Chat, Framework, directory, messages, cache, Log, config);
         sender = new ChatSender(Framework, Chat, directory, capture, Log);
         avatars = new AvatarCache(Path.Combine(root, "avatars"), Textures, Log);
         aiReply = new AiReplyService(config, capture, messages, Log);

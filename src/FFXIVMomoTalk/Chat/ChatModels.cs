@@ -11,6 +11,13 @@ internal enum ConversationKind
     Static = 4,
 }
 
+internal enum MessageKind
+{
+    Chat = 0,
+    System = 1,
+    SilentSystem = 2,
+}
+
 internal readonly record struct ConversationKey(ConversationKind Kind, string StableKey)
 {
     public bool IsGroup => Kind != ConversationKind.Tell;
@@ -93,6 +100,79 @@ internal sealed record CachedChannels(
     IReadOnlyDictionary<int, ChannelInfo> Linkshells,
     bool HasCrossWorldLinkshells,
     IReadOnlyDictionary<int, ChannelInfo> CrossWorldLinkshells);
+
+internal readonly record struct ChannelReconcileResult(
+    IReadOnlyDictionary<int, ChannelInfo> Channels,
+    bool IsLive,
+    bool ShouldPersist);
+
+internal static class ChannelReconciliation
+{
+    public static ChannelReconcileResult ReconcileLive(
+        IReadOnlyDictionary<int, ChannelInfo> current,
+        IReadOnlyDictionary<int, ChannelInfo>? live,
+        bool forceConfirm,
+        bool emptyConfirmed,
+        bool cachedInStore)
+    {
+        if (live is null)
+            return new ChannelReconcileResult(current, IsLive: false, ShouldPersist: false);
+
+        if (live.Count == 0 && !forceConfirm && !(emptyConfirmed && current.Count == 0))
+            return new ChannelReconcileResult(current, IsLive: false, ShouldPersist: false);
+
+        var next = MergeNames(live, current);
+        var shouldPersist = ChannelsChanged(current, next) || !cachedInStore;
+        return new ChannelReconcileResult(next, IsLive: true, ShouldPersist: shouldPersist);
+    }
+
+    public static Dictionary<int, ChannelInfo> MergeNames(
+        IReadOnlyDictionary<int, ChannelInfo> live,
+        IReadOnlyDictionary<int, ChannelInfo> existing)
+    {
+        Dictionary<ConversationKey, ChannelInfo>? existingByKey = null;
+        var merged = new Dictionary<int, ChannelInfo>(live.Count);
+        foreach (var (slot, channel) in live)
+        {
+            var resolved = channel;
+            if (!channel.HasRealName && existing.Count > 0)
+            {
+                if (existingByKey is null)
+                {
+                    existingByKey = new Dictionary<ConversationKey, ChannelInfo>(existing.Count);
+                    foreach (var item in existing.Values)
+                    {
+                        if (item.HasRealName)
+                            existingByKey.TryAdd(item.Key, item);
+                    }
+                }
+
+                if (existingByKey.TryGetValue(channel.Key, out var cached))
+                    resolved = channel with { Name = cached.Name, HasRealName = true };
+            }
+
+            merged[slot] = resolved;
+        }
+
+        return merged;
+    }
+
+    public static bool ChannelsChanged(
+        IReadOnlyDictionary<int, ChannelInfo> previous,
+        IReadOnlyDictionary<int, ChannelInfo> next)
+    {
+        if (previous.Count != next.Count)
+            return true;
+
+        foreach (var (slot, channel) in next)
+        {
+            if (!previous.TryGetValue(slot, out var old) || old != channel)
+                return true;
+        }
+
+        return false;
+    }
+}
 
 internal sealed record StaticGroup(
     string StableKey,
@@ -376,7 +456,7 @@ internal sealed record SocialSnapshot(
         peer.WorldId != 0 ? candidate.WorldId == peer.WorldId
             : peer.World is null || StringComparer.OrdinalIgnoreCase.Equals(peer.World, candidate.World);
 
-    private static PlayerIdentity? MatchPlayer(IEnumerable<PlayerIdentity> candidates, TellPeer peer) =>
+    internal static PlayerIdentity? MatchPlayer(IEnumerable<PlayerIdentity> candidates, TellPeer peer) =>
         MatchPlayerCore(candidates, peer, allowAbbreviation: false)
         ?? (!peer.HasPlayerPayload ? MatchPlayerCore(candidates, peer, allowAbbreviation: true) : null);
 
@@ -410,7 +490,11 @@ internal sealed record CapturedMessage(
     PlayerIdentity Sender,
     long SentAt,
     bool Outgoing,
-    string Body);
+    string Body,
+    MessageKind Kind = MessageKind.Chat)
+{
+    public bool IsSilentSystem => Kind == MessageKind.SilentSystem;
+}
 
 internal readonly record struct MessageCursor(long SentAt, long Id) : IComparable<MessageCursor>
 {
@@ -427,9 +511,16 @@ internal sealed record ChatMessage(
     bool Outgoing,
     PlayerIdentity Sender,
     string Body,
-    string? Rejection)
+    string? Rejection,
+    MessageKind Kind = MessageKind.Chat)
 {
     public MessageCursor Cursor => new(SentAt, Id);
+
+    public bool IsSystem => Kind != MessageKind.Chat;
+
+    public bool IsSilentSystem => Kind == MessageKind.SilentSystem;
+
+    public bool IncludeInAiContext => Kind is MessageKind.Chat or MessageKind.System;
 }
 
 internal sealed record ConversationSummary(ConversationDescriptor Conversation, ChatMessage? Latest, long? LastSentAt);

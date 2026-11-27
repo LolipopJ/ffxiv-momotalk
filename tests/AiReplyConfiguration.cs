@@ -270,6 +270,8 @@ try
     var sessionType = plugin.GetType("FFXIVMomoTalk.Chat.PlayerSession", throwOnError: true)!;
     var descriptorType = plugin.GetType("FFXIVMomoTalk.Chat.ConversationDescriptor", throwOnError: true)!;
     var messageType = plugin.GetType("FFXIVMomoTalk.Chat.ChatMessage", throwOnError: true)!;
+    var messageKindType = plugin.GetType("FFXIVMomoTalk.Chat.MessageKind", throwOnError: true)!;
+    var chatKind = Enum.ToObject(messageKindType, 0);
     var player = Activator.CreateInstance(identityType, 1UL, "Player One", 1u, "World")!;
     var session = Activator.CreateInstance(sessionType, 1UL, player)!;
     var descriptor = Activator.CreateInstance(descriptorType, key, "Free Company", 0u, string.Empty)!;
@@ -279,7 +281,7 @@ try
         "Forced language should apply to empty conversation opening greetings.");
 
     var singleMessage = Array.CreateInstance(messageType, 1);
-    singleMessage.SetValue(Activator.CreateInstance(messageType, 1L, 1_700_000_000_000L, false, player, "Hello!", null), 0);
+    singleMessage.SetValue(Activator.CreateInstance(messageType, 1L, 1_700_000_000_000L, false, player, "Hello!", null, chatKind), 0);
     var forcedReply = (string)buildUserPrompt.Invoke(null, [session, descriptor, "FC", singleMessage, null, 1_700_000_000_000L, "fr"])!;
     Check(forcedReply.Contains("for [You] in French."),
         "Forced language should apply to reply generation when recent messages exist.");

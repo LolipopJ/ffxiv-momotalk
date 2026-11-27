@@ -20,18 +20,11 @@ AssemblyLoadContext.Default.Resolving += (context, name) =>
 var plugin = Assembly.LoadFrom(pluginPath);
 var dalamud = Assembly.LoadFrom(Path.Combine(dalamudPath, "Dalamud.dll"));
 
-// 1. Plugin-simulated sender filtering
+// 1. User-configured regex message filtering
 var chatCapture = plugin.GetType("FFXIVMomoTalk.Chat.ChatCapture", throwOnError: true)!;
+var shouldFilter = chatCapture.GetMethod("ShouldFilterMessage", BindingFlags.Static | BindingFlags.NonPublic)!;
 var readPeer = chatCapture.GetMethod("ReadPeer", BindingFlags.Static | BindingFlags.NonPublic)!;
-var isValidPlayerSender = chatCapture.GetMethod("IsValidPlayerSender", BindingFlags.Static | BindingFlags.NonPublic)!;
-var isValidName = chatCapture.GetMethod("IsValidGlobalPlayerName", BindingFlags.Static | BindingFlags.NonPublic)!;
-
-foreach (var valid in new[] { "Akatsuki B.", "Akatsuki Bridge", "A. Bridge", "A. B.", "Y'shtola Rhul", "Jean-Luc P." })
-    Check((bool)isValidName.Invoke(null, [valid])!, $"Expected real Global FFXIV name '{valid}' to be accepted.");
-
-foreach (var invalid in new[] { "[CT] Akatsuki B-bridge", "[CT] Akatsuki B.", "(Echo) Akatsuki Bridge", "翻译机器人", "CT: Akatsuki Bridge", "Akatsuki", "CT Akatsuki Bridge", "123 Name", "" })
-    Check(!(bool)isValidName.Invoke(null, [invalid])!, $"Expected simulated sender '{invalid}' to be rejected.");
-
+var configType = plugin.GetType("FFXIVMomoTalk.Configuration", throwOnError: true)!;
 var seStringType = dalamud.GetType("Dalamud.Game.Text.SeStringHandling.SeString", throwOnError: true)!;
 var payloadType = dalamud.GetType("Dalamud.Game.Text.SeStringHandling.Payload", throwOnError: true)!;
 var textPayloadType = dalamud.GetType("Dalamud.Game.Text.SeStringHandling.Payloads.TextPayload", throwOnError: true)!;
@@ -46,35 +39,61 @@ object MakeSeString(params object[] payloads)
 }
 
 var tellPeerType = plugin.GetType("FFXIVMomoTalk.Chat.TellPeer", throwOnError: true)!;
-var realPartySender = MakeSeString(
-    Activator.CreateInstance(textPayloadType, ["\uE0B2"])!,
-    Activator.CreateInstance(playerPayloadType, ["Akatsuki Bridge", 72u])!,
-    Activator.CreateInstance(textPayloadType, ["Akatsuki B.\uE05DTonberry"])!);
-var realPeer = Activator.CreateInstance(tellPeerType, ["Akatsuki Bridge", 72u, null, true])!;
-Check((bool)isValidPlayerSender.Invoke(null, [realPartySender, realPeer])!,
-    "Real player sender with party PUA icon, PlayerPayload, and cross-world suffix should pass.");
+var souSender = MakeSeString(
+    Activator.CreateInstance(textPayloadType, ["▲"])!,
+    Activator.CreateInstance(playerPayloadType, ["Sou Taro", 72u])!,
+    Activator.CreateInstance(textPayloadType, ["Sou T."])!);
+var souPeer = Activator.CreateInstance(tellPeerType, ["Sou Taro", 72u, null, true])!;
 
-var fakeCtWithPayload = MakeSeString(
-    Activator.CreateInstance(textPayloadType, ["[CT] "])!,
+var ctWithPayload = MakeSeString(
+    Activator.CreateInstance(textPayloadType, ["\uE0B2[CT] "])!,
     Activator.CreateInstance(playerPayloadType, ["Akatsuki Bridge", 72u])!,
     Activator.CreateInstance(textPayloadType, ["Akatsuki B-bridge"])!);
-Check(!(bool)isValidPlayerSender.Invoke(null, [fakeCtWithPayload, realPeer])!,
-    "Plugin-prefixed sender carrying a PlayerPayload should still be rejected.");
+var ctWithPayloadPeer = Activator.CreateInstance(tellPeerType, ["Akatsuki Bridge", 72u, null, true])!;
 
-var fakeCtPlain = MakeSeString(Activator.CreateInstance(textPayloadType, ["[CT] Akatsuki B-bridge"])!);
-var fakePlainPeer = readPeer.Invoke(null, [fakeCtPlain])!;
-Check(!(bool)isValidPlayerSender.Invoke(null, [fakeCtPlain, fakePlainPeer])!,
-    "Plain-text Chat Translate sender should be rejected.");
+var ctPlain = MakeSeString(Activator.CreateInstance(textPayloadType, ["[CT] Akatsuki B-bridge"])!);
+var ctPlainPeer = readPeer.Invoke(null, [ctPlain])!;
 
-var realPlain = MakeSeString(Activator.CreateInstance(textPayloadType, ["\uE0B1Akatsuki B.\uE05DTonberry"])!);
-var realPlainPeer = readPeer.Invoke(null, [realPlain])!;
-Check((bool)isValidPlayerSender.Invoke(null, [realPlain, realPlainPeer])!,
-    "Plain-text abbreviated real player sender should pass.");
+dynamic filterConfig = Activator.CreateInstance(configType)!;
+Check(filterConfig.SenderFilterRegex == string.Empty && filterConfig.MessageFilterRegex == string.Empty,
+    "Regex filters should default to empty strings.");
+Check(!(bool)shouldFilter.Invoke(null, [filterConfig, souSender, souPeer, "こんばんわわわわわ～。"])!
+    && !(bool)shouldFilter.Invoke(null, [filterConfig, ctPlain, ctPlainPeer, "Translated line"])!,
+    "Empty filter regexes should not filter any sender or message.");
+
+filterConfig.SenderFilterRegex = @"^\[CT\]";
+Check((bool)shouldFilter.Invoke(null, [filterConfig, ctPlain, ctPlainPeer, "Hello"])!
+    && (bool)shouldFilter.Invoke(null, [filterConfig, ctWithPayload, ctWithPayloadPeer, "Hello"])!,
+    "SenderFilterRegex should match visible sender text after stripping PUA icons, including senders with PlayerPayload.");
+Check(!(bool)shouldFilter.Invoke(null, [filterConfig, souSender, souPeer, "こんばんわわわわわ～。"])!,
+    "SenderFilterRegex should not filter unrelated real players with custom icons.");
+
+filterConfig.SenderFilterRegex = "Sou Taro";
+Check((bool)shouldFilter.Invoke(null, [filterConfig, souSender, souPeer, "Hi"])!,
+    "SenderFilterRegex should also check resolved PlayerPayload player name.");
+
+filterConfig.SenderFilterRegex = @"^\[CT\]";
+filterConfig.MessageFilterRegex = @"^\[CT\]|广告";
+Check((bool)shouldFilter.Invoke(null, [filterConfig, souSender, souPeer, "[CT] translated"])!
+    && (bool)shouldFilter.Invoke(null, [filterConfig, souSender, souPeer, "最新广告"])!,
+    "MessageFilterRegex should filter matching message bodies even when sender does not match.");
+Check((bool)shouldFilter.Invoke(null, [filterConfig, ctPlain, ctPlainPeer, "normal text"])!,
+    "Matching either SenderFilterRegex or MessageFilterRegex should filter the message.");
+Check(!(bool)shouldFilter.Invoke(null, [filterConfig, souSender, souPeer, "normal text"])!,
+    "Messages matching neither regex should pass.");
+
+filterConfig.SenderFilterRegex = "[unclosed";
+filterConfig.MessageFilterRegex = "(";
+var senderErrProp = configType.GetProperty("SenderFilterRegexError", BindingFlags.Instance | BindingFlags.NonPublic)!;
+var messageErrProp = configType.GetProperty("MessageFilterRegexError", BindingFlags.Instance | BindingFlags.NonPublic)!;
+Check(senderErrProp.GetValue(filterConfig) is string && messageErrProp.GetValue(filterConfig) is string,
+    "Invalid filter regexes should expose parse errors for the Settings UI.");
+Check(!(bool)shouldFilter.Invoke(null, [filterConfig, ctPlain, ctPlainPeer, "Hello"])!,
+    "Invalid filter regexes should fail open without blocking messages.");
 
 // 2. Translation target language configuration default & override
 var locType = plugin.GetType("FFXIVMomoTalk.Loc", throwOnError: true)!;
 var setLanguage = locType.GetMethod("SetLanguage", BindingFlags.Static | BindingFlags.Public)!;
-var configType = plugin.GetType("FFXIVMomoTalk.Configuration", throwOnError: true)!;
 dynamic config = Activator.CreateInstance(configType)!;
 setLanguage.Invoke(null, ["en", "zh-Hans"]);
 Check(config.LlmTranslationLanguage is null && config.EffectiveTranslationLanguage == "zh-Hans",
@@ -90,6 +109,8 @@ Check(config.LlmTranslationLanguage is null && config.EffectiveTranslationLangua
 var aiReplyType = plugin.GetType("FFXIVMomoTalk.Chat.AiReplyService", throwOnError: true)!;
 var identityType = plugin.GetType("FFXIVMomoTalk.Chat.PlayerIdentity", throwOnError: true)!;
 var messageType = plugin.GetType("FFXIVMomoTalk.Chat.ChatMessage", throwOnError: true)!;
+var messageKindType = plugin.GetType("FFXIVMomoTalk.Chat.MessageKind", throwOnError: true)!;
+var chatKind = Enum.ToObject(messageKindType, 0);
 var descriptorType = plugin.GetType("FFXIVMomoTalk.Chat.ConversationDescriptor", throwOnError: true)!;
 var keyType = plugin.GetType("FFXIVMomoTalk.Chat.ConversationKey", throwOnError: true)!;
 var selectWindow = aiReplyType.GetMethod("SelectTranslationWindow", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -97,7 +118,7 @@ var selectWindow = aiReplyType.GetMethod("SelectTranslationWindow", BindingFlags
 var speaker = Activator.CreateInstance(identityType, 2UL, "Akatsuki Bridge", 72u, "Tonberry")!;
 var allMessages = Array.CreateInstance(messageType, 15);
 for (var i = 0; i < 15; i++)
-    allMessages.SetValue(Activator.CreateInstance(messageType, (long)(i + 1), 1_700_000_000_000L + i * 1000L, i % 2 == 1, speaker, $"Message {i + 1}", null), i);
+    allMessages.SetValue(Activator.CreateInstance(messageType, (long)(i + 1), 1_700_000_000_000L + i * 1000L, i % 2 == 1, speaker, $"Message {i + 1}", null, chatKind), i);
 
 var middleWindow = ((IEnumerable)selectWindow.Invoke(null, [allMessages, 8L])!).Cast<object>().ToArray();
 Check(middleWindow.Length == 10

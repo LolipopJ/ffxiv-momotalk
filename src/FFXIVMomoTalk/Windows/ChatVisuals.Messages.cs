@@ -133,6 +133,37 @@ internal static partial class ChatVisuals
         AddText(draw, textPos, layout.FontSize, Color(SystemText), label);
     }
 
+    public static BannerLayout MeasureSystemMessage(string text, float maxWidth, float scale)
+    {
+        var fontSize = ImGui.GetFontSize() * 0.88f;
+        var padding = new Vector2(14f, 5f) * scale;
+        var maxTextWidth = MathF.Max(40f * scale, maxWidth - padding.X * 2f);
+        var textSize = CalcTextSize(text, fontSize, maxTextWidth);
+        var width = MathF.Min(maxWidth, textSize.X + padding.X * 2f);
+        var bannerSize = new Vector2(width, textSize.Y + padding.Y * 2f);
+        return new BannerLayout(bannerSize.Y + 6f * scale, bannerSize, textSize, fontSize, padding, maxTextWidth);
+    }
+
+    public static void DrawSystemMessage(
+        ImDrawListPtr draw,
+        Vector2 origin,
+        float availWidth,
+        string text,
+        float scale,
+        BannerLayout layout,
+        out Vector2 pillPos,
+        out Vector2 pillSize)
+    {
+        pillPos = new Vector2(origin.X + (availWidth - layout.BannerSize.X) * 0.5f, origin.Y + 2f * scale);
+        pillSize = layout.BannerSize;
+        draw.AddRectFilled(pillPos, pillPos + pillSize, Color(SystemBg), 10f * scale);
+        var textX = layout.TextSize.X < layout.MaxTextWidth
+            ? pillPos.X + (pillSize.X - layout.TextSize.X) * 0.5f
+            : pillPos.X + layout.Padding.X;
+        var textPos = new Vector2(textX, pillPos.Y + layout.Padding.Y);
+        AddText(draw, textPos, layout.FontSize, Color(SystemText), text, layout.MaxTextWidth);
+    }
+
     public static BannerLayout MeasureSystemBanner(string text, float maxBannerWidth, float scale, bool closable = false)
     {
         var fontSize = ImGui.GetFontSize() * 0.92f;

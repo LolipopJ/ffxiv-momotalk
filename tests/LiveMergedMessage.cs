@@ -5,6 +5,7 @@
 #:package SQLitePCLRaw.bundle_e_sqlite3@3.0.3
 #:include ../src/FFXIVMomoTalk/Chat/ChatModels.cs
 #:include ../src/FFXIVMomoTalk/Chat/CharacterSqliteStore.cs
+#:include ../src/FFXIVMomoTalk/Migrations/Messages/V1ToV2.cs
 #:include ../src/FFXIVMomoTalk/Chat/MessageStore.cs
 #:include ../src/FFXIVMomoTalk/Windows/ConversationHistory.cs
 

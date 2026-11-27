@@ -33,19 +33,26 @@ internal sealed partial class SocialDirectory
             || snapshot.Statics?.GetValueOrDefault(stableKey) is not { } existing)
             return Task.FromResult<StaticGroup?>(null);
 
+        var culture = Loc.Culture;
+        var renameNotice = !StringComparer.Ordinal.Equals(existing.Name, trimmed)
+            ? string.Format(culture, Loc.TextFor(culture, "StaticRenamed"), existing.Name, trimmed)
+            : null;
+
         return statics.RenameStaticAsync(owner.ContentId, stableKey, trimmed).ContinueWith(
             completed => completed.GetAwaiter().GetResult()
-                ? ConfirmStaticWrite(owner, existing with { Name = trimmed })
+                ? ConfirmStaticWrite(owner, existing with { Name = trimmed }, renameNotice)
                 : null,
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
     }
 
-    private StaticGroup ConfirmStaticWrite(PlayerSession owner, StaticGroup group)
+    private StaticGroup ConfirmStaticWrite(PlayerSession owner, StaticGroup group, string? renameNotice = null)
     {
         confirmedStatics.Enqueue((owner, group));
-        ObserveTask(messages.RenameConversationAsync(owner.ContentId, group.Key, group.Name),
+        ObserveTask(
+            messages.RenameConversationAsync(owner.ContentId, group.Key, group.Name, renameNotice,
+                renameNotice is not null ? owner.Player : null),
             "Failed to update static conversation name.");
         return group;
     }

@@ -113,25 +113,29 @@ internal sealed partial class AiReplyService
 
     internal static ChatMessage[] SelectTranslationWindow(IReadOnlyList<ChatMessage> messages, long anchorMessageId)
     {
+        var translatable = new List<ChatMessage>(messages.Count);
         var anchorIndex = -1;
         for (var i = 0; i < messages.Count; i++)
         {
-            if (messages[i].Id == anchorMessageId)
-            {
-                anchorIndex = i;
-                break;
-            }
+            var message = messages[i];
+            if (message.IsSystem)
+                continue;
+
+            if (message.Id == anchorMessageId)
+                anchorIndex = translatable.Count;
+
+            translatable.Add(message);
         }
 
         if (anchorIndex < 0)
             return [];
 
         var start = Math.Max(0, anchorIndex - TranslationMessagesBefore);
-        var end = Math.Min(messages.Count - 1, anchorIndex + TranslationMessagesAfter);
+        var end = Math.Min(translatable.Count - 1, anchorIndex + TranslationMessagesAfter);
         var count = end - start + 1;
         var window = new ChatMessage[count];
         for (var i = 0; i < count; i++)
-            window[i] = messages[start + i];
+            window[i] = translatable[start + i];
 
         return window;
     }

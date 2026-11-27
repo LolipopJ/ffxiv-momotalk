@@ -7,6 +7,7 @@
   <data name="AddNote" xml:space="preserve"><value>メモを追加…</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ 返信を追加</value></data>
   <data name="AddTag" xml:space="preserve"><value>タグを追加</value></data>
+  <data name="Advanced" xml:space="preserve"><value>詳細</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>認証エラー（HTTP {0}）。APIキーを確認してください。</value></data>
   <data name="AiConnected" xml:space="preserve"><value>接続できました（{0} ms）。</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>接続テストに失敗しました。</value></data>
@@ -66,6 +67,7 @@
   <data name="CreateStaticGroup" xml:space="preserve"><value>固定パーティを作成</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>クロスワールドリンクシェル</value></data>
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>このクロスワールドリンクシェルには所属していません。</value></data>
+  <data name="CrossWorldLinkshellRenamed" xml:space="preserve"><value>クロスワールドリンクシェル名が「{0}」から「{1}」に変更されました。</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>CWLS</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>現在クロスワールドリンクシェルチャットは利用できません。</value></data>
   <data name="CustomColor" xml:space="preserve"><value>パレット</value></data>
@@ -97,6 +99,7 @@
   <data name="FollowPluginLanguage" xml:space="preserve"><value>プラグイン言語に従う</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>フリーカンパニー</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>このフリーカンパニーには所属していません。</value></data>
+  <data name="FreeCompanyRenamed" xml:space="preserve"><value>フリーカンパニー名が「{0}」から「{1}」に変更されました。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>現在フリーカンパニーチャットは利用できません。</value></data>
   <data name="FriendAddedToday" xml:space="preserve"><value>今日フレンドになりました。</value></data>
@@ -107,6 +110,9 @@
   <data name="FriendDuration" xml:space="preserve"><value>フレンドになってから{0}です。</value></data>
   <data name="FriendList" xml:space="preserve"><value>フレンドリスト</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>このキャラクターはフレンドリストにいません。</value></data>
+  <data name="FriendRenamed" xml:space="preserve"><value>{0}が{1}に改名しました。</value></data>
+  <data name="FriendRenamedAndTransferred" xml:space="preserve"><value>{0}（{1}）が{2}に改名し、{3}へワールド移転しました。</value></data>
+  <data name="FriendWorldTransferred" xml:space="preserve"><value>{0}が{1}から{2}へワールド移転しました。</value></data>
   <data name="Friends" xml:space="preserve"><value>フレンド</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>ゲーム内のフレンドリストにフレンドがいません。</value></data>
   <data name="GameCannotSendText" xml:space="preserve"><value>ゲームで送信できない文字が含まれています。</value></data>
@@ -120,9 +126,11 @@
   <data name="GroupsEmpty" xml:space="preserve"><value>グループがありません。ゲーム内でフリーカンパニー、リンクシェル、クロスワールドリンクシェルのリストを開いて同期するか、パーティメンバーを右クリックして固定パーティを作成してください。</value></data>
   <data name="Hide" xml:space="preserve"><value>隠す</value></data>
   <data name="InvalidHexColor" xml:space="preserve"><value>3桁または6桁の16進カラーコードを入力してください（例: #4A8AC6）。</value></data>
+  <data name="InvalidRegex" xml:space="preserve"><value>無効な正規表現：{0}</value></data>
   <data name="Language" xml:space="preserve"><value>言語</value></data>
   <data name="Linkshell" xml:space="preserve"><value>リンクシェル</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>このリンクシェルには所属していません。</value></data>
+  <data name="LinkshellRenamed" xml:space="preserve"><value>リンクシェル名が「{0}」から「{1}」に変更されました。</value></data>
   <data name="LinkshellTag" xml:space="preserve"><value>LS</value></data>
   <data name="LinkshellUnavailable" xml:space="preserve"><value>現在リンクシェルチャットは利用できません。</value></data>
   <data name="LoadEarlierMessages" xml:space="preserve"><value>過去のメッセージを読み込む</value></data>
@@ -137,6 +145,8 @@
   <data name="MessageChatRestricted" xml:space="preserve"><value>チャットが制限されているため、メッセージを送信できません。</value></data>
   <data name="MessageDisallowedText" xml:space="preserve"><value>禁止されている文字列が含まれているため、メッセージを送信できません。</value></data>
   <data name="MessageFailedCheckGameChat" xml:space="preserve"><value>メッセージを送信できませんでした。詳細はゲーム内のチャットを確認してください。</value></data>
+  <data name="MessageFilterHint" xml:space="preserve"><value>いずれかの正規表現に一致するメッセージは記録されません。空欄で無効。</value></data>
+  <data name="MessageFilterRegex" xml:space="preserve"><value>メッセージ内容フィルタ正規表現</value></data>
   <data name="MessageMustBeSingleLine" xml:space="preserve"><value>メッセージは制御文字を含まない1行で入力してください。</value></data>
   <data name="MessageParticipationDisabled" xml:space="preserve"><value>チャットへの参加が無効のため、メッセージを送信できません。</value></data>
   <data name="MessageRateLimited" xml:space="preserve"><value>チャットの送信頻度制限により、メッセージを送信できません。</value></data>
@@ -178,6 +188,7 @@
   <data name="SearchGroups" xml:space="preserve"><value>グループを検索…</value></data>
   <data name="SelectFriend" xml:space="preserve"><value>フレンドを選ぶとプロフィールを表示できます。</value></data>
   <data name="SelectGroup" xml:space="preserve"><value>グループを選ぶと詳細を表示できます。</value></data>
+  <data name="SenderFilterRegex" xml:space="preserve"><value>発言者名フィルタ正規表現</value></data>
   <data name="Settings" xml:space="preserve"><value>設定</value></data>
   <data name="Show" xml:space="preserve"><value>表示</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>フローティングボタンを表示</value></data>
@@ -195,6 +206,7 @@
   <data name="StaticNeedsFullParty" xml:space="preserve"><value>固定メンバー全員でパーティを組むと、メッセージを送信できます。</value></data>
   <data name="StaticPartyMatched" xml:space="preserve"><value>メンバー一致・現在のパーティで有効</value></data>
   <data name="StaticPartyNotMatched" xml:space="preserve"><value>現在のパーティに固定メンバー全員がそろっていません</value></data>
+  <data name="StaticRenamed" xml:space="preserve"><value>固定パーティ名が「{0}」から「{1}」に変更されました。</value></data>
   <data name="StaticUnavailable" xml:space="preserve"><value>この固定パーティは利用できません。</value></data>
   <data name="SystemPrompt" xml:space="preserve"><value>システムプロンプト</value></data>
   <data name="TellCannotReplyOutsideDuty" xml:space="preserve"><value>現在のコンテンツ外から受信したTellには返信できません。</value></data>

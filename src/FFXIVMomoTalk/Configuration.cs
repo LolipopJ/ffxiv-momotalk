@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -39,6 +40,7 @@ public sealed class Configuration : IPluginConfiguration
     public const int DefaultContextMinMessages = 5;
     public const int MinContextMinMessages = 0;
     public const int MaxContextMinMessages = 500;
+    private static readonly TimeSpan FilterRegexTimeout = TimeSpan.FromMilliseconds(50);
 
     private string llmEndpoint = string.Empty;
     private string llmApiKey = string.Empty;
@@ -49,6 +51,8 @@ public sealed class Configuration : IPluginConfiguration
     private int llmContextWindowMinutes = DefaultContextWindowMinutes;
     private int llmContextMaxMessages = DefaultContextMaxMessages;
     private int llmContextMinMessages = DefaultContextMinMessages;
+    private CompiledRegexFilter senderFilter = CompiledRegexFilter.Empty;
+    private CompiledRegexFilter messageFilter = CompiledRegexFilter.Empty;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -64,6 +68,40 @@ public sealed class Configuration : IPluginConfiguration
     public float? EntryOffsetX { get; set; }
 
     public float? EntryOffsetY { get; set; }
+
+    public string SenderFilterRegex
+    {
+        get => senderFilter.Pattern;
+        set
+        {
+            var pattern = value ?? string.Empty;
+            if (!string.Equals(senderFilter.Pattern, pattern, StringComparison.Ordinal))
+                senderFilter = CompiledRegexFilter.Create(pattern);
+        }
+    }
+
+    public string MessageFilterRegex
+    {
+        get => messageFilter.Pattern;
+        set
+        {
+            var pattern = value ?? string.Empty;
+            if (!string.Equals(messageFilter.Pattern, pattern, StringComparison.Ordinal))
+                messageFilter = CompiledRegexFilter.Create(pattern);
+        }
+    }
+
+    [JsonIgnore]
+    internal Regex? CompiledSenderFilterRegex => senderFilter.Regex;
+
+    [JsonIgnore]
+    internal string? SenderFilterRegexError => senderFilter.Error;
+
+    [JsonIgnore]
+    internal Regex? CompiledMessageFilterRegex => messageFilter.Regex;
+
+    [JsonIgnore]
+    internal string? MessageFilterRegexError => messageFilter.Error;
 
     public string LlmEndpoint
     {
@@ -248,5 +286,25 @@ public sealed class Configuration : IPluginConfiguration
             return;
 
         pluginInterface.SavePluginConfig(this);
+    }
+
+    private sealed record CompiledRegexFilter(string Pattern, Regex? Regex, string? Error)
+    {
+        public static CompiledRegexFilter Empty { get; } = new(string.Empty, null, null);
+
+        public static CompiledRegexFilter Create(string pattern)
+        {
+            if (string.IsNullOrWhiteSpace(pattern))
+                return new CompiledRegexFilter(pattern, null, null);
+
+            try
+            {
+                return new CompiledRegexFilter(pattern, new Regex(pattern, RegexOptions.CultureInvariant, FilterRegexTimeout), null);
+            }
+            catch (ArgumentException exception)
+            {
+                return new CompiledRegexFilter(pattern, null, exception.Message);
+            }
+        }
     }
 }

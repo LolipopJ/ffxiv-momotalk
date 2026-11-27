@@ -7,6 +7,7 @@
   <data name="AddNote" xml:space="preserve"><value>Notiz hinzufügen…</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ Antwort hinzufügen</value></data>
   <data name="AddTag" xml:space="preserve"><value>Tag hinzufügen</value></data>
+  <data name="Advanced" xml:space="preserve"><value>Erweitert</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>Authentifizierungsfehler (HTTP {0}). Überprüfe deinen API-Schlüssel.</value></data>
   <data name="AiConnected" xml:space="preserve"><value>Verbunden ({0} ms).</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>Der Verbindungstest ist fehlgeschlagen.</value></data>
@@ -66,6 +67,7 @@
   <data name="CreateStaticGroup" xml:space="preserve"><value>Stammgruppe erstellen</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Welten-Kontaktkreis</value></data>
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>Du bist nicht mehr Mitglied dieses Welten-Kontaktkreises.</value></data>
+  <data name="CrossWorldLinkshellRenamed" xml:space="preserve"><value>Weltenübergreifender Kontaktkreis wurde von „{0}“ in „{1}“ umbenannt.</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>WKK</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>Der Welten-Kontaktkreis-Chat ist momentan nicht verfügbar.</value></data>
   <data name="CustomColor" xml:space="preserve"><value>Farbpalette</value></data>
@@ -97,6 +99,7 @@
   <data name="FollowPluginLanguage" xml:space="preserve"><value>Wie Plugin-Sprache</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Freie Gesellschaft</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Du bist nicht mehr Mitglied dieser Freien Gesellschaft.</value></data>
+  <data name="FreeCompanyRenamed" xml:space="preserve"><value>Freie Gesellschaft wurde von „{0}“ in „{1}“ umbenannt.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FG</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>Der Chat der Freien Gesellschaft ist momentan nicht verfügbar.</value></data>
   <data name="FriendAddedToday" xml:space="preserve"><value>Ihr seid seit heute befreundet.</value></data>
@@ -107,6 +110,9 @@
   <data name="FriendDuration" xml:space="preserve"><value>Ihr seid seit {0} befreundet.</value></data>
   <data name="FriendList" xml:space="preserve"><value>Freundesliste</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>Dieser Charakter steht nicht mehr auf deiner Freundesliste.</value></data>
+  <data name="FriendRenamed" xml:space="preserve"><value>{0} hat sich in {1} umbenannt.</value></data>
+  <data name="FriendRenamedAndTransferred" xml:space="preserve"><value>{0} ({1}) hat sich in {2} umbenannt und ist nach {3} gewechselt.</value></data>
+  <data name="FriendWorldTransferred" xml:space="preserve"><value>{0} ist von {1} nach {2} gewechselt.</value></data>
   <data name="Friends" xml:space="preserve"><value>Freunde</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>Deine Freundesliste im Spiel ist leer.</value></data>
   <data name="GameCannotSendText" xml:space="preserve"><value>Die Nachricht enthält Zeichen, die das Spiel nicht senden kann.</value></data>
@@ -120,9 +126,11 @@
   <data name="GroupsEmpty" xml:space="preserve"><value>Noch keine Gruppen. Öffne im Spiel die Liste deiner Freien Gesellschaft, Kontaktkreise oder Welten-Kontaktkreise zum Synchronisieren. Per Rechtsklick auf ein Gruppenmitglied kannst du eine Stammgruppe erstellen.</value></data>
   <data name="Hide" xml:space="preserve"><value>Ausblenden</value></data>
   <data name="InvalidHexColor" xml:space="preserve"><value>Gib einen 3- oder 6-stelligen Hex-Farbwert ein (z. B. #4A8AC6).</value></data>
+  <data name="InvalidRegex" xml:space="preserve"><value>Ungültiger regulärer Ausdruck: {0}</value></data>
   <data name="Language" xml:space="preserve"><value>Sprache</value></data>
   <data name="Linkshell" xml:space="preserve"><value>Kontaktkreis</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>Du bist nicht mehr Mitglied dieses Kontaktkreises.</value></data>
+  <data name="LinkshellRenamed" xml:space="preserve"><value>Kontaktkreis wurde von „{0}“ in „{1}“ umbenannt.</value></data>
   <data name="LinkshellTag" xml:space="preserve"><value>KK</value></data>
   <data name="LinkshellUnavailable" xml:space="preserve"><value>Der Kontaktkreis-Chat ist momentan nicht verfügbar.</value></data>
   <data name="LoadEarlierMessages" xml:space="preserve"><value>Ältere Nachrichten laden</value></data>
@@ -137,6 +145,8 @@
   <data name="MessageChatRestricted" xml:space="preserve"><value>Die Nachricht konnte wegen einer Chatbeschränkung nicht gesendet werden.</value></data>
   <data name="MessageDisallowedText" xml:space="preserve"><value>Die Nachricht enthält unzulässigen Text und konnte nicht gesendet werden.</value></data>
   <data name="MessageFailedCheckGameChat" xml:space="preserve"><value>Die Nachricht konnte nicht gesendet werden. Details stehen im Spielchat.</value></data>
+  <data name="MessageFilterHint" xml:space="preserve"><value>Nachrichten, die einem der regulären Ausdrücke entsprechen, werden ignoriert. Leer lassen zum Deaktivieren.</value></data>
+  <data name="MessageFilterRegex" xml:space="preserve"><value>Nachrichteninhalt-Filter (Regex)</value></data>
   <data name="MessageMustBeSingleLine" xml:space="preserve"><value>Nachrichten müssen einzeilig sein und dürfen keine Steuerzeichen enthalten.</value></data>
   <data name="MessageParticipationDisabled" xml:space="preserve"><value>Die Nachricht konnte nicht gesendet werden, weil die Chatteilnahme deaktiviert ist.</value></data>
   <data name="MessageRateLimited" xml:space="preserve"><value>Wegen der Begrenzung der Chatfrequenz konnte die Nachricht nicht gesendet werden.</value></data>
@@ -178,6 +188,7 @@
   <data name="SearchGroups" xml:space="preserve"><value>Gruppen suchen…</value></data>
   <data name="SelectFriend" xml:space="preserve"><value>Wähle einen Freund, um das Profil anzuzeigen.</value></data>
   <data name="SelectGroup" xml:space="preserve"><value>Wähle eine Gruppe, um ihre Details zu sehen.</value></data>
+  <data name="SenderFilterRegex" xml:space="preserve"><value>Absendername-Filter (Regex)</value></data>
   <data name="Settings" xml:space="preserve"><value>Einstellungen</value></data>
   <data name="Show" xml:space="preserve"><value>Anzeigen</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>Schwebende Schaltfläche anzeigen</value></data>
@@ -195,6 +206,7 @@
   <data name="StaticNeedsFullParty" xml:space="preserve"><value>Bilde eine Gruppe mit allen Mitgliedern der Stammgruppe, um Nachrichten zu senden.</value></data>
   <data name="StaticPartyMatched" xml:space="preserve"><value>Stammgruppe in aktueller Gruppe vollständig</value></data>
   <data name="StaticPartyNotMatched" xml:space="preserve"><value>Stammgruppe in aktueller Gruppe unvollständig</value></data>
+  <data name="StaticRenamed" xml:space="preserve"><value>Stammgruppe wurde von „{0}“ in „{1}“ umbenannt.</value></data>
   <data name="StaticUnavailable" xml:space="preserve"><value>Diese Stammgruppe ist nicht verfügbar.</value></data>
   <data name="SystemPrompt" xml:space="preserve"><value>System-Prompt</value></data>
   <data name="TellCannotReplyOutsideDuty" xml:space="preserve"><value>Du kannst nicht auf Flüsternachrichten von außerhalb dieses Inhalts antworten.</value></data>

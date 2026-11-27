@@ -175,7 +175,8 @@ internal sealed partial class AiReplyService(
                 : Loc.NormalizeLanguageCode(forcedLanguageCode);
             var uiLanguage = Loc.NormalizeLanguageCode(Loc.Culture.Name);
 
-            var fallbackMessages = messages.Where(message => message.Rejection is null).TakeLast(maxMessages).ToArray();
+            var fallbackMessages = messages.Where(message => message.Rejection is null && message.IncludeInAiContext)
+                .TakeLast(maxMessages).ToArray();
 
             var generationId = ++nextGenerationId;
             var requestCts = new CancellationTokenSource();
@@ -250,7 +251,7 @@ internal sealed partial class AiReplyService(
 
     private void OnCaptured(CapturedMessage captured, Task<long> _)
     {
-        if (!captured.Outgoing)
+        if (!captured.Outgoing || captured.Kind != MessageKind.Chat)
             return;
 
         lock (gate)

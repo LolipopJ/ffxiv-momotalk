@@ -9,6 +9,7 @@ internal sealed class CacheStore(string charactersDirectory)
     private const int SchemaVersion = 2;
     private const string FriendsCachedMetaKey = "friends_cached_at";
     private const string FreeCompanyCachedMetaKey = "fc_cached_at";
+    private const string FreeCompanyAnnouncementMetaPrefix = "fc_announcement:";
     private const string LinkshellsCachedMetaKey = "ls_cached_at";
     private const string CrossWorldLinkshellsCachedMetaKey = "cwls_cached_at";
 
@@ -253,6 +254,27 @@ internal sealed class CacheStore(string charactersDirectory)
         if (command.ExecuteNonQuery() != 0)
             Interlocked.Increment(ref hiddenRevision);
 
+        return true;
+    });
+
+    public Task<string?> ReadFreeCompanyAnnouncementAsync(ulong owner, string fcStableKey) => Enqueue(owner, connection =>
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM store_meta WHERE key = $key";
+        command.Parameters.AddWithValue("$key", FreeCompanyAnnouncementMetaPrefix + fcStableKey);
+        return command.ExecuteScalar() as string;
+    });
+
+    public Task SaveFreeCompanyAnnouncementAsync(ulong owner, string fcStableKey, string announcement) => Enqueue(owner, connection =>
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO store_meta (key, value) VALUES ($key, $value)
+            ON CONFLICT (key) DO UPDATE SET value = excluded.value
+            """;
+        command.Parameters.AddWithValue("$key", FreeCompanyAnnouncementMetaPrefix + fcStableKey);
+        command.Parameters.AddWithValue("$value", announcement);
+        command.ExecuteNonQuery();
         return true;
     });
 

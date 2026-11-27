@@ -74,19 +74,7 @@ internal sealed partial class MomoTalkWindow
 
         foreach (var message in view.Messages)
         {
-            var author = message.Outgoing
-                ? session!.Player
-                : tellPeer
-                    ?? (staticGroup is not null && message.Sender.ContentId != 0
-                        ? staticGroup.Members.FirstOrDefault(member => member.ContentId == message.Sender.ContentId) ?? message.Sender
-                        : message.Sender);
-            var speaker = SenderGroupKey.From(message.Outgoing, author);
             var showTimeDivider = ChatVisuals.ShouldInsertTimeDivider(previousSentAt, message.SentAt);
-            var isGroupStart = previousSpeaker is null
-                || !previousSpeaker.Value.Equals(speaker)
-                || showTimeDivider
-                || previousHadRejection;
-
             if (showTimeDivider)
             {
                 var label = ChatVisuals.FormatTimeDivider(message.SentAt);
@@ -97,10 +85,40 @@ internal sealed partial class MomoTalkWindow
 
                 ImGui.Dummy(new Vector2(availWidth, divider.Height));
             }
-            else if (isGroupStart)
+
+            if (message.IsSystem)
             {
-                ImGui.Dummy(new Vector2(availWidth, 6f * scale));
+                var sysY = ImGui.GetCursorPosY();
+                if (first)
+                {
+                    firstMessageY = sysY;
+                    first = false;
+                }
+
+                if (view.PrependAnchor == message.Id)
+                    ImGui.SetScrollY(MathF.Max(0f, ImGui.GetScrollY() + sysY - previousFirstY));
+
+                DrawSystemMessageRow(message, availWidth, scale);
+                previousSentAt = message.SentAt;
+                previousSpeaker = null;
+                previousHadRejection = false;
+                continue;
             }
+
+            var author = message.Outgoing
+                ? session!.Player
+                : tellPeer
+                    ?? (staticGroup is not null && message.Sender.ContentId != 0
+                        ? staticGroup.Members.FirstOrDefault(member => member.ContentId == message.Sender.ContentId) ?? message.Sender
+                        : message.Sender);
+            var speaker = SenderGroupKey.From(message.Outgoing, author);
+            var isGroupStart = previousSpeaker is null
+                || !previousSpeaker.Value.Equals(speaker)
+                || showTimeDivider
+                || previousHadRejection;
+
+            if (!showTimeDivider && isGroupStart)
+                ImGui.Dummy(new Vector2(availWidth, 6f * scale));
 
             var y = ImGui.GetCursorPosY();
             if (first)
@@ -160,10 +178,10 @@ internal sealed partial class MomoTalkWindow
         using var msgMenu = ChatVisuals.BeginContextMenu("##message-context-menu", scale);
         if (msgMenu.IsOpen && contextMessageBody is { } copyBody)
         {
-            var cachedTranslation = contextMessageId is { } msgId && session is not null
+            var cachedTranslation = !contextMessageIsSystem && contextMessageId is { } msgId && session is not null
                 ? aiReply.GetTranslation(session.ContentId, msgId, copyBody)
                 : null;
-            var showTranslate = config.IsAiReplyConfigured && contextMessageId is not null;
+            var showTranslate = !contextMessageIsSystem && config.IsAiReplyConfigured && contextMessageId is not null;
             var isTranslating = translateState.Status == AiTranslationStatus.Loading;
             var copyLabel = Loc.Text("CopyText");
             var copyTransLabel = cachedTranslation is { Length: > 0 } ? Loc.Text("CopyTranslation") : null;
@@ -217,6 +235,34 @@ internal sealed partial class MomoTalkWindow
 
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2(availWidth, btnSize.Y + 10f * scale));
+    }
+
+    private void DrawSystemMessageRow(ChatMessage message, float availWidth, float scale)
+    {
+        var maxWidth = MathF.Max(80f * scale, availWidth - 44f * scale);
+        var layout = ChatVisuals.MeasureSystemMessage(message.Body, maxWidth, scale);
+        var origin = ImGui.GetCursorScreenPos();
+        if (ImGui.IsRectVisible(origin, origin + new Vector2(availWidth, layout.Height)))
+        {
+            ChatVisuals.DrawSystemMessage(ImGui.GetWindowDrawList(), origin, availWidth, message.Body, scale, layout,
+                out var pillPos, out var pillSize);
+            if (ImGui.IsWindowHovered() && ImGui.IsMouseHoveringRect(pillPos, pillPos + pillSize))
+            {
+                if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+                {
+                    contextMessageId = message.Id;
+                    contextMessageBody = message.Body;
+                    contextMessageIsSystem = true;
+                    ImGui.OpenPopup("##message-context-menu");
+                }
+                else if (!ImGui.IsPopupOpen("##message-context-menu"))
+                {
+                    ImGui.SetTooltip(ChatVisuals.FormatFullTime(message.SentAt));
+                }
+            }
+        }
+
+        ImGui.Dummy(new Vector2(availWidth, layout.Height));
     }
 
     private static void DrawTimelineBanner(string text, bool isAlert, float availWidth, float scale)
@@ -334,6 +380,7 @@ internal sealed partial class MomoTalkWindow
                 {
                     contextMessageId = message.Id;
                     contextMessageBody = message.Body;
+                    contextMessageIsSystem = false;
                     ImGui.OpenPopup("##message-context-menu");
                 }
                 else if (!ImGui.IsPopupOpen("##message-context-menu"))

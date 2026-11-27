@@ -199,7 +199,7 @@ internal sealed class ChatSender(
 
     private void OnCaptured(CapturedMessage captured, Task<long> archive)
     {
-        if (!captured.Outgoing)
+        if (!captured.Outgoing || captured.Kind != MessageKind.Chat)
             return;
 
         var body = NormalizeBody(captured.Body);

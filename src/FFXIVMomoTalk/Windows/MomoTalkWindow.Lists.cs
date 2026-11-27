@@ -554,6 +554,9 @@ internal sealed partial class MomoTalkWindow
 
     private static string FormatPreview(ConversationKey key, ChatMessage latest)
     {
+        if (latest.IsSystem)
+            return latest.Body;
+
         if (latest.Outgoing)
             return Loc.Format("OutgoingPreview", latest.Body);
 

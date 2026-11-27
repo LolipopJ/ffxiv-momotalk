@@ -48,8 +48,10 @@ internal sealed partial class MomoTalkWindow
 
         var sendTarget = snapshot.FindSendTarget(currentConv.Key, out var unavailableReason);
         var unavailable = unavailableReason is not null ? Loc.Reason(unavailableReason) : null;
-        var needsNativeList = unavailableReason is "OpenFriendsToSendTell" or "FreeCompanyUnavailable"
-            or "LinkshellUnavailable" or "CrossWorldLinkshellUnavailable";
+        var needsNativeList = unavailableReason is "OpenFriendsToSendTell"
+            or "FreeCompanyUnavailable" or "FreeCompanyLeft"
+            or "LinkshellUnavailable" or "LinkshellLeft"
+            or "CrossWorldLinkshellUnavailable" or "CrossWorldLinkshellLeft";
         var replyState = config.IsAiReplyConfigured ? aiReply.GetState(currentConv.Key) : AiReplySnapshot.Idle;
         var translateState = config.IsAiReplyConfigured ? aiReply.GetTranslationState(currentConv.Key) : AiTranslationSnapshot.Idle;
         var warning = draft.Warning is { AttachedToMessage: false } local ? local : unassignedWarning;
@@ -401,6 +403,7 @@ internal sealed partial class MomoTalkWindow
         bubbleMeasurements.Clear();
         contextMessageId = null;
         contextMessageBody = null;
+        contextMessageIsSystem = false;
         lastTranslationRevision = aiReply.TranslationRevision;
         firstMessageY = 0;
         inputFocused = false;

@@ -7,6 +7,7 @@
   <data name="AddNote" xml:space="preserve"><value>Add a note...</value></data>
   <data name="AddReply" xml:space="preserve"><value>+ Add Reply</value></data>
   <data name="AddTag" xml:space="preserve"><value>Add tag</value></data>
+  <data name="Advanced" xml:space="preserve"><value>Advanced</value></data>
   <data name="AiAuthenticationError" xml:space="preserve"><value>Authentication error (HTTP {0}). Check your API key.</value></data>
   <data name="AiConnected" xml:space="preserve"><value>Connected ({0} ms).</value></data>
   <data name="AiConnectionFailed" xml:space="preserve"><value>Connection test failed.</value></data>
@@ -66,6 +67,7 @@
   <data name="CreateStaticGroup" xml:space="preserve"><value>Create Static Group</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Cross-World Linkshell</value></data>
   <data name="CrossWorldLinkshellLeft" xml:space="preserve"><value>You are no longer a member of this Cross-World Linkshell.</value></data>
+  <data name="CrossWorldLinkshellRenamed" xml:space="preserve"><value>Cross-World Linkshell renamed from "{0}" to "{1}".</value></data>
   <data name="CrossWorldLinkshellTag" xml:space="preserve"><value>CWLS</value></data>
   <data name="CrossWorldLinkshellUnavailable" xml:space="preserve"><value>Cross-World Linkshell chat is unavailable right now.</value></data>
   <data name="CustomColor" xml:space="preserve"><value>Palette</value></data>
@@ -97,6 +99,7 @@
   <data name="FollowPluginLanguage" xml:space="preserve"><value>Follow plugin language</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Free Company</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>You are no longer a member of this Free Company.</value></data>
+  <data name="FreeCompanyRenamed" xml:space="preserve"><value>Free Company renamed from "{0}" to "{1}".</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>Free Company chat is unavailable right now.</value></data>
   <data name="FriendAddedToday" xml:space="preserve"><value>You became friends today.</value></data>
@@ -107,6 +110,9 @@
   <data name="FriendDuration" xml:space="preserve"><value>You have been friends for {0}.</value></data>
   <data name="FriendList" xml:space="preserve"><value>Friend List</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>This character is no longer on your Friend List.</value></data>
+  <data name="FriendRenamed" xml:space="preserve"><value>{0} changed their name to {1}.</value></data>
+  <data name="FriendRenamedAndTransferred" xml:space="preserve"><value>{0} ({1}) changed their name to {2} and transferred to {3}.</value></data>
+  <data name="FriendWorldTransferred" xml:space="preserve"><value>{0} transferred from {1} to {2}.</value></data>
   <data name="Friends" xml:space="preserve"><value>Friends</value></data>
   <data name="FriendsEmpty" xml:space="preserve"><value>Your in-game Friend List is empty.</value></data>
   <data name="GameCannotSendText" xml:space="preserve"><value>The message contains text the game cannot send.</value></data>
@@ -120,9 +126,11 @@
   <data name="GroupsEmpty" xml:space="preserve"><value>No groups yet. Open your in-game FC, Linkshell, or Cross-World Linkshell list to sync, or right-click a party member to create a Static.</value></data>
   <data name="Hide" xml:space="preserve"><value>Hide</value></data>
   <data name="InvalidHexColor" xml:space="preserve"><value>Enter a 3- or 6-digit hex color (e.g. #4A8AC6).</value></data>
+  <data name="InvalidRegex" xml:space="preserve"><value>Invalid regular expression: {0}</value></data>
   <data name="Language" xml:space="preserve"><value>Language</value></data>
   <data name="Linkshell" xml:space="preserve"><value>Linkshell</value></data>
   <data name="LinkshellLeft" xml:space="preserve"><value>You are no longer a member of this Linkshell.</value></data>
+  <data name="LinkshellRenamed" xml:space="preserve"><value>Linkshell renamed from "{0}" to "{1}".</value></data>
   <data name="LinkshellTag" xml:space="preserve"><value>LS</value></data>
   <data name="LinkshellUnavailable" xml:space="preserve"><value>Linkshell chat is unavailable right now.</value></data>
   <data name="LoadEarlierMessages" xml:space="preserve"><value>Load earlier messages</value></data>
@@ -137,6 +145,8 @@
   <data name="MessageChatRestricted" xml:space="preserve"><value>Unable to send the message because chat is restricted.</value></data>
   <data name="MessageDisallowedText" xml:space="preserve"><value>Unable to send the message because it contains disallowed text.</value></data>
   <data name="MessageFailedCheckGameChat" xml:space="preserve"><value>Failed to send message. Check the in-game chat for details.</value></data>
+  <data name="MessageFilterHint" xml:space="preserve"><value>Messages matching either regular expression are ignored and not recorded. Leave blank to disable.</value></data>
+  <data name="MessageFilterRegex" xml:space="preserve"><value>Message Content Filter Regex</value></data>
   <data name="MessageMustBeSingleLine" xml:space="preserve"><value>A message must be one line without control characters.</value></data>
   <data name="MessageParticipationDisabled" xml:space="preserve"><value>Unable to send the message because chat participation is disabled.</value></data>
   <data name="MessageRateLimited" xml:space="preserve"><value>Unable to send the message due to chat rate limiting.</value></data>
@@ -178,6 +188,7 @@
   <data name="SearchGroups" xml:space="preserve"><value>Search groups...</value></data>
   <data name="SelectFriend" xml:space="preserve"><value>Select a friend to view profile.</value></data>
   <data name="SelectGroup" xml:space="preserve"><value>Select a group to view details.</value></data>
+  <data name="SenderFilterRegex" xml:space="preserve"><value>Sender Name Filter Regex</value></data>
   <data name="Settings" xml:space="preserve"><value>Settings</value></data>
   <data name="Show" xml:space="preserve"><value>Show</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>Show Floating Entry</value></data>
@@ -195,6 +206,7 @@
   <data name="StaticNeedsFullParty" xml:space="preserve"><value>Form a party with all static members to send messages.</value></data>
   <data name="StaticPartyMatched" xml:space="preserve"><value>Party matched — active in current party</value></data>
   <data name="StaticPartyNotMatched" xml:space="preserve"><value>Not currently in full static party</value></data>
+  <data name="StaticRenamed" xml:space="preserve"><value>Static renamed from "{0}" to "{1}".</value></data>
   <data name="StaticUnavailable" xml:space="preserve"><value>This static group is unavailable.</value></data>
   <data name="SystemPrompt" xml:space="preserve"><value>System Prompt</value></data>
   <data name="TellCannotReplyOutsideDuty" xml:space="preserve"><value>Unable to reply to a Tell from outside the current duty.</value></data>
