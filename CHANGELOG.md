@@ -4,6 +4,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [v1.2.0.0] - 2026-11-27
+
 ### Added
 
 - Display the friend added date (when available from the game's friend list) in a MomoTalk birthday-style badge on the Friend Detail Card, moving `@ World` into a subtitle beneath the friend's name.
@@ -119,7 +121,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Attached native in-game outgoing Tell rejection errors to matching message bubbles or conversation banners.
 - Hidden the floating entry button while logged out or on the title/character select screens.
 
-[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.1.1.0...main
+[unreleased]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.2.0.0...main
+[v1.2.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.1.1.0...v1.2.0.0
 [v1.1.1.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.1.0.0...v1.1.1.0
 [v1.1.0.0]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.2...v1.1.0.0
 [v1.0.0.2]: https://github.com/LolipopJ/ffxiv-momotalk/compare/v1.0.0.1...v1.0.0.2
