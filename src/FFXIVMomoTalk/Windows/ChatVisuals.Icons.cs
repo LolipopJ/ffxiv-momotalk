@@ -259,6 +259,40 @@ internal static partial class ChatVisuals
         draw.AddRectFilled(dotCenter - new Vector2(dotSize * 0.5f), dotCenter + new Vector2(dotSize * 0.5f), col, dotSize * 0.2f);
     }
 
+    public static void DrawCakeIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
+    {
+        draw.AddRectFilled(
+            new Vector2(center.X - size * 0.38f, center.Y + size * 0.04f),
+            new Vector2(center.X + size * 0.38f, center.Y + size * 0.40f),
+            col,
+            size * 0.08f);
+        draw.AddRectFilled(
+            new Vector2(center.X - size * 0.26f, center.Y - size * 0.14f),
+            new Vector2(center.X + size * 0.26f, center.Y + size * 0.06f),
+            col,
+            size * 0.07f,
+            ImDrawFlags.RoundCornersTop);
+        draw.AddLine(
+            new Vector2(center.X - size * 0.44f, center.Y + size * 0.42f),
+            new Vector2(center.X + size * 0.44f, center.Y + size * 0.42f),
+            col,
+            MathF.Max(1.2f, size * 0.09f));
+        draw.AddLine(
+            new Vector2(center.X, center.Y - size * 0.14f),
+            new Vector2(center.X, center.Y - size * 0.30f),
+            col,
+            MathF.Max(1.3f, size * 0.10f));
+
+        var flameRadius = MathF.Max(1.4f, size * 0.09f);
+        var flameCenter = new Vector2(center.X, center.Y - size * 0.38f);
+        draw.AddCircleFilled(flameCenter, flameRadius, col, 12);
+        draw.AddTriangleFilled(
+            flameCenter + new Vector2(-flameRadius * 0.85f, 0f),
+            flameCenter + new Vector2(flameRadius * 0.85f, 0f),
+            new Vector2(center.X, center.Y - size * 0.49f),
+            col);
+    }
+
     public static void DrawAiSparkleIcon(ImDrawListPtr draw, Vector2 center, float size, uint col)
     {
         DrawFourPointStar(draw, center + new Vector2(-size * 0.10f, size * 0.08f), size * 0.36f, col);

@@ -68,6 +68,14 @@
   <data name="CustomColor" xml:space="preserve"><value>調色盤</value></data>
   <data name="DatabaseError" xml:space="preserve"><value>資料庫發生錯誤（{0}），已保留原檔案。詳細資訊請查看 /xllog。</value></data>
   <data name="DeleteChat" xml:space="preserve"><value>刪除對話</value></data>
+  <data name="DurationDayOne" xml:space="preserve"><value>{0} 天</value></data>
+  <data name="DurationDays" xml:space="preserve"><value>{0} 天</value></data>
+  <data name="DurationJoinThree" xml:space="preserve"><value>{0} {1} {2}</value></data>
+  <data name="DurationJoinTwo" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="DurationMonthOne" xml:space="preserve"><value>{0} 個月</value></data>
+  <data name="DurationMonths" xml:space="preserve"><value>{0} 個月</value></data>
+  <data name="DurationYearOne" xml:space="preserve"><value>{0} 年</value></data>
+  <data name="DurationYears" xml:space="preserve"><value>{0} 年</value></data>
   <data name="EditNameColor" xml:space="preserve"><value>修改名牌顏色</value></data>
   <data name="EditNote" xml:space="preserve"><value>點擊編輯備註</value></data>
   <data name="Endpoint" xml:space="preserve"><value>端點</value></data>
@@ -87,7 +95,12 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不屬於此公會。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>公會</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>目前無法使用公會聊天。</value></data>
-  <data name="FriendAddedOn" xml:space="preserve"><value>加好友於 {0}</value></data>
+  <data name="FriendAddedToday" xml:space="preserve"><value>你們今天剛剛成為好友</value></data>
+  <data name="FriendAnniversaries" xml:space="preserve"><value>好友紀念日</value></data>
+  <data name="FriendAnniversaryCountdown" xml:space="preserve"><value>距離 {0} 週年紀念日還有 {1} 天</value></data>
+  <data name="FriendAnniversaryCountdownOne" xml:space="preserve"><value>距離 {0} 週年紀念日還有 {1} 天</value></data>
+  <data name="FriendAnniversaryToday" xml:space="preserve"><value>今天是 {0} 週年紀念日！</value></data>
+  <data name="FriendDuration" xml:space="preserve"><value>你們已經成為好友 {0}了</value></data>
   <data name="FriendList" xml:space="preserve"><value>好友名單</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>此角色已從你的好友名單移除。</value></data>
   <data name="Friends" xml:space="preserve"><value>好友</value></data>
@@ -164,6 +177,7 @@
   <data name="Settings" xml:space="preserve"><value>設定</value></data>
   <data name="Show" xml:space="preserve"><value>顯示</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>顯示浮動按鈕</value></data>
+  <data name="ShowFriendAnniversaries" xml:space="preserve"><value>顯示好友紀念日</value></data>
   <data name="ShowIntroAnimation" xml:space="preserve"><value>播放開場動畫</value></data>
   <data name="ShowSelfAvatar" xml:space="preserve"><value>顯示自己的頭像</value></data>
   <data name="SortAscendingHint" xml:space="preserve"><value>遞增，點擊切換為遞減。</value></data>

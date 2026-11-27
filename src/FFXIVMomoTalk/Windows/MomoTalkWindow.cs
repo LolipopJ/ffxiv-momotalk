@@ -87,6 +87,7 @@ internal sealed partial class MomoTalkWindow : Window
     private float entrySwitchAnim;
     private float introSwitchAnim;
     private float selfAvatarSwitchAnim;
+    private float friendAnniversariesSwitchAnim;
     private bool staticModalOpenedThisFrame;
     private bool focusStaticNameInput;
     private ActiveParty? createStaticParty;
@@ -162,6 +163,7 @@ internal sealed partial class MomoTalkWindow : Window
         entrySwitchAnim = config.ShowFloatingEntry ? 1f : 0f;
         introSwitchAnim = config.ShowIntroAnimation ? 1f : 0f;
         selfAvatarSwitchAnim = config.ShowSelfAvatar ? 1f : 0f;
+        friendAnniversariesSwitchAnim = config.ShowFriendAnniversaries ? 1f : 0f;
 
         Flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
         Size = new Vector2(840, 560);

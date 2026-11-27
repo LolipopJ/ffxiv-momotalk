@@ -68,6 +68,14 @@
   <data name="CustomColor" xml:space="preserve"><value>パレット</value></data>
   <data name="DatabaseError" xml:space="preserve"><value>データベースエラー（{0}）。既存のファイルは保持しました。詳細は /xllog を確認してください。</value></data>
   <data name="DeleteChat" xml:space="preserve"><value>チャットを削除</value></data>
+  <data name="DurationDayOne" xml:space="preserve"><value>{0}日</value></data>
+  <data name="DurationDays" xml:space="preserve"><value>{0}日</value></data>
+  <data name="DurationJoinThree" xml:space="preserve"><value>{0}{1}{2}</value></data>
+  <data name="DurationJoinTwo" xml:space="preserve"><value>{0}{1}</value></data>
+  <data name="DurationMonthOne" xml:space="preserve"><value>{0}か月</value></data>
+  <data name="DurationMonths" xml:space="preserve"><value>{0}か月</value></data>
+  <data name="DurationYearOne" xml:space="preserve"><value>{0}年</value></data>
+  <data name="DurationYears" xml:space="preserve"><value>{0}年</value></data>
   <data name="EditNameColor" xml:space="preserve"><value>ネームプレートの色を変更</value></data>
   <data name="EditNote" xml:space="preserve"><value>クリックでメモを編集</value></data>
   <data name="Endpoint" xml:space="preserve"><value>エンドポイント</value></data>
@@ -87,7 +95,12 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>このフリーカンパニーには所属していません。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>現在フリーカンパニーチャットは利用できません。</value></data>
-  <data name="FriendAddedOn" xml:space="preserve"><value>フレンド登録日: {0}</value></data>
+  <data name="FriendAddedToday" xml:space="preserve"><value>今日フレンドになりました。</value></data>
+  <data name="FriendAnniversaries" xml:space="preserve"><value>フレンド記念日</value></data>
+  <data name="FriendAnniversaryCountdown" xml:space="preserve"><value>{0}周年記念日まであと{1}日</value></data>
+  <data name="FriendAnniversaryCountdownOne" xml:space="preserve"><value>{0}周年記念日まであと{1}日</value></data>
+  <data name="FriendAnniversaryToday" xml:space="preserve"><value>今日は{0}周年記念日！</value></data>
+  <data name="FriendDuration" xml:space="preserve"><value>フレンドになってから{0}です。</value></data>
   <data name="FriendList" xml:space="preserve"><value>フレンドリスト</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>このキャラクターはフレンドリストにいません。</value></data>
   <data name="Friends" xml:space="preserve"><value>フレンド</value></data>
@@ -164,6 +177,7 @@
   <data name="Settings" xml:space="preserve"><value>設定</value></data>
   <data name="Show" xml:space="preserve"><value>表示</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>フローティングボタンを表示</value></data>
+  <data name="ShowFriendAnniversaries" xml:space="preserve"><value>フレンド記念日を表示</value></data>
   <data name="ShowIntroAnimation" xml:space="preserve"><value>オープニングアニメーションを表示</value></data>
   <data name="ShowSelfAvatar" xml:space="preserve"><value>自分のアバターを表示</value></data>
   <data name="SortAscendingHint" xml:space="preserve"><value>昇順（クリックで降順）</value></data>

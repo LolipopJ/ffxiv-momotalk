@@ -9,6 +9,8 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 - Display the friend added date (when available from the game's friend list) in a MomoTalk birthday-style badge on the Friend Detail Card, moving `@ World` into a subtitle beneath the friend's name.
 - Add custom friend tags on the Friend Detail Card with inline creation, quick assignment from existing tags, removal, search matching, and multi-select (AND) tag filtering in the Friends list.
 - Add customizable friend list name colors on the Friend Detail Card supporting hex input, curated MomoTalk presets, and a color palette picker, applied across the Friends list, private Chats rows, the Friend Detail Card, and group chat speaker names.
+- Add a MomoTalk-styled Friend Anniversaries section at the top of the Friends list highlighting friends within 7 days of a friendship anniversary (with countdown and anniversary-day highlight), enabled by default and toggleable in General settings.
+- Show elapsed friendship duration (natural calendar years, months, and days, omitting zero components) when hovering over the friend added date badge on the Friend Detail Card.
 
 ### Changed
 

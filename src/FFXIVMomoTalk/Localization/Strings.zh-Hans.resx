@@ -68,6 +68,14 @@
   <data name="CustomColor" xml:space="preserve"><value>调色板</value></data>
   <data name="DatabaseError" xml:space="preserve"><value>数据库出错（{0}），已保留原文件。详情请查看 /xllog。</value></data>
   <data name="DeleteChat" xml:space="preserve"><value>删除会话</value></data>
+  <data name="DurationDayOne" xml:space="preserve"><value>{0} 天</value></data>
+  <data name="DurationDays" xml:space="preserve"><value>{0} 天</value></data>
+  <data name="DurationJoinThree" xml:space="preserve"><value>{0} {1} {2}</value></data>
+  <data name="DurationJoinTwo" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="DurationMonthOne" xml:space="preserve"><value>{0} 个月</value></data>
+  <data name="DurationMonths" xml:space="preserve"><value>{0} 个月</value></data>
+  <data name="DurationYearOne" xml:space="preserve"><value>{0} 年</value></data>
+  <data name="DurationYears" xml:space="preserve"><value>{0} 年</value></data>
   <data name="EditNameColor" xml:space="preserve"><value>修改铭牌颜色</value></data>
   <data name="EditNote" xml:space="preserve"><value>点击编辑备注</value></data>
   <data name="Endpoint" xml:space="preserve"><value>端点</value></data>
@@ -87,7 +95,12 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不属于该部队。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>部队</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>当前无法使用部队聊天。</value></data>
-  <data name="FriendAddedOn" xml:space="preserve"><value>添加于 {0}</value></data>
+  <data name="FriendAddedToday" xml:space="preserve"><value>你们今天刚刚成为好友</value></data>
+  <data name="FriendAnniversaries" xml:space="preserve"><value>好友纪念日</value></data>
+  <data name="FriendAnniversaryCountdown" xml:space="preserve"><value>距离 {0} 周年纪念日还有 {1} 天</value></data>
+  <data name="FriendAnniversaryCountdownOne" xml:space="preserve"><value>距离 {0} 周年纪念日还有 {1} 天</value></data>
+  <data name="FriendAnniversaryToday" xml:space="preserve"><value>今天是 {0} 周年纪念日！</value></data>
+  <data name="FriendDuration" xml:space="preserve"><value>你们已经成为好友 {0}了</value></data>
   <data name="FriendList" xml:space="preserve"><value>好友列表</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>该角色已不在你的好友列表中。</value></data>
   <data name="Friends" xml:space="preserve"><value>好友</value></data>
@@ -164,6 +177,7 @@
   <data name="Settings" xml:space="preserve"><value>设置</value></data>
   <data name="Show" xml:space="preserve"><value>显示</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>显示悬浮按钮</value></data>
+  <data name="ShowFriendAnniversaries" xml:space="preserve"><value>显示好友纪念日</value></data>
   <data name="ShowIntroAnimation" xml:space="preserve"><value>播放入场动画</value></data>
   <data name="ShowSelfAvatar" xml:space="preserve"><value>显示自己的头像</value></data>
   <data name="SortAscendingHint" xml:space="preserve"><value>升序，点击切换为降序。</value></data>

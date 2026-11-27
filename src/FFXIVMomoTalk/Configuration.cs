@@ -58,6 +58,8 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ShowSelfAvatar { get; set; }
 
+    public bool ShowFriendAnniversaries { get; set; } = true;
+
     public float? EntryOffsetX { get; set; }
 
     public float? EntryOffsetY { get; set; }

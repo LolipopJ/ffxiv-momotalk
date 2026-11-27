@@ -56,6 +56,7 @@ try
 {
     dynamic fresh = Load();
     Check(fresh.Version == 2, "Fresh configuration should initialize at v2.");
+    Check(fresh.ShowFriendAnniversaries, "Fresh configuration should enable friend anniversaries by default.");
     Check(fresh.LlmPromptPreset == "default" && fresh.LlmCustomExamples.Count == 0 && !File.Exists(configPath),
         "Fresh configuration should select the default preset without writing a file.");
 
@@ -96,8 +97,14 @@ try
 
     dynamic reloaded = Load();
     Check(reloaded.LlmCustomPrompt == customPrompt && reloaded.LlmApiKey == "2026-10-01T00:00:00Z"
-        && reloaded.UiLanguage == "ja" && reloaded.LlmContextMaxMessages == 18,
-        "A valid v2 file should reload when the host configuration lookup returns null.");
+        && reloaded.UiLanguage == "ja" && reloaded.LlmContextMaxMessages == 18
+        && reloaded.ShowFriendAnniversaries,
+        "A valid v2 file should reload when the host configuration lookup returns null and default ShowFriendAnniversaries to true.");
+
+    actual["ShowFriendAnniversaries"] = false;
+    File.WriteAllText(configPath, actual.ToJsonString());
+    dynamic toggledOff = Load();
+    Check(!toggledOff.ShowFriendAnniversaries, "Disabling ShowFriendAnniversaries should persist across reload.");
 
     actual["LlmCustomExamples"] = JsonNode.Parse("""
         [{"$type":"FFXIVMomoTalk.AiReplyExample, FFXIVMomoTalk","Context":"次は？","Replies":["行こう。","明日でもいいよ。"]}]

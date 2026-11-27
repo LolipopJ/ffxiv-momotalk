@@ -42,6 +42,12 @@ internal static partial class ChatVisuals
     public static readonly Vector4 SendIconIdle = Hex(0xBDBDBD);
     public static readonly Vector4 BadgeText = Hex(0x5D7C8C);
     public static readonly Vector4 BadgeBorder = Hex(0xC2CFD6);
+    public static readonly Vector4 AnniversaryHeaderBg = Hex(0xFFF0F4);
+    public static readonly Vector4 AnniversaryRowBg = Hex(0xFFF9FB);
+    public static readonly Vector4 AnniversaryRowHover = Hex(0xFCEAF0);
+    public static readonly Vector4 AnniversaryAccent = Hex(0xE56A87);
+    public static readonly Vector4 AnniversaryDivider = Hex(0xF5D5DF);
+    public static readonly Vector4 AnniversaryBadgeBg = Hex(0xFDE2EA);
     public static readonly Vector4 AvatarFallbackBg = Hex(0xD5DEE6);
     public static readonly Vector4 AvatarFallbackFg = Hex(0x7B8998);
     public static readonly Vector4 GroupFcBg = Hex(0xE09258);

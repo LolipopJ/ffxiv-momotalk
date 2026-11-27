@@ -187,6 +187,9 @@ internal sealed partial class MomoTalkWindow
             return;
         }
 
+        if (config.ShowFriendAnniversaries)
+            DrawFriendAnniversariesSection(snapshot, filtered, scale);
+
         foreach (var friend in filtered)
         {
             var isSelected = inspectedFriend?.ContentId == friend.ContentId;

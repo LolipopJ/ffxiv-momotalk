@@ -102,14 +102,16 @@ internal sealed partial class MomoTalkWindow
 
         if (addedAt is { } timestamp)
         {
-            var dateStr = DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime().ToString("d", Loc.Culture);
+            var addedDate = FriendDates.ToLocalDate(timestamp);
+            var dateStr = addedDate.ToString("d", Loc.Culture);
+            var durationTooltip = FormatFriendshipDuration(addedDate, DateOnly.FromDateTime(DateTime.Now));
             var iconSize = 13f * scale;
             var iconGap = 6f * scale;
             var textMaxW = MathF.Max(30f * scale, maxRowWidth - padX * 2f - iconSize - iconGap);
             var label = ChatVisuals.TruncateSingleLine(dateStr, fontSize, textMaxW);
             var textSize = ChatVisuals.CalcTextSize(label, fontSize);
             var width = MathF.Min(maxRowWidth, padX * 2f + iconSize + iconGap + textSize.X);
-            items.Add(new FriendBadgeItem(FriendBadgeKind.AddedDate, label, dateStr, new Vector2(width, itemHeight)));
+            items.Add(new FriendBadgeItem(FriendBadgeKind.AddedDate, label, durationTooltip, new Vector2(width, itemHeight)));
         }
 
         var tags = friendTags.GetValueOrDefault(friendContentId);
@@ -203,7 +205,7 @@ internal sealed partial class MomoTalkWindow
                         ChatVisuals.AddText(draw, dateTextPos, layout.FontSize, ChatVisuals.Color(ChatVisuals.BadgeText), item.Label);
 
                         if (ImGui.IsWindowHovered() && ImGui.IsMouseHoveringRect(pos, pos + size))
-                            ImGui.SetTooltip(Loc.Format("FriendAddedOn", item.FullValue));
+                            ImGui.SetTooltip(item.FullValue);
                         break;
 
                     case FriendBadgeKind.Tag:

@@ -123,7 +123,7 @@ internal sealed partial class MomoTalkWindow
         var contextSectionHeight = labelHeight + subLabelHeight + inputHeight + fieldGap;
 
         var naturalBodyHeight = shownTab == SettingsTab.General
-            ? padTop + warnHeight + rowHeight * 4f + rowGap * 3f + padBottom
+            ? padTop + warnHeight + rowHeight * 5f + rowGap * 4f + padBottom
             : padTop + warnHeight + (labelHeight + inputHeight + fieldGap) * 2f
               + labelHeight + inputHeight + 10f * uiScale + testBtnHeight + testBannerHeight + fieldGap
               + contextSectionHeight + aiSettings.HeaderHeight + examplesHeight + padBottom;
@@ -255,6 +255,15 @@ internal sealed partial class MomoTalkWindow
                         config.ShowSelfAvatar, ref selfAvatarSwitchAnim, uiScale, cardScale, eased, interactive))
                     {
                         config.ShowSelfAvatar = !config.ShowSelfAvatar;
+                        saveConfig();
+                    }
+
+                    cursorY += rowHeight + rowGap;
+                    if (DrawSettingToggleRow(bodyDraw, "##setting-friend-anniversaries", Loc.Text("ShowFriendAnniversaries"),
+                        new Vector2(leftX, cursorY), innerW, rowHeight,
+                        config.ShowFriendAnniversaries, ref friendAnniversariesSwitchAnim, uiScale, cardScale, eased, interactive))
+                    {
+                        config.ShowFriendAnniversaries = !config.ShowFriendAnniversaries;
                         saveConfig();
                     }
 

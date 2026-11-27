@@ -68,6 +68,14 @@
   <data name="CustomColor" xml:space="preserve"><value>Palette</value></data>
   <data name="DatabaseError" xml:space="preserve"><value>Erreur de base de données ({0}). Les fichiers existants ont été conservés. Consultez /xllog.</value></data>
   <data name="DeleteChat" xml:space="preserve"><value>Supprimer la discussion</value></data>
+  <data name="DurationDayOne" xml:space="preserve"><value>{0} jour</value></data>
+  <data name="DurationDays" xml:space="preserve"><value>{0} jours</value></data>
+  <data name="DurationJoinThree" xml:space="preserve"><value>{0}, {1} et {2}</value></data>
+  <data name="DurationJoinTwo" xml:space="preserve"><value>{0} et {1}</value></data>
+  <data name="DurationMonthOne" xml:space="preserve"><value>{0} mois</value></data>
+  <data name="DurationMonths" xml:space="preserve"><value>{0} mois</value></data>
+  <data name="DurationYearOne" xml:space="preserve"><value>{0} an</value></data>
+  <data name="DurationYears" xml:space="preserve"><value>{0} ans</value></data>
   <data name="EditNameColor" xml:space="preserve"><value>Modifier la couleur du nom</value></data>
   <data name="EditNote" xml:space="preserve"><value>Cliquer pour modifier la note</value></data>
   <data name="Endpoint" xml:space="preserve"><value>Point de terminaison</value></data>
@@ -87,7 +95,12 @@
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette compagnie libre.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>CL</value></data>
   <data name="FreeCompanyUnavailable" xml:space="preserve"><value>La discussion de compagnie libre est actuellement indisponible.</value></data>
-  <data name="FriendAddedOn" xml:space="preserve"><value>Ami depuis le {0}</value></data>
+  <data name="FriendAddedToday" xml:space="preserve"><value>Vous êtes amis depuis aujourd’hui.</value></data>
+  <data name="FriendAnniversaries" xml:space="preserve"><value>Anniversaires d’amitié</value></data>
+  <data name="FriendAnniversaryCountdown" xml:space="preserve"><value>Anniversaire n° {0} dans {1} jours</value></data>
+  <data name="FriendAnniversaryCountdownOne" xml:space="preserve"><value>Anniversaire n° {0} dans {1} jour</value></data>
+  <data name="FriendAnniversaryToday" xml:space="preserve"><value>Anniversaire n° {0} aujourd’hui !</value></data>
+  <data name="FriendDuration" xml:space="preserve"><value>Vous êtes amis depuis {0}.</value></data>
   <data name="FriendList" xml:space="preserve"><value>Liste d’amis</value></data>
   <data name="FriendRemoved" xml:space="preserve"><value>Ce personnage ne figure plus dans votre liste d’amis.</value></data>
   <data name="Friends" xml:space="preserve"><value>Amis</value></data>
@@ -164,6 +177,7 @@
   <data name="Settings" xml:space="preserve"><value>Paramètres</value></data>
   <data name="Show" xml:space="preserve"><value>Afficher</value></data>
   <data name="ShowFloatingEntry" xml:space="preserve"><value>Afficher le bouton flottant</value></data>
+  <data name="ShowFriendAnniversaries" xml:space="preserve"><value>Afficher les anniversaires d’amis</value></data>
   <data name="ShowIntroAnimation" xml:space="preserve"><value>Afficher l’animation d’ouverture</value></data>
   <data name="ShowSelfAvatar" xml:space="preserve"><value>Afficher mon avatar</value></data>
   <data name="SortAscendingHint" xml:space="preserve"><value>Ordre croissant. Cliquez pour passer à l’ordre décroissant.</value></data>
