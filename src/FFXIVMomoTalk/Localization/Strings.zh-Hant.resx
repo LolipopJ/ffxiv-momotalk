@@ -109,7 +109,7 @@
   <data name="GameChatUnavailable" xml:space="preserve"><value>遊戲聊天視窗目前無法使用。</value></data>
   <data name="GameCouldNotPrepareMessage" xml:space="preserve"><value>遊戲無法準備傳送此訊息。</value></data>
   <data name="General" xml:space="preserve"><value>一般</value></data>
-  <data name="GenerateAiReplies" xml:space="preserve"><value>產生 AI 回覆</value></data>
+  <data name="GenerateAiReplies" xml:space="preserve"><value>產生 AI 回覆（右鍵指定語言）</value></data>
   <data name="GeneratingReplies" xml:space="preserve"><value>正在產生回覆…</value></data>
   <data name="GroupName" xml:space="preserve"><value>群組名稱</value></data>
   <data name="Groups" xml:space="preserve"><value>群組</value></data>

@@ -57,7 +57,7 @@ internal static partial class ChatVisuals
         Vector2 origin,
         float availWidth,
         float maxCardWidth,
-        IReadOnlyList<string> options,
+        IReadOnlyList<AiReplyOption> options,
         bool enabled,
         float scale,
         out float totalHeight)
@@ -75,7 +75,7 @@ internal static partial class ChatVisuals
         var buttonsHeight = 0f;
         for (var i = 0; i < options.Count; i++)
         {
-            var textSize = CalcTextSize(options[i], optionFontSize, textWrapWidth);
+            var textSize = CalcTextSize(options[i].Text, optionFontSize, textWrapWidth);
             var buttonHeight = MathF.Max(34f * scale, textSize.Y + buttonPadY * 2f);
             textSizes[i] = textSize;
             buttonHeights[i] = buttonHeight;
@@ -98,19 +98,22 @@ internal static partial class ChatVisuals
 
         for (var i = 0; i < options.Count; i++)
         {
+            var option = options[i];
             var btnPos = new Vector2(buttonX, cursorY);
             var btnSize = new Vector2(buttonWidth, buttonHeights[i]);
 
             ImGui.SetCursorScreenPos(btnPos);
             bool clicked;
             var hovered = false;
+            var hoveredAny = false;
             var active = false;
             using (ImRaii.Disabled(!enabled))
             {
                 clicked = ImGui.InvisibleButton($"##ai-reply-opt-{i}", btnSize);
+                hoveredAny = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
                 if (enabled)
                 {
-                    hovered = ImGui.IsItemHovered();
+                    hovered = hoveredAny;
                     active = ImGui.IsItemActive();
                 }
             }
@@ -137,7 +140,18 @@ internal static partial class ChatVisuals
             var textX = btnPos.X + MathF.Max(buttonPadX, (buttonWidth - textSize.X) * 0.5f);
             var textY = btnPos.Y + (btnSize.Y - textSize.Y) * 0.5f;
             var textCol = Color(enabled ? Ink : Muted);
-            AddText(draw, new Vector2(textX, textY), optionFontSize, textCol, options[i], textWrapWidth);
+            AddText(draw, new Vector2(textX, textY), optionFontSize, textCol, option.Text, textWrapWidth);
+
+            if (hoveredAny && option.Translation is { Length: > 0 } translation)
+            {
+                using var tooltip = ImRaii.Tooltip();
+                if (tooltip.Alive)
+                {
+                    ImGui.PushTextWrapPos(MathF.Max(160f * scale, MathF.Min(maxCardWidth, 360f * scale)));
+                    ImGui.TextUnformatted(translation);
+                    ImGui.PopTextWrapPos();
+                }
+            }
 
             cursorY += btnSize.Y + buttonGap;
         }

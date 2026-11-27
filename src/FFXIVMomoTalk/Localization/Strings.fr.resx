@@ -109,7 +109,7 @@
   <data name="GameChatUnavailable" xml:space="preserve"><value>La fenêtre de discussion du jeu est indisponible.</value></data>
   <data name="GameCouldNotPrepareMessage" xml:space="preserve"><value>Le jeu n’a pas pu préparer ce message avant son envoi.</value></data>
   <data name="General" xml:space="preserve"><value>Général</value></data>
-  <data name="GenerateAiReplies" xml:space="preserve"><value>Générer des réponses par IA</value></data>
+  <data name="GenerateAiReplies" xml:space="preserve"><value>Générer des réponses par IA (clic droit pour choisir la langue)</value></data>
   <data name="GeneratingReplies" xml:space="preserve"><value>Génération des réponses…</value></data>
   <data name="GroupName" xml:space="preserve"><value>Nom du groupe</value></data>
   <data name="Groups" xml:space="preserve"><value>Groupes</value></data>

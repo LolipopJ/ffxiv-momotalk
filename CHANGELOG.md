@@ -4,8 +4,14 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+
+- Right-click the AI reply button to force reply generation in any of the six supported plugin languages (`English`, `日本語`, `Deutsch`, `Français`, `简体中文`, `繁體中文`) while keeping left-click on automatic language matching.
+- Generate translations into the current plugin UI language in the same LLM request whenever an AI reply uses a different language, displaying the translation in a wrapped tooltip on hover.
+
 ### Changed
 
+- Centralize AI reply language rules in prompt injection (removing hardcoded language directives from built-in presets) so forced-language requests cleanly override conversation history, presets, and examples.
 - Run the regression scripts after the Debug build in CI.
 
 ### Fixed

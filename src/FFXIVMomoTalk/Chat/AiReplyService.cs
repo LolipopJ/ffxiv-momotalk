@@ -21,9 +21,11 @@ internal enum AiConnectionTestStatus
     Error,
 }
 
+internal readonly record struct AiReplyOption(string Text, string? Translation = null);
+
 internal readonly record struct AiReplySnapshot(
     AiReplyStatus Status,
-    IReadOnlyList<string> Options,
+    IReadOnlyList<AiReplyOption> Options,
     AiNotice? ErrorMessage,
     long GenerationId)
 {
@@ -143,7 +145,8 @@ internal sealed partial class AiReplyService(
         SendTarget target,
         string channelTag,
         IReadOnlyList<ChatMessage> messages,
-        string? note)
+        string? note,
+        string? forcedLanguageCode = null)
     {
         lock (gate)
         {
@@ -164,6 +167,10 @@ internal sealed partial class AiReplyService(
             var windowMinutes = config.LlmContextWindowMinutes;
             var maxMessages = config.LlmContextMaxMessages;
             var minMessages = Math.Min(config.LlmContextMinMessages, maxMessages);
+            var forcedLanguage = string.IsNullOrWhiteSpace(forcedLanguageCode)
+                ? null
+                : Loc.NormalizeLanguageCode(forcedLanguageCode);
+            var uiLanguage = Loc.NormalizeLanguageCode(Loc.Culture.Name);
 
             var fallbackMessages = messages.Where(message => message.Rejection is null).TakeLast(maxMessages).ToArray();
 
@@ -194,6 +201,8 @@ internal sealed partial class AiReplyService(
                 maxMessages,
                 fallbackMessages,
                 note?.Trim(),
+                forcedLanguage,
+                uiLanguage,
                 generationId,
                 requestCts);
 
@@ -314,14 +323,21 @@ internal sealed partial class AiReplyService(
                 request.WindowMinutes,
                 request.MinMessages,
                 request.MaxMessages);
-            var systemPrompt = BuildSystemPrompt(request.Prompt, request.Target, request.Examples);
+            var allowTranslation = NeedsTranslation(request.ForcedLanguage, request.UiLanguage);
+            var systemPrompt = BuildSystemPrompt(
+                request.Prompt,
+                request.Target,
+                request.Examples,
+                request.ForcedLanguage,
+                request.UiLanguage);
             var userPrompt = BuildUserPrompt(
                 request.Session,
                 request.Conversation,
                 request.ChannelTag,
                 contextMessages,
                 request.Note,
-                nowMs);
+                nowMs,
+                request.ForcedLanguage);
 
             var rawContent = await RequestCompletionAsync(
                 endpointUri,
@@ -332,7 +348,7 @@ internal sealed partial class AiReplyService(
                 linked.Token).ConfigureAwait(false);
 
             var candidates = AiReplyParser.ParseCandidates(rawContent);
-            var valid = AiReplyParser.FilterValidReplies(request.Target, candidates);
+            var valid = AiReplyParser.FilterValidReplies(request.Target, candidates, allowTranslation);
             if (valid.Length == 0)
             {
                 CommitResult(
@@ -421,7 +437,7 @@ internal sealed partial class AiReplyService(
         ConversationKey key,
         long generationId,
         AiReplyStatus status,
-        string[] options,
+        AiReplyOption[] options,
         AiNotice? errorMessage)
     {
         lock (gate)
@@ -443,7 +459,7 @@ internal sealed partial class AiReplyService(
     {
         public AiReplyStatus Status { get; set; }
 
-        public IReadOnlyList<string> Options { get; set; } = [];
+        public IReadOnlyList<AiReplyOption> Options { get; set; } = [];
 
         public AiNotice? ErrorMessage { get; set; }
 
@@ -467,6 +483,8 @@ internal sealed partial class AiReplyService(
         int MaxMessages,
         ChatMessage[] FallbackMessages,
         string? Note,
+        string? ForcedLanguage,
+        string UiLanguage,
         long GenerationId,
         CancellationTokenSource Cts);
 }

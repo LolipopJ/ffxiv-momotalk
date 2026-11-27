@@ -25,33 +25,76 @@ internal sealed partial class AiReplyService
         return [.. snapshot];
     }
 
-    internal static string BuildSystemPrompt(string? userPrompt, SendTarget target, IReadOnlyList<AiReplyPromptExample> examples)
+    internal static bool NeedsTranslation(string? forcedLanguageCode, string? uiLanguageCode) =>
+        string.IsNullOrWhiteSpace(forcedLanguageCode) || !Loc.IsSameLanguage(forcedLanguageCode, uiLanguageCode);
+
+    internal static string BuildSystemPrompt(
+        string? userPrompt,
+        SendTarget target,
+        IReadOnlyList<AiReplyPromptExample> examples,
+        string? forcedLanguageCode = null,
+        string? uiLanguageCode = null)
     {
+        var forcedLanguage = string.IsNullOrWhiteSpace(forcedLanguageCode)
+            ? null
+            : Loc.NormalizeLanguageCode(forcedLanguageCode);
+        var uiLanguage = Loc.NormalizeLanguageCode(uiLanguageCode);
+        var forcedLanguageName = forcedLanguage is null ? null : Loc.PromptLanguageName(forcedLanguage);
+        var uiLanguageName = Loc.PromptLanguageName(uiLanguage);
+        var needsTranslation = NeedsTranslation(forcedLanguage, uiLanguage);
+
         var stylePrompt = string.IsNullOrWhiteSpace(userPrompt) ? AiReplyPresets.DefaultPrompt : userPrompt.Trim();
         var prompt = new StringBuilder(stylePrompt).AppendLine().AppendLine();
         if (examples.Count > 0)
         {
-            prompt.AppendLine("Dialogue examples (tone and option-variety reference only; always reply in the language used by the recent conversation messages):");
+            var exampleLanguageNote = forcedLanguageName is not null
+                ? $"always write replies in {forcedLanguageName}"
+                : "always reply in the language used by the recent conversation messages";
+            prompt.Append("Dialogue examples (tone and option-variety reference only; ")
+                .Append(exampleLanguageNote)
+                .AppendLine("):");
             for (var i = 0; i < examples.Count; i++)
             {
                 var example = examples[i];
                 prompt.Append("Example ").Append(i + 1).AppendLine(":")
                     .Append("Incoming: ").AppendLine(JsonSerializer.Serialize(example.Context, ExampleJsonOptions))
-                    .Append("Expected JSON: ").AppendLine(JsonSerializer.Serialize(new { replies = example.Replies }, ExampleJsonOptions));
+                    .Append("Reference replies: ").AppendLine(JsonSerializer.Serialize(example.Replies, ExampleJsonOptions));
             }
 
             prompt.AppendLine();
         }
 
         var maxBodyBytes = Math.Max(64, ChatSender.MaxCommandBytes - Encoding.UTF8.GetByteCount(target.CommandPrefix) - 1);
+        var languageConstraint = forcedLanguageName is not null
+            ? $"- You MUST write every reply in {forcedLanguageName}, overriding the conversation language and any language instructions in the persona prompt or examples."
+            : "- Match the language used in the recent conversation messages.";
+
+        if (!needsTranslation)
+        {
+            return prompt.Append(CultureInfo.InvariantCulture, $$"""
+                Mandatory output format constraints (always follow):
+                - Return ONLY valid JSON in the exact shape: {"replies": ["...", "..."]}.
+                - Provide 1 to {{AiReplyParser.MaxReplyOptions}} distinct, ready-to-send reply options.
+                - Each reply MUST be a single line with no line breaks, no bullet/number prefixes, and no markdown.
+                {{languageConstraint}}
+                - Keep each reply concise and strictly within {{maxBodyBytes}} UTF-8 bytes so it fits in-game chat.
+                - Do not include explanations, commentary, or extra JSON keys outside "replies".
+                """).ToString();
+        }
+
+        var translationConstraint = forcedLanguageName is not null
+            ? $"- The user's interface language is {uiLanguageName}. For each reply, include a concise, natural {uiLanguageName} translation of \"text\" in \"translation\" (single line, no markdown)."
+            : $"- The user's interface language is {uiLanguageName}. For each reply, if \"text\" is not written in {uiLanguageName}, include a concise, natural {uiLanguageName} translation in \"translation\" (single line, no markdown); if \"text\" is already in {uiLanguageName}, omit \"translation\" or set it to null.";
+
         return prompt.Append(CultureInfo.InvariantCulture, $$"""
             Mandatory output format constraints (always follow):
-            - Return ONLY valid JSON in the exact shape: {"replies": ["...", "..."]}.
+            - Return ONLY valid JSON in the exact shape: {"replies": [{"text": "...", "translation": "..."}]}.
             - Provide 1 to {{AiReplyParser.MaxReplyOptions}} distinct, ready-to-send reply options.
-            - Each reply MUST be a single line with no line breaks, no bullet/number prefixes, and no markdown.
-            - Match the language used in the recent conversation messages.
-            - Keep each reply concise and strictly within {{maxBodyBytes}} UTF-8 bytes so it fits in-game chat.
-            - Do not include explanations, commentary, or extra JSON keys outside "replies".
+            - Each reply "text" MUST be a single line with no line breaks, no bullet/number prefixes, and no markdown.
+            {{languageConstraint}}
+            {{translationConstraint}}
+            - Keep each reply "text" concise and strictly within {{maxBodyBytes}} UTF-8 bytes so it fits in-game chat.
+            - Do not include explanations, commentary, or extra JSON keys outside "replies", "text", and "translation".
             """).ToString();
     }
 
@@ -95,10 +138,14 @@ internal sealed partial class AiReplyService
         string channelTag,
         ChatMessage[] recentMessages,
         string? note,
-        long nowMs)
+        long nowMs,
+        string? forcedLanguageCode = null)
     {
         var sb = new StringBuilder();
         var nowLocal = DateTimeOffset.FromUnixTimeMilliseconds(nowMs).ToLocalTime();
+        var forcedLanguageName = string.IsNullOrWhiteSpace(forcedLanguageCode)
+            ? null
+            : Loc.PromptLanguageName(forcedLanguageCode);
         var channelType = conversation.Key.Kind switch
         {
             ConversationKind.Tell => "Tell (Private Message)",
@@ -128,7 +175,9 @@ internal sealed partial class AiReplyService
         if (recentMessages.Length == 0)
         {
             sb.AppendLine("No prior messages exist in this conversation.");
-            sb.Append("Suggest 1 to 3 natural opening greeting replies for [You] to start this conversation.");
+            sb.Append(forcedLanguageName is not null
+                ? $"Suggest 1 to 3 natural opening greeting replies for [You] in {forcedLanguageName} to start this conversation."
+                : "Suggest 1 to 3 natural opening greeting replies for [You] to start this conversation.");
         }
         else
         {
@@ -148,7 +197,9 @@ internal sealed partial class AiReplyService
             }
 
             sb.AppendLine();
-            sb.Append("Suggest 1 to 3 natural next replies for [You] matching the recent conversation language.");
+            sb.Append(forcedLanguageName is not null
+                ? $"Suggest 1 to 3 natural next replies for [You] in {forcedLanguageName}."
+                : "Suggest 1 to 3 natural next replies for [You] matching the recent conversation language.");
         }
 
         return sb.ToString();

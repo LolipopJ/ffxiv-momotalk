@@ -28,7 +28,7 @@
   <data name="AiPresetDefault" xml:space="preserve"><value>デフォルト</value></data>
   <data name="AiPresetDemonLordChaos" xml:space="preserve"><value>「魔王」の混沌</value></data>
   <data name="AiPresetHeroParagon" xml:space="preserve"><value>「勇者」の無垢</value></data>
-  <data name="AiPresetPaladinReliable" xml:space="preserve"><value>「ナイト」の頼もしさ</value></data>
+  <data name="AiPresetPaladinReliable" xml:space="preserve"><value>「騎士」の信頼</value></data>
   <data name="AiPresetRedMageFlamboyant" xml:space="preserve"><value>「赤魔道士」の華麗</value></data>
   <data name="AiPresetRogueCunning" xml:space="preserve"><value>「双剣士」の狡猾</value></data>
   <data name="AiPresetSageWise" xml:space="preserve"><value>「賢者」の叡智</value></data>
@@ -109,7 +109,7 @@
   <data name="GameChatUnavailable" xml:space="preserve"><value>ゲーム内のチャットウィンドウは利用できません。</value></data>
   <data name="GameCouldNotPrepareMessage" xml:space="preserve"><value>ゲーム側でメッセージの送信準備ができませんでした。</value></data>
   <data name="General" xml:space="preserve"><value>一般</value></data>
-  <data name="GenerateAiReplies" xml:space="preserve"><value>AIで返信候補を生成</value></data>
+  <data name="GenerateAiReplies" xml:space="preserve"><value>AIで返信候補を生成（右クリックで言語を指定）</value></data>
   <data name="GeneratingReplies" xml:space="preserve"><value>返信候補を生成中…</value></data>
   <data name="GroupName" xml:space="preserve"><value>グループ名</value></data>
   <data name="Groups" xml:space="preserve"><value>グループ</value></data>

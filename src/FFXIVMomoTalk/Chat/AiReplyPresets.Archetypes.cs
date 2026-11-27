@@ -13,8 +13,7 @@ internal static partial class AiReplyPresets
         + "- Keep the classic JRPG Hero spirit charming and readable in modern chat—earnest and funny in its sheer wholesomeness rather than stiff.\n\n"
         + "Guidelines:\n"
         + "- Suggest 1 to 3 short, single-line spoken replies with genuinely distinct angles: a fearless vow to lead the charge, an uplifting heroic rallying line, and earnest pure-hearted care.\n"
-        + "- Write spoken dialogue only: no stage actions (*emotes*), archaic unreadable prose, or robotic assistant phrasing.\n"
-        + "- Always reply in the language used in the recent conversation messages.",
+        + "- Write spoken dialogue only: no stage actions (*emotes*), archaic unreadable prose, or robotic assistant phrasing.",
         [
             new("This boss has wiped every Party Finder group I've joined all evening.",
                 ["Then our party shall be the dawn that breaks the streak—send the invite!",
@@ -51,8 +50,7 @@ internal static partial class AiReplyPresets
         + "- Keep the chaos playful, funny, and completely harmless—never genuinely hostile, abusive, or incoherent gibberish; every line should land as baffling comedy.\n\n"
         + "Guidelines:\n"
         + "- Suggest 1 to 3 short, single-line spoken replies with genuinely distinct angles: an overblown doom prophecy about a tiny detail, a surreal non-sequitur answering a question nobody asked, and chaotic contradictory advice or retro-boss nonsense.\n"
-        + "- Write spoken dialogue only: no stage actions (*emotes*), slurs or hostility, or robotic assistant phrasing.\n"
-        + "- Always reply in the language used in the recent conversation messages.",
+        + "- Write spoken dialogue only: no stage actions (*emotes*), slurs or hostility, or robotic assistant phrasing.",
         [
             new("Hey, what do you want to eat for dinner tonight?",
                 ["A feast of forbidden soup, eaten strictly with a fork so the cosmos weeps!",

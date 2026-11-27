@@ -290,7 +290,14 @@ internal sealed partial class MomoTalkWindow
 
             var aiHovered = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
             var aiActive = canGenerate && ImGui.IsItemActive();
-            if (canGenerate && (aiHovered || aiActive))
+            var aiMenuOpen = ImGui.IsPopupOpen("##ai-reply-lang-menu");
+            if (canGenerate && aiHovered && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+            {
+                ImGui.OpenPopup("##ai-reply-lang-menu");
+                aiMenuOpen = true;
+            }
+
+            if (canGenerate && (aiHovered || aiActive || aiMenuOpen))
             {
                 var bg = aiActive ? ChatVisuals.Divider : ChatVisuals.ListHover;
                 draw.AddRectFilled(aiPos, aiPos + new Vector2(aiSize), ChatVisuals.Color(bg), 6f * scale);
@@ -298,13 +305,13 @@ internal sealed partial class MomoTalkWindow
 
             var aiIconCol = !canGenerate
                 ? ChatVisuals.SendIconIdle
-                : aiHovered || aiActive
+                : aiHovered || aiActive || aiMenuOpen
                     ? ChatVisuals.RailBg
                     : ChatVisuals.OutgoingBubble;
             ChatVisuals.DrawAiSparkleIcon(draw, aiPos + new Vector2(aiSize * 0.5f), 20f * scale,
                 ChatVisuals.Color(aiIconCol));
 
-            if (aiHovered)
+            if (aiHovered && !aiMenuOpen)
             {
                 ImGui.SetTooltip(aiLoading
                     ? Loc.Text("GeneratingReplies")
@@ -313,10 +320,34 @@ internal sealed partial class MomoTalkWindow
                         : Loc.Text("GenerateAiReplies"));
             }
 
-            if (aiClicked && target is not null && canGenerate)
+            string? requestedLanguage = null;
+            var triggerGenerate = aiClicked && canGenerate;
+            using (var langMenu = ChatVisuals.BeginContextMenu("##ai-reply-lang-menu", scale))
+            {
+                if (langMenu.IsOpen)
+                {
+                    if (!canGenerate)
+                    {
+                        ImGui.CloseCurrentPopup();
+                    }
+                    else
+                    {
+                        foreach (var (code, name) in Loc.Languages)
+                        {
+                            if (ChatVisuals.ContextMenuItem($"##ai-lang-{code}", name, 132f * scale, scale))
+                            {
+                                requestedLanguage = code;
+                                triggerGenerate = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (triggerGenerate && target is not null && canGenerate)
             {
                 if (aiReply.TryGenerate(session!, currentConv, target, snapshot.FormatChannelTag(currentConv),
-                    view.Messages, notes.GetValueOrDefault(currentConv.Key)))
+                    view.Messages, notes.GetValueOrDefault(currentConv.Key), requestedLanguage))
                 {
                     draft.Warning = null;
                     unassignedWarning = null;

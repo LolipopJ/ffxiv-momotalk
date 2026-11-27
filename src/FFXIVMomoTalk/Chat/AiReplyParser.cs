@@ -8,7 +8,7 @@ internal static partial class AiReplyParser
 {
     internal const int MaxReplyOptions = 3;
 
-    internal static List<string> ParseCandidates(string rawContent)
+    internal static List<AiReplyOption> ParseCandidates(string rawContent)
     {
         if (string.IsNullOrWhiteSpace(rawContent))
             return [];
@@ -41,7 +41,7 @@ internal static partial class AiReplyParser
         return inner.Trim();
     }
 
-    private static List<string> TryParseJsonCandidates(string text, out bool stopFallback)
+    private static List<AiReplyOption> TryParseJsonCandidates(string text, out bool stopFallback)
     {
         if (TryExtractFromJson(text, out var isNonStringJson, out _, out var parsed))
         {
@@ -99,7 +99,7 @@ internal static partial class AiReplyParser
         string json,
         out bool isNonStringJson,
         out bool hasKnownReplyKey,
-        out List<string> candidates)
+        out List<AiReplyOption> candidates)
     {
         isNonStringJson = false;
         hasKnownReplyKey = false;
@@ -114,7 +114,7 @@ internal static partial class AiReplyParser
             isNonStringJson = true;
             if (root.ValueKind == JsonValueKind.Array)
             {
-                CollectStringArray(root, candidates);
+                CollectReplyItems(root, candidates);
                 return candidates.Count > 0;
             }
 
@@ -126,7 +126,7 @@ internal static partial class AiReplyParser
                 hasKnownReplyKey = true;
                 if (replies.ValueKind == JsonValueKind.Array)
                 {
-                    CollectStringArray(replies, candidates);
+                    CollectReplyItems(replies, candidates);
                     if (candidates.Count > 0)
                         return true;
                 }
@@ -137,7 +137,7 @@ internal static partial class AiReplyParser
                 hasKnownReplyKey = true;
                 if (options.ValueKind == JsonValueKind.Array)
                 {
-                    CollectStringArray(options, candidates);
+                    CollectReplyItems(options, candidates);
                     if (candidates.Count > 0)
                         return true;
                 }
@@ -148,7 +148,7 @@ internal static partial class AiReplyParser
                 if (prop.Value.ValueKind != JsonValueKind.Array)
                     continue;
 
-                CollectStringArray(prop.Value, candidates);
+                CollectReplyItems(prop.Value, candidates);
                 if (candidates.Count > 0)
                     return true;
             }
@@ -179,18 +179,46 @@ internal static partial class AiReplyParser
         return false;
     }
 
-    private static void CollectStringArray(JsonElement array, List<string> target)
+    private static bool TryGetStringPropertyIgnoreCase(JsonElement obj, string name, out string? value)
+    {
+        if (TryGetPropertyIgnoreCase(obj, name, out var element) && element.ValueKind == JsonValueKind.String)
+        {
+            value = element.GetString();
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static void CollectReplyItems(JsonElement array, List<AiReplyOption> target)
     {
         foreach (var item in array.EnumerateArray())
         {
-            if (item.ValueKind == JsonValueKind.String && item.GetString() is { } text && !string.IsNullOrWhiteSpace(text))
-                target.Add(text);
+            if (item.ValueKind == JsonValueKind.String)
+            {
+                if (item.GetString() is { } text && !string.IsNullOrWhiteSpace(text))
+                    target.Add(new AiReplyOption(text));
+            }
+            else if (item.ValueKind == JsonValueKind.Object)
+            {
+                var hasText = TryGetStringPropertyIgnoreCase(item, "text", out var text)
+                    || TryGetStringPropertyIgnoreCase(item, "reply", out text);
+                if (!hasText || string.IsNullOrWhiteSpace(text))
+                    continue;
+
+                var translation = TryGetStringPropertyIgnoreCase(item, "translation", out var rawTranslation)
+                    && !string.IsNullOrWhiteSpace(rawTranslation)
+                    ? rawTranslation
+                    : null;
+                target.Add(new AiReplyOption(text, translation));
+            }
         }
     }
 
-    private static List<string> ParseLineFallback(string text)
+    private static List<AiReplyOption> ParseLineFallback(string text)
     {
-        var results = new List<string>();
+        var results = new List<AiReplyOption>();
         var lines = text.Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries);
         foreach (var rawLine in lines)
         {
@@ -204,7 +232,7 @@ internal static partial class AiReplyParser
             var stripped = LeadingListPrefixRegex().Replace(trimmed, string.Empty).Trim();
             stripped = UnwrapQuotes(stripped);
             if (!string.IsNullOrWhiteSpace(stripped))
-                results.Add(stripped);
+                results.Add(new AiReplyOption(stripped));
         }
 
         return results;
@@ -226,14 +254,17 @@ internal static partial class AiReplyParser
         return isWrapped ? value[1..^1].Trim() : value;
     }
 
-    internal static string[] FilterValidReplies(SendTarget target, IEnumerable<string> candidates)
+    internal static AiReplyOption[] FilterValidReplies(
+        SendTarget target,
+        IEnumerable<AiReplyOption> candidates,
+        bool allowTranslation = true)
     {
-        var valid = new List<string>(MaxReplyOptions);
+        var valid = new List<AiReplyOption>(MaxReplyOptions);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var candidate in candidates)
         {
-            var singleLine = CollapseSingleLine(candidate);
+            var singleLine = CollapseSingleLine(candidate.Text);
             if (singleLine.Length == 0)
                 continue;
 
@@ -243,7 +274,18 @@ internal static partial class AiReplyParser
             if (!seen.Add(normalizedBody))
                 continue;
 
-            valid.Add(normalizedBody);
+            string? translation = null;
+            if (allowTranslation && !string.IsNullOrWhiteSpace(candidate.Translation))
+            {
+                var normalizedTranslation = CollapseSingleLine(candidate.Translation);
+                if (normalizedTranslation.Length > 0
+                    && !StringComparer.OrdinalIgnoreCase.Equals(normalizedTranslation, normalizedBody))
+                {
+                    translation = normalizedTranslation;
+                }
+            }
+
+            valid.Add(new AiReplyOption(normalizedBody, translation));
             if (valid.Count == MaxReplyOptions)
                 break;
         }

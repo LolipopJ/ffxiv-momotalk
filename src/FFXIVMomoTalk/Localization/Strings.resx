@@ -109,7 +109,7 @@
   <data name="GameChatUnavailable" xml:space="preserve"><value>The game chat window is unavailable.</value></data>
   <data name="GameCouldNotPrepareMessage" xml:space="preserve"><value>The game could not prepare this message.</value></data>
   <data name="General" xml:space="preserve"><value>General</value></data>
-  <data name="GenerateAiReplies" xml:space="preserve"><value>Generate AI replies</value></data>
+  <data name="GenerateAiReplies" xml:space="preserve"><value>Generate AI replies (right-click to choose language)</value></data>
   <data name="GeneratingReplies" xml:space="preserve"><value>Generating replies...</value></data>
   <data name="GroupName" xml:space="preserve"><value>Group Name</value></data>
   <data name="Groups" xml:space="preserve"><value>Groups</value></data>

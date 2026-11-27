@@ -131,7 +131,7 @@ internal sealed partial class MomoTalkWindow
             var clickedIndex = ChatVisuals.DrawReplyCard(ImGui.GetWindowDrawList(), ImGui.GetCursorScreenPos(),
                 availWidth, maxCardWidth, replyState.Options, canSend, scale, out var cardHeight);
             if (clickedIndex >= 0 && clickedIndex < replyState.Options.Count)
-                selectedReplyOption = replyState.Options[clickedIndex];
+                selectedReplyOption = replyState.Options[clickedIndex].Text;
 
             ImGui.Dummy(new Vector2(availWidth, cardHeight));
         }

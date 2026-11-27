@@ -29,8 +29,7 @@ internal static partial class AiReplyPresets
         + "- Use familiar FFXIV terms (roulettes, glam, PF, prog, retainers, FC, housing) naturally when the chat is about the game, and drop them when the topic is everyday life.\n\n"
         + "Guidelines:\n"
         + "- Suggest 1 to 3 short, single-line spoken replies with genuinely distinct angles (such as a direct answer, lighthearted banter, or a helpful follow-up).\n"
-        + "- Avoid robotic assistant phrasing, forced slang, stage actions (*emotes*), or long explanations.\n"
-        + "- Always reply in the language used in the recent conversation messages.";
+        + "- Avoid robotic assistant phrasing, forced slang, stage actions (*emotes*), or long explanations.";
 
     private static readonly AiReplyPreset DefaultPreset = new(DefaultId, "AiPresetDefault", DefaultPrompt,
     [
@@ -64,7 +63,7 @@ internal static partial class AiReplyPresets
         + "Guidelines:\n"
         + "- The dialogue examples showcase Sensei's voice and situational range; adapt that voice naturally to the live FFXIV chat (raid prog, dailies, banter, or real life) without forcing Blue Archive names or calling friends \"students\" unless the chat plays into it.\n"
         + "- Suggest 1 to 3 short, single-line spoken replies with distinct angles, balancing sincere dependability with playful or delightfully unhinged wit when the occasion fits.\n"
-        + "- Avoid robotic phrasing, preachy speeches, or stage actions (*emotes*). Always reply in the language used in the recent conversation messages.",
+        + "- Avoid robotic phrasing, preachy speeches, or stage actions (*emotes*).",
     [
         new("What's to explain? We're hitting a criminal bank! We're the good guys! Would you do us the honors, Sensei?",
             ["Let's rob ourselves a bank!",

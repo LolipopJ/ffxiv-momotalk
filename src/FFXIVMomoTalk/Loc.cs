@@ -20,6 +20,35 @@ internal static class Loc
 
     public static CultureInfo Culture { get; private set; } = CultureInfo.GetCultureInfo("en");
 
+    public static string NormalizeLanguageCode(string? languageCode)
+    {
+        if (string.IsNullOrWhiteSpace(languageCode))
+            return Culture.Name;
+
+        var trimmed = languageCode.Trim();
+        foreach (var (code, _) in Languages)
+        {
+            if (StringComparer.OrdinalIgnoreCase.Equals(code, trimmed))
+                return code;
+        }
+
+        return trimmed;
+    }
+
+    public static bool IsSameLanguage(string? left, string? right) =>
+        StringComparer.OrdinalIgnoreCase.Equals(NormalizeLanguageCode(left), NormalizeLanguageCode(right));
+
+    public static string PromptLanguageName(string? languageCode) => NormalizeLanguageCode(languageCode) switch
+    {
+        "en" => "English",
+        "ja" => "Japanese",
+        "de" => "German",
+        "fr" => "French",
+        "zh-Hans" => "Simplified Chinese",
+        "zh-Hant" => "Traditional Chinese",
+        var code => CultureInfo.GetCultureInfo(code).EnglishName,
+    };
+
     public static void SetLanguage(string clientLanguage, string? selectedLanguage)
     {
         var code = selectedLanguage is { } selected && Languages.Any(language => language.Code == selected)

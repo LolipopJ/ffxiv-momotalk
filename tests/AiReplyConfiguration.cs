@@ -162,8 +162,9 @@ try
         Check(reloaded.LlmPromptPreset == preset
             && !string.IsNullOrWhiteSpace(promptText)
             && !promptText.Contains('\r')
+            && !promptText.Contains("Always reply in the language", StringComparison.OrdinalIgnoreCase)
             && Encoding.UTF8.GetByteCount(promptText) <= 4096,
-            $"Preset {preset} should supply a valid LF-only prompt within editor bounds.");
+            $"Preset {preset} should supply a valid LF-only prompt within editor bounds and delegate language rules to prompt injection.");
         Check(examples.Length == expectedExamples && examples.All(example =>
             {
                 var context = Context(example);
@@ -211,34 +212,95 @@ try
     var key = Activator.CreateInstance(plugin.GetType("FFXIVMomoTalk.Chat.ConversationKey", throwOnError: true)!);
     var target = Activator.CreateInstance(targetType, key, "/fc", null);
     var aiReply = plugin.GetType("FFXIVMomoTalk.Chat.AiReplyService", throwOnError: true)!;
+    var aiParser = plugin.GetType("FFXIVMomoTalk.Chat.AiReplyParser", throwOnError: true)!;
     var snapshotExamples = aiReply.GetMethod("SnapshotExamples", BindingFlags.Static | BindingFlags.NonPublic)!;
     var buildPrompt = aiReply.GetMethod("BuildSystemPrompt", BindingFlags.Static | BindingFlags.NonPublic)!;
+    var buildUserPrompt = aiReply.GetMethod("BuildUserPrompt", BindingFlags.Static | BindingFlags.NonPublic)!;
+    var parseCandidates = aiParser.GetMethod("ParseCandidates", BindingFlags.Static | BindingFlags.NonPublic)!;
+    var filterValidReplies = aiParser.GetMethod("FilterValidReplies", BindingFlags.Static | BindingFlags.NonPublic)!;
     reloaded.LlmPromptPreset = "custom";
     reloaded.LlmCustomExamples.Clear();
     reloaded.LlmCustomPrompt = "用近期对话的语言回复。";
     AddExample("  ", "Ignored reply");
     AddExample("Draft without replies", " \r\n ");
-    var noExamples = BuildPrompt();
-    Check(!noExamples.Contains("Dialogue examples") && noExamples.Contains("Mandatory output format constraints"),
-        "Draft examples should not produce an empty section.");
+    var noExamples = BuildPrompt(forcedLanguage: null, uiLanguage: "zh-Hans");
+    Check(!noExamples.Contains("Dialogue examples") && noExamples.Contains("Mandatory output format constraints")
+        && noExamples.Contains("Simplified Chinese") && noExamples.Contains("\"translation\""),
+        "Draft examples should not produce an empty section and auto mode should request conditional UI-language translations.");
 
     AddExample("  日本語で「集合」？\r\n明日だよ。 ", "可以说 \"好\"，路径 C:\\raid。", " ", "もちろん！");
-    var prompt = BuildPrompt();
+    var prompt = BuildPrompt(forcedLanguage: null, uiLanguage: "zh-Hans");
     Check(prompt.StartsWith("用近期对话的语言回复。", StringComparison.Ordinal) && prompt.Contains("tone and option-variety")
         && prompt.Contains("language used by the recent conversation messages")
+        && prompt.Contains("\"translation\"")
         && !prompt.Contains("Ignored reply") && !prompt.Contains("Draft without replies"),
-        "The prompt should retain the custom style, explain language matching, and omit invalid drafts.");
+        "The prompt should retain the custom style, explain language matching, request conditional translations, and omit invalid drafts.");
     var lines = prompt.Split('\n');
     const string incomingPrefix = "Incoming: ";
-    const string expectedPrefix = "Expected JSON: ";
+    const string referencePrefix = "Reference replies: ";
     var incoming = lines.Single(line => line.StartsWith(incomingPrefix, StringComparison.Ordinal));
-    var expectedJson = lines.Single(line => line.StartsWith(expectedPrefix, StringComparison.Ordinal));
+    var referenceJson = lines.Single(line => line.StartsWith(referencePrefix, StringComparison.Ordinal));
     Check(JsonSerializer.Deserialize<string>(incoming[incomingPrefix.Length..]) == "日本語で「集合」？ 明日だよ。",
         "The example context should be serialized and cleaned to a single line.");
-    using var parsed = JsonDocument.Parse(expectedJson[expectedPrefix.Length..]);
-    var replies = parsed.RootElement.GetProperty("replies");
+    using var parsed = JsonDocument.Parse(referenceJson[referencePrefix.Length..]);
+    var replies = parsed.RootElement;
     Check(replies.GetArrayLength() == 2 && replies[0].GetString() == "可以说 \"好\"，路径 C:\\raid。"
         && replies[1].GetString() == "もちろん！", "The example JSON should preserve escaped multilingual replies.");
+
+    var forcedForeign = BuildPrompt(forcedLanguage: "ja", uiLanguage: "zh-Hans");
+    Check(forcedForeign.Contains("MUST write every reply in Japanese, overriding")
+        && forcedForeign.Contains("always write replies in Japanese")
+        && forcedForeign.Contains("Simplified Chinese translation of \"text\" in \"translation\"")
+        && !forcedForeign.Contains("Match the language used in the recent conversation messages"),
+        "Forcing a language different from the UI language should override language rules and require UI-language translations.");
+
+    var forcedSame = BuildPrompt(forcedLanguage: "zh-Hans", uiLanguage: "zh-Hans");
+    Check(forcedSame.Contains("MUST write every reply in Simplified Chinese, overriding")
+        && forcedSame.Contains("{\"replies\": [\"...\", \"...\"]}")
+        && !forcedSame.Contains("\"translation\""),
+        "Forcing the same language as the UI language should omit translations and use the compact string array schema.");
+
+    var identityType = plugin.GetType("FFXIVMomoTalk.Chat.PlayerIdentity", throwOnError: true)!;
+    var sessionType = plugin.GetType("FFXIVMomoTalk.Chat.PlayerSession", throwOnError: true)!;
+    var descriptorType = plugin.GetType("FFXIVMomoTalk.Chat.ConversationDescriptor", throwOnError: true)!;
+    var messageType = plugin.GetType("FFXIVMomoTalk.Chat.ChatMessage", throwOnError: true)!;
+    var player = Activator.CreateInstance(identityType, 1UL, "Player One", 1u, "World")!;
+    var session = Activator.CreateInstance(sessionType, 1UL, player)!;
+    var descriptor = Activator.CreateInstance(descriptorType, key, "Free Company", 0u, string.Empty)!;
+    var emptyMessages = Array.CreateInstance(messageType, 0);
+    var forcedOpening = (string)buildUserPrompt.Invoke(null, [session, descriptor, "FC", emptyMessages, null, 1_700_000_000_000L, "de"])!;
+    Check(forcedOpening.Contains("in German to start this conversation"),
+        "Forced language should apply to empty conversation opening greetings.");
+
+    var singleMessage = Array.CreateInstance(messageType, 1);
+    singleMessage.SetValue(Activator.CreateInstance(messageType, 1L, 1_700_000_000_000L, false, player, "Hello!", null), 0);
+    var forcedReply = (string)buildUserPrompt.Invoke(null, [session, descriptor, "FC", singleMessage, null, 1_700_000_000_000L, "fr"])!;
+    Check(forcedReply.Contains("for [You] in French."),
+        "Forced language should apply to reply generation when recent messages exist.");
+
+    var parsedObjects = parseCandidates.Invoke(null, ["""
+        {"replies":[
+            {"text":"了解！\nすぐ行くよ","translation":"收到！\n马上来"},
+            {"text":"OK","translation":"ok"},
+            {"text":"ありがとう","translation":null}
+        ]}
+        """])!;
+    var filteredWithTrans = ((IEnumerable)filterValidReplies.Invoke(null, [target, parsedObjects, true])!).Cast<object>().ToArray();
+    Check(filteredWithTrans.Length == 3
+        && OptionText(filteredWithTrans[0]) == "了解！ すぐ行くよ" && OptionTranslation(filteredWithTrans[0]) == "收到！ 马上来"
+        && OptionText(filteredWithTrans[1]) == "OK" && OptionTranslation(filteredWithTrans[1]) is null
+        && OptionText(filteredWithTrans[2]) == "ありがとう" && OptionTranslation(filteredWithTrans[2]) is null,
+        "Object replies should preserve cleaned translations while suppressing identical or null translations.");
+
+    var filteredNoTrans = ((IEnumerable)filterValidReplies.Invoke(null, [target, parsedObjects, false])!).Cast<object>().ToArray();
+    Check(filteredNoTrans.Length == 3 && filteredNoTrans.All(option => OptionTranslation(option) is null),
+        "Disallowing translations should strip translations from all options.");
+
+    var parsedStrings = parseCandidates.Invoke(null, ["""{"replies":["Sure thing!","On my way!"]}"""])!;
+    var filteredStrings = ((IEnumerable)filterValidReplies.Invoke(null, [target, parsedStrings, true])!).Cast<object>().ToArray();
+    Check(filteredStrings.Length == 2
+        && OptionText(filteredStrings[0]) == "Sure thing!" && OptionTranslation(filteredStrings[0]) is null,
+        "Legacy string-array responses should remain supported with null translations.");
 
     const string privateText = "Synthetic private chat sentence";
     const string apiKey = "synthetic-secret";
@@ -263,10 +325,10 @@ try
         reloaded.LlmCustomExamples.Add(example);
     }
 
-    string BuildPrompt()
+    string BuildPrompt(string? forcedLanguage = null, string? uiLanguage = "en")
     {
         var examples = snapshotExamples.Invoke(null, [(object)reloaded.EffectiveLlmExamples]);
-        return (string)buildPrompt.Invoke(null, [(string)reloaded.EffectiveLlmPrompt, target, examples])!;
+        return (string)buildPrompt.Invoke(null, [(string)reloaded.EffectiveLlmPrompt, target, examples, forcedLanguage, uiLanguage])!;
     }
 }
 finally
@@ -283,6 +345,12 @@ static string Context(object example) =>
 
 static IEnumerable<string> Replies(object example) =>
     (IEnumerable<string>)example.GetType().GetProperty("Replies")!.GetValue(example)!;
+
+static string OptionText(object option) =>
+    (string)option.GetType().GetProperty("Text")!.GetValue(option)!;
+
+static string? OptionTranslation(object option) =>
+    (string?)option.GetType().GetProperty("Translation")!.GetValue(option);
 
 static string V1Settings(string prompt) => JsonSerializer.Serialize(new
 {

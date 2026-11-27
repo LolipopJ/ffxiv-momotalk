@@ -109,7 +109,7 @@
   <data name="GameChatUnavailable" xml:space="preserve"><value>Das Chatfenster im Spiel ist nicht verfügbar.</value></data>
   <data name="GameCouldNotPrepareMessage" xml:space="preserve"><value>Das Spiel konnte die Nachricht nicht zum Senden vorbereiten.</value></data>
   <data name="General" xml:space="preserve"><value>Allgemein</value></data>
-  <data name="GenerateAiReplies" xml:space="preserve"><value>KI-Antworten erstellen</value></data>
+  <data name="GenerateAiReplies" xml:space="preserve"><value>KI-Antworten erstellen (Rechtsklick für Sprache)</value></data>
   <data name="GeneratingReplies" xml:space="preserve"><value>Antworten werden erstellt…</value></data>
   <data name="GroupName" xml:space="preserve"><value>Gruppenname</value></data>
   <data name="Groups" xml:space="preserve"><value>Gruppen</value></data>
