@@ -16,7 +16,11 @@ internal static class V1ToV2
         + "(e.g. Chinese, English, or Japanese).\n"
         + "Avoid robotic phrasing, long paragraphs, or explanations.";
 
-    public static PluginConfiguration? Migrate(string path, JObject json, IPluginLog log)
+    public static PluginConfiguration? Migrate(
+        string path,
+        JObject json,
+        IPluginLog log,
+        Action<string, string>? replaceFile = null)
     {
         var step = "back up v1 settings";
         var backupBase = path + ".v1.bak";
@@ -60,7 +64,10 @@ internal static class V1ToV2
             }
 
             step = "replace the configuration file";
-            File.Move(tempPath, path, overwrite: true);
+            if (replaceFile is null)
+                File.Move(tempPath, path, overwrite: true);
+            else
+                replaceFile(tempPath, path);
             tempPath = null;
             return migrated;
         }

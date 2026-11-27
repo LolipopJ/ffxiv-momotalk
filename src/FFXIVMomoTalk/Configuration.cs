@@ -176,7 +176,13 @@ public sealed class Configuration : IPluginConfiguration
         return config;
     }
 
-    public static Configuration Load(IDalamudPluginInterface pluginInterface, IPluginLog log)
+    public static Configuration Load(IDalamudPluginInterface pluginInterface, IPluginLog log) =>
+        Load(pluginInterface, log, replaceFile: null);
+
+    internal static Configuration Load(
+        IDalamudPluginInterface pluginInterface,
+        IPluginLog log,
+        Action<string, string>? replaceFile)
     {
         var file = pluginInterface.ConfigFile;
         if (!file.Exists)
@@ -193,7 +199,7 @@ public sealed class Configuration : IPluginConfiguration
                 version = versionToken.Value<long>();
 
             if (version == 1)
-                return V1ToV2.Migrate(file.FullName, json!, log) ?? new Configuration { PreserveExistingFile = true };
+                return V1ToV2.Migrate(file.FullName, json!, log, replaceFile) ?? new Configuration { PreserveExistingFile = true };
 
             if (version == CurrentVersion)
             {

@@ -32,7 +32,8 @@ AssemblyLoadContext.Default.Resolving += (context, name) =>
 
 var plugin = Assembly.LoadFrom(pluginPath);
 var configType = plugin.GetType("FFXIVMomoTalk.Configuration", throwOnError: true)!;
-var load = configType.GetMethod("Load")!;
+var load = configType.GetMethod("Load", BindingFlags.Static | BindingFlags.Public)!;
+var loadWithReplace = configType.GetMethod("Load", BindingFlags.Static | BindingFlags.NonPublic)!;
 var loadParameters = load.GetParameters();
 var directory = Directory.CreateTempSubdirectory("momotalk-ai-config-");
 var configPath = Path.Combine(directory.FullName, "FFXIVMomoTalk.json");
@@ -69,16 +70,21 @@ try
 
     var customV1 = V1Settings(customPrompt);
     File.WriteAllText(configPath, customV1);
-    using (File.Open(configPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+    string? stagedPath = null;
+    dynamic failed = LoadWithReplace((source, destination) =>
     {
-        dynamic failed = Load();
-        Check(failed.PreserveExistingFile && File.ReadAllText(configPath) == customV1,
-            "A failed replacement should preserve the live file.");
-        Check(errors.Any(error => error.Contains("Configuration") && error.Contains("1")
-            && error.Contains("2") && error.Contains("replace", StringComparison.OrdinalIgnoreCase)),
-            "A failed replacement should log the data domain, versions, and failed step.");
-        failed.Save((dynamic)host);
-    }
+        stagedPath = source;
+        Check(File.Exists(source) && destination == configPath,
+            "Replacement should stage the migrated file before replacing the live configuration.");
+        throw new IOException("Simulated replacement failure.");
+    });
+    Check(failed.PreserveExistingFile && File.ReadAllText(configPath) == customV1
+        && stagedPath is not null && !File.Exists(stagedPath),
+        "A failed replacement should preserve the live file and remove its temporary file.");
+    Check(errors.Any(error => error.Contains("Configuration") && error.Contains("1")
+        && error.Contains("2") && error.Contains("replace", StringComparison.OrdinalIgnoreCase)),
+        "A failed replacement should log the data domain, versions, and failed step.");
+    failed.Save((dynamic)host);
 
     dynamic migrated = Load();
     Check(migrated.Version == 2 && migrated.LlmPromptPreset == "custom" && migrated.LlmCustomPrompt == customPrompt
@@ -339,6 +345,7 @@ finally
 }
 
 object Load() => load.Invoke(null, [host, log])!;
+object LoadWithReplace(Action<string, string> replaceFile) => loadWithReplace.Invoke(null, [host, log, replaceFile])!;
 
 static string Context(object example) =>
     (string)example.GetType().GetProperty("Context")!.GetValue(example)!;
