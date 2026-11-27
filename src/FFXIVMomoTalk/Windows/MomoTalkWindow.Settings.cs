@@ -94,7 +94,7 @@ internal sealed partial class MomoTalkWindow
         List<AiReplyExample>? customExamples = null;
         ChatVisuals.AiExamplePreview[] previewCards = [];
         var examplesHeight = 0f;
-        if (shownTab == SettingsTab.AiReply)
+        if (shownTab == SettingsTab.AiSettings)
         {
             if (config.IsCustomPreset)
             {
@@ -120,13 +120,14 @@ internal sealed partial class MomoTalkWindow
             ? ChatVisuals.MeasureSystemBanner(testBannerText, innerW, uiScale)
             : null;
         var testBannerHeight = testBannerLayout is { } tbl ? tbl.Height + 6f * uiScale : 0f;
+        var translationSectionHeight = labelHeight + inputHeight + fieldGap;
         var contextSectionHeight = labelHeight + subLabelHeight + inputHeight + fieldGap;
 
         var naturalBodyHeight = shownTab == SettingsTab.General
             ? padTop + warnHeight + rowHeight * 5f + rowGap * 4f + padBottom
             : padTop + warnHeight + (labelHeight + inputHeight + fieldGap) * 2f
               + labelHeight + inputHeight + 10f * uiScale + testBtnHeight + testBannerHeight + fieldGap
-              + contextSectionHeight + aiSettings.HeaderHeight + examplesHeight + padBottom;
+              + translationSectionHeight + contextSectionHeight + aiSettings.HeaderHeight + examplesHeight + padBottom;
         var maxCardHeight = MathF.Max(240f * scale, winSize.Y - 28f * scale) * cardScale;
         var cardHeight = MathF.Min(headerHeight + tabBarHeight + naturalBodyHeight, maxCardHeight);
 
@@ -190,11 +191,11 @@ internal sealed partial class MomoTalkWindow
             settingsTab = SettingsTab.General;
         }
 
-        if (DrawSettingsTab(draw, "##settings-tab-aireply", Loc.Text("AiReply"),
+        if (DrawSettingsTab(draw, "##settings-tab-aisettings", Loc.Text("AiSettings"),
             new Vector2(cardPos.X + halfTabW, dividerY), new Vector2(cardWidth - halfTabW, tabBarHeight),
-            shownTab == SettingsTab.AiReply, uiScale, cardScale, eased, interactive))
+            shownTab == SettingsTab.AiSettings, uiScale, cardScale, eased, interactive))
         {
-            settingsTab = SettingsTab.AiReply;
+            settingsTab = SettingsTab.AiSettings;
         }
 
         var tabBottomY = dividerY + tabBarHeight;
@@ -207,7 +208,7 @@ internal sealed partial class MomoTalkWindow
         if (!interactive)
             bodyFlags |= ImGuiWindowFlags.NoInputs;
 
-        var bodyChildId = shownTab == SettingsTab.General ? "##settings-body-general" : "##settings-body-aireply";
+        var bodyChildId = shownTab == SettingsTab.General ? "##settings-body-general" : "##settings-body-aisettings";
         ImGui.SetCursorScreenPos(bodyPos);
         using (ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, Vector2.Zero))
         using (ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero))
@@ -350,6 +351,12 @@ internal sealed partial class MomoTalkWindow
 
                     cursorY += fieldGap;
                     ChatVisuals.AddBoldText(bodyDraw, new Vector2(leftX, cursorY), labelFontSize,
+                        ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.Ink, eased)), Loc.Text("TranslationLanguage"), uiScale);
+                    cursorY += labelHeight;
+                    DrawTranslationLanguageSetting(new Vector2(leftX, cursorY), innerW, inputHeight, uiScale, interactive);
+                    cursorY += inputHeight + fieldGap;
+
+                    ChatVisuals.AddBoldText(bodyDraw, new Vector2(leftX, cursorY), labelFontSize,
                         ChatVisuals.Color(ChatVisuals.ScaleAlpha(ChatVisuals.Ink, eased)), Loc.Text("ChatContext"), uiScale);
                     cursorY += labelHeight;
 
@@ -466,6 +473,29 @@ internal sealed partial class MomoTalkWindow
             saveConfig();
     }
 
+    private void DrawTranslationLanguageSetting(Vector2 pos, float width, float comboHeight, float scale, bool interactive)
+    {
+        var selected = config.LlmTranslationLanguage;
+        var followPlugin = Loc.Text("FollowPluginLanguage");
+        var preview = Loc.Languages.FirstOrDefault(language => language.Code == selected).Name ?? followPlugin;
+        using var colors = ChatVisuals.PushSettingsComboColors();
+        using var style = ChatVisuals.PushSettingsComboStyle(comboHeight, scale);
+        using var combo = ChatVisuals.BeginSettingsCombo("##ai-translation-language", preview, pos, width);
+        if (!combo || !interactive)
+            return;
+
+        if (ChatVisuals.SelectSettingsOption(followPlugin, "follow-plugin", selected is null, comboHeight))
+            config.LlmTranslationLanguage = null;
+        foreach (var (code, name) in Loc.Languages)
+        {
+            if (ChatVisuals.SelectSettingsOption(name, code, selected == code, comboHeight))
+                config.LlmTranslationLanguage = code;
+        }
+
+        if (config.LlmTranslationLanguage != selected)
+            saveConfig();
+    }
+
     private static bool DrawSettingsTab(
         ImDrawListPtr draw,
         string id,
@@ -560,6 +590,6 @@ internal sealed partial class MomoTalkWindow
     private enum SettingsTab
     {
         General,
-        AiReply,
+        AiSettings,
     }
 }

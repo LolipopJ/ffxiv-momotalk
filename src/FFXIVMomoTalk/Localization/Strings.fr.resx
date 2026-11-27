@@ -20,6 +20,7 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>Le contenu du message est absent de la réponse du LLM.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>La réponse du LLM ne contient aucune proposition.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>L’IA n’a renvoyé aucune réponse valide pour ce canal.</value></data>
+  <data name="AiNoTranslations" xml:space="preserve"><value>L’IA n’a renvoyé aucune traduction valide.</value></data>
   <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>Astromancien - Oracle</value></data>
   <data name="AiPresetBardCheerful" xml:space="preserve"><value>Barde - Enjoué</value></data>
   <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>Mage noir - Ferveur</value></data>
@@ -35,8 +36,9 @@
   <data name="AiPresetSensei" xml:space="preserve"><value>Kivotos - Sensei</value></data>
   <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>Mage blanc - Miséricorde</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Limite de requêtes atteinte (HTTP 429). Patientez, puis réessayez.</value></data>
-  <data name="AiReply" xml:space="preserve"><value>Réponses IA</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>La requête à l’IA a expiré.</value></data>
+  <data name="AiSettings" xml:space="preserve"><value>Configuration IA</value></data>
+  <data name="AiTranslateFailed" xml:space="preserve"><value>Impossible de traduire les messages.</value></data>
   <data name="AiUnsupportedContent" xml:space="preserve"><value>Le format du contenu de la réponse du LLM n’est pas pris en charge.</value></data>
   <data name="ApiKey" xml:space="preserve"><value>Clé API</value></data>
   <data name="AppName" xml:space="preserve"><value>MomoTalk</value></data>
@@ -59,6 +61,7 @@
   <data name="ConversationExamples" xml:space="preserve"><value>Exemples de dialogue</value></data>
   <data name="CopyText" xml:space="preserve"><value>Copier le texte</value></data>
   <data name="CopyToCustom" xml:space="preserve"><value>Copier vers Personnalisé</value></data>
+  <data name="CopyTranslation" xml:space="preserve"><value>Copier la traduction</value></data>
   <data name="Create" xml:space="preserve"><value>Créer</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>Créer un groupe fixe</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Linkshell inter-Monde</value></data>
@@ -91,6 +94,7 @@
   <data name="Filter" xml:space="preserve"><value>Filtrer</value></data>
   <data name="FilterByTags" xml:space="preserve"><value>Filtrer par tags</value></data>
   <data name="FollowClient" xml:space="preserve"><value>Langue du jeu</value></data>
+  <data name="FollowPluginLanguage" xml:space="preserve"><value>Langue du plugin</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Compagnie libre</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Vous ne faites plus partie de cette compagnie libre.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>CL</value></data>
@@ -222,6 +226,9 @@
   <data name="TellUnavailableInPvP" xml:space="preserve"><value>Les messages privés sont indisponibles en JcJ.</value></data>
   <data name="TestConnection" xml:space="preserve"><value>Tester la connexion</value></data>
   <data name="Testing" xml:space="preserve"><value>Test en cours…</value></data>
+  <data name="TranslateChat" xml:space="preserve"><value>Traduire la discussion</value></data>
+  <data name="Translating" xml:space="preserve"><value>Traduction…</value></data>
+  <data name="TranslationLanguage" xml:space="preserve"><value>Langue de traduction</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>Ce type de discussion n’est pas pris en charge.</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>Écrire à la LSIM…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>Écrire à la compagnie libre…</value></data>

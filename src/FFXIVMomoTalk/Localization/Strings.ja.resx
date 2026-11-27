@@ -20,6 +20,7 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLMのレスポンスにメッセージの本文がありません。</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLMのレスポンスに応答候補が含まれていません。</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AIからこのチャネルの有効な返信候補が返されませんでした。</value></data>
+  <data name="AiNoTranslations" xml:space="preserve"><value>AIから有効な翻訳結果が返されませんでした。</value></data>
   <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>「占星術師」の神託</value></data>
   <data name="AiPresetBardCheerful" xml:space="preserve"><value>「吟遊詩人」の陽気</value></data>
   <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>「黒魔道士」の狂熱</value></data>
@@ -35,8 +36,9 @@
   <data name="AiPresetSensei" xml:space="preserve"><value>「キヴォトス」の先生</value></data>
   <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>「白魔道士」の慈悲</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>リクエスト数の上限に達しました（HTTP 429）。時間をおいて再試行してください。</value></data>
-  <data name="AiReply" xml:space="preserve"><value>AI返信</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AIへのリクエストがタイムアウトしました。</value></data>
+  <data name="AiSettings" xml:space="preserve"><value>AI設定</value></data>
+  <data name="AiTranslateFailed" xml:space="preserve"><value>メッセージを翻訳できませんでした。</value></data>
   <data name="AiUnsupportedContent" xml:space="preserve"><value>LLMのレスポンスの形式に対応していません。</value></data>
   <data name="ApiKey" xml:space="preserve"><value>APIキー</value></data>
   <data name="AppName" xml:space="preserve"><value>モモトーク</value></data>
@@ -59,6 +61,7 @@
   <data name="ConversationExamples" xml:space="preserve"><value>会話例</value></data>
   <data name="CopyText" xml:space="preserve"><value>テキストをコピー</value></data>
   <data name="CopyToCustom" xml:space="preserve"><value>カスタムにコピー</value></data>
+  <data name="CopyTranslation" xml:space="preserve"><value>翻訳をコピー</value></data>
   <data name="Create" xml:space="preserve"><value>作成</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>固定パーティを作成</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>クロスワールドリンクシェル</value></data>
@@ -91,6 +94,7 @@
   <data name="Filter" xml:space="preserve"><value>絞り込み</value></data>
   <data name="FilterByTags" xml:space="preserve"><value>タグで絞り込み</value></data>
   <data name="FollowClient" xml:space="preserve"><value>クライアントに従う</value></data>
+  <data name="FollowPluginLanguage" xml:space="preserve"><value>プラグイン言語に従う</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>フリーカンパニー</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>このフリーカンパニーには所属していません。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
@@ -222,6 +226,9 @@
   <data name="TellUnavailableInPvP" xml:space="preserve"><value>PvP中はTellを利用できません。</value></data>
   <data name="TestConnection" xml:space="preserve"><value>接続をテスト</value></data>
   <data name="Testing" xml:space="preserve"><value>テスト中…</value></data>
+  <data name="TranslateChat" xml:space="preserve"><value>チャットを翻訳</value></data>
+  <data name="Translating" xml:space="preserve"><value>翻訳中…</value></data>
+  <data name="TranslationLanguage" xml:space="preserve"><value>翻訳言語</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>この種類の会話には対応していません。</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>CWLSにメッセージを入力…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>FCにメッセージを入力…</value></data>

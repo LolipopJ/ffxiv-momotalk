@@ -34,6 +34,8 @@ internal static partial class ChatVisuals
     public static readonly Vector4 IncomingBubble = Hex(0x4B5A6F);
     public static readonly Vector4 OutgoingBubble = Hex(0x4A8AC6);
     public static readonly Vector4 BubbleText = Hex(0xECF2FB);
+    public static readonly Vector4 BubbleTranslationText = Hex(0xFDEBC8);
+    public static readonly Vector4 BubbleTranslationDivider = Hex(0xFFFFFF, 0.28f);
     public static readonly Vector4 SystemBg = Hex(0xE1E7EC);
     public static readonly Vector4 SystemText = Hex(0x5D6B7A);
     public static readonly Vector4 AlertText = Hex(0xA6324C);

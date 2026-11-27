@@ -78,15 +78,75 @@ internal sealed class ChatCapture(
                 : new TellPeer(player.PlayerName, player.World.RowId, null, HasPlayerPayload: true);
         }
 
+        if (!TryReadVisiblePeer(sender, out var name, out var world))
+            return null;
+
+        return new TellPeer(name, 0, world, HasPlayerPayload: false);
+    }
+
+    internal static bool IsValidPlayerSender(SeString sender, TellPeer peer)
+    {
+        if (!IsValidGlobalPlayerName(peer.Name))
+            return false;
+
+        return !TryReadVisiblePeer(sender, out var visibleName, out _) || IsValidGlobalPlayerName(visibleName);
+    }
+
+    internal static bool IsValidGlobalPlayerName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        var trimmed = name.AsSpan().Trim();
+        if (trimmed.IsEmpty || !char.IsAsciiLetter(trimmed[0]))
+            return false;
+
+        return SocialSnapshot.TrySplitTwoPartName(trimmed, out var first, out var last)
+            && IsValidNamePart(first)
+            && IsValidNamePart(last);
+    }
+
+    private static bool IsValidNamePart(ReadOnlySpan<char> part)
+    {
+        if (part.Length < 2 || !char.IsAsciiLetter(part[0]))
+            return false;
+
+        if (part.Length == 2 && part[1] == '.')
+            return true;
+
+        foreach (var ch in part[1..])
+        {
+            if (!char.IsAsciiLetter(ch) && ch is not ('-' or '\''))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadVisiblePeer(SeString sender, out string name, out string? world)
+    {
         var raw = sender.TextValue.Replace(SeIconChar.CrossWorld.ToIconString(), "@");
         var text = StripPrivateUse(raw).Trim();
         if (text.Length == 0)
-            return null;
+        {
+            name = string.Empty;
+            world = null;
+            return false;
+        }
 
         var separator = text.IndexOf('@');
-        return separator < 0
-            ? new TellPeer(text, 0, null, HasPlayerPayload: false)
-            : new TellPeer(text[..separator].Trim(), 0, text[(separator + 1)..].Trim(), HasPlayerPayload: false);
+        if (separator < 0)
+        {
+            name = text;
+            world = null;
+        }
+        else
+        {
+            name = text[..separator].Trim();
+            world = text[(separator + 1)..].Trim();
+        }
+
+        return name.Length > 0;
     }
 
     private static string StripPrivateUse(string value)
@@ -162,12 +222,18 @@ internal sealed class ChatCapture(
         if (string.IsNullOrEmpty(body))
             return;
 
-        var peer = ReadPeer(SeString.Parse(message.OriginalSender.Data.Span));
+        var senderSeString = SeString.Parse(message.OriginalSender.Data.Span);
+        var peer = ReadPeer(senderSeString);
         var isLocalPlayer = message.SourceKind == XivChatRelationKind.LocalPlayer;
-        if (kind == ConversationKind.Tell && peer is null)
+        if (kind == ConversationKind.Tell)
+        {
+            if (peer is null || !IsValidPlayerSender(senderSeString, peer.Value))
+                return;
+        }
+        else if (!isLocalPlayer && (peer is null || !IsValidPlayerSender(senderSeString, peer.Value)))
+        {
             return;
-        if (kind != ConversationKind.Tell && !isLocalPlayer && peer is null)
-            return;
+        }
 
         var incoming = new IncomingChat(
             message.LogKind,

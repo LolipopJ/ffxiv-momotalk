@@ -51,10 +51,12 @@ internal sealed partial class MomoTalkWindow
         var needsNativeList = unavailableReason is "OpenFriendsToSendTell" or "FreeCompanyUnavailable"
             or "LinkshellUnavailable" or "CrossWorldLinkshellUnavailable";
         var replyState = config.IsAiReplyConfigured ? aiReply.GetState(currentConv.Key) : AiReplySnapshot.Idle;
+        var translateState = config.IsAiReplyConfigured ? aiReply.GetTranslationState(currentConv.Key) : AiTranslationSnapshot.Idle;
         var warning = draft.Warning is { AttachedToMessage: false } local ? local : unassignedWarning;
         var warningText = warning is { AttachedToMessage: false } visible ? Loc.Reason(visible.Message) : null;
         var aiError = replyState.Status == AiReplyStatus.Error ? replyState.ErrorMessage?.Format() : null;
-        var errorStatus = warningText ?? aiError;
+        var translateError = translateState.Status == AiTranslationStatus.Error ? translateState.ErrorMessage?.Format() : null;
+        var errorStatus = warningText ?? aiError ?? translateError;
         var writeFailed = capture.FailedWriteOwner == session!.ContentId;
         var showTyping = sendTarget is not null
             && inputFocused
@@ -93,7 +95,7 @@ internal sealed partial class MomoTalkWindow
         {
             if (timeline)
                 selectedReplyOption = DrawTimeline(snapshot, view, currentConv, timelineContentWidth, showTyping, replyState,
-                    sendTarget is not null && draft.Pending is null, scale);
+                    translateState, sendTarget is not null && draft.Pending is null, scale);
         }
 
         wasShowingTyping = showTyping;
@@ -129,9 +131,13 @@ internal sealed partial class MomoTalkWindow
                     if (ReferenceEquals(unassignedWarning, warning))
                         unassignedWarning = null;
                 }
-                else
+                else if (aiError is not null)
                 {
                     aiReply.Clear(currentConv.Key);
+                }
+                else
+                {
+                    aiReply.ClearTranslationState(currentConv.Key);
                 }
             }
 
@@ -393,6 +399,9 @@ internal sealed partial class MomoTalkWindow
         selected = conversationDesc;
         conversation = new ConversationHistory(messages, session!.ContentId, conversationDesc.Key);
         bubbleMeasurements.Clear();
+        contextMessageId = null;
+        contextMessageBody = null;
+        lastTranslationRevision = aiReply.TranslationRevision;
         firstMessageY = 0;
         inputFocused = false;
         inputFocusedConversation = null;

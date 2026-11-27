@@ -42,7 +42,7 @@ internal sealed partial class MomoTalkWindow : Window
     private readonly Dictionary<ulong, uint> friendColors = new();
     private readonly HashSet<string> activeTagFilters = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<ConversationKey> hidden = new();
-    private readonly Dictionary<long, (string Body, float WrapWidth, Vector2 TextSize)> bubbleMeasurements = new();
+    private readonly Dictionary<long, (string Body, string? Footer, float WrapWidth, Vector2 TextSize, Vector2 FooterSize)> bubbleMeasurements = new();
     private nint bubbleFont;
     private float bubbleFontSize;
 
@@ -120,6 +120,7 @@ internal sealed partial class MomoTalkWindow : Window
     private PlayerIdentity? contextFriend;
     private ConversationDescriptor? contextConversation;
     private StaticGroup? contextStatic;
+    private long? contextMessageId;
     private string? contextMessageBody;
     private ConversationKey? inputFocusedConversation;
     private bool inputFocused;
@@ -127,6 +128,7 @@ internal sealed partial class MomoTalkWindow : Window
     private ConversationKey? lastReplyStateConv;
     private AiReplyStatus lastReplyStatus;
     private long lastReplyGenerationId;
+    private long lastTranslationRevision;
     private string? dismissedUnavailableStores;
 
     public MomoTalkWindow(

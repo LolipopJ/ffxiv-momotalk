@@ -4,6 +4,20 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+
+- Right-click any chat message bubble when AI is configured to choose `Translate Chat`, translating up to 5 preceding messages, the selected message, and up to 4 following messages via the configured LLM and displaying each translation inside its bubble beneath a divider with distinct font size and color.
+- Add a `Translation Language` setting in the `AI Settings` tab (defaulting to the current plugin UI language) for chat message translation.
+- Store translated messages in an in-memory cache capped at 1,000 entries and add a `Copy Translation` item to the right-click context menu of translated message bubbles.
+
+### Changed
+
+- Rename the `AI Reply` settings tab to `AI Settings` (`AI 配置` in Simplified Chinese) across all six localized catalogs.
+
+### Fixed
+
+- Ignore plugin-injected synthetic chat messages (such as Chat Translate lines with non-player sender prefixes like `[CT] ...`) by validating Global FFXIV player sender names before recording.
+
 ## [v1.3.0.0] - 2026-11-27
 
 ### Added

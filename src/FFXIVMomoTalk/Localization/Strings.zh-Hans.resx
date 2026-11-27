@@ -20,6 +20,7 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLM 响应缺少消息内容。</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLM 响应不包含任何选项。</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AI 未返回适用于此频道的有效回复。</value></data>
+  <data name="AiNoTranslations" xml:space="preserve"><value>AI 未返回有效的翻译结果。</value></data>
   <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>「占星术士」之神谕</value></data>
   <data name="AiPresetBardCheerful" xml:space="preserve"><value>「吟游诗人」之活泼</value></data>
   <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>「黑魔法师」之狂热</value></data>
@@ -35,8 +36,9 @@
   <data name="AiPresetSensei" xml:space="preserve"><value>「基沃托斯」之老师</value></data>
   <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>「白魔法师」之慈悲</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>请求过于频繁（HTTP 429）。请稍后重试。</value></data>
-  <data name="AiReply" xml:space="preserve"><value>AI 回复</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AI 请求超时。</value></data>
+  <data name="AiSettings" xml:space="preserve"><value>AI 配置</value></data>
+  <data name="AiTranslateFailed" xml:space="preserve"><value>无法翻译聊天消息。</value></data>
   <data name="AiUnsupportedContent" xml:space="preserve"><value>LLM 响应使用了不支持的内容格式。</value></data>
   <data name="ApiKey" xml:space="preserve"><value>API 密钥</value></data>
   <data name="AppName" xml:space="preserve"><value>MomoTalk</value></data>
@@ -59,6 +61,7 @@
   <data name="ConversationExamples" xml:space="preserve"><value>对话示例</value></data>
   <data name="CopyText" xml:space="preserve"><value>复制文本</value></data>
   <data name="CopyToCustom" xml:space="preserve"><value>复制到自定义</value></data>
+  <data name="CopyTranslation" xml:space="preserve"><value>复制翻译</value></data>
   <data name="Create" xml:space="preserve"><value>创建</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>创建固定队</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>跨服通讯贝</value></data>
@@ -91,6 +94,7 @@
   <data name="Filter" xml:space="preserve"><value>筛选</value></data>
   <data name="FilterByTags" xml:space="preserve"><value>按标签过滤</value></data>
   <data name="FollowClient" xml:space="preserve"><value>跟随客户端</value></data>
+  <data name="FollowPluginLanguage" xml:space="preserve"><value>跟随插件语言</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>部队</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>你已不属于该部队。</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>部队</value></data>
@@ -222,6 +226,9 @@
   <data name="TellUnavailableInPvP" xml:space="preserve"><value>PvP 期间无法使用私聊。</value></data>
   <data name="TestConnection" xml:space="preserve"><value>测试连接</value></data>
   <data name="Testing" xml:space="preserve"><value>正在测试…</value></data>
+  <data name="TranslateChat" xml:space="preserve"><value>翻译聊天</value></data>
+  <data name="Translating" xml:space="preserve"><value>正在翻译…</value></data>
+  <data name="TranslationLanguage" xml:space="preserve"><value>翻译语言</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>不支持该会话类型。</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>输入跨服通讯贝消息…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>输入部队消息…</value></data>

@@ -45,6 +45,12 @@ internal static partial class ChatVisuals
         }
     }
 
+    public static float TranslationFontSize(float fontSize) => fontSize * 0.88f;
+
+    public static float TranslationDividerGap(float scale) => 5f * scale;
+
+    public static float TranslationDividerThickness(float scale) => MathF.Max(1f, scale);
+
     public static void DrawBubble(
         ImDrawListPtr draw,
         Vector2 position,
@@ -56,7 +62,10 @@ internal static partial class ChatVisuals
         float maxTextWidth,
         bool outgoing,
         bool showTail,
-        float scale)
+        float scale,
+        Vector2 bodySize = default,
+        string? translation = null,
+        bool translationPending = false)
     {
         var fillU32 = Color(fill);
         var rounding = 8f * scale;
@@ -86,7 +95,24 @@ internal static partial class ChatVisuals
             }
         }
 
-        AddText(draw, position + padding, fontSize, Color(BubbleText), body, maxTextWidth);
+        var bodyPos = position + padding;
+        AddText(draw, bodyPos, fontSize, Color(BubbleText), body, maxTextWidth);
+
+        if (!string.IsNullOrEmpty(translation))
+        {
+            var dividerGap = TranslationDividerGap(scale);
+            var dividerThickness = TranslationDividerThickness(scale);
+            var dividerY = bodyPos.Y + bodySize.Y + dividerGap + dividerThickness * 0.5f;
+            draw.AddLine(
+                new Vector2(bodyPos.X, dividerY),
+                new Vector2(position.X + size.X - padding.X, dividerY),
+                Color(BubbleTranslationDivider),
+                dividerThickness);
+
+            var translationPos = new Vector2(bodyPos.X, bodyPos.Y + bodySize.Y + dividerGap * 2f + dividerThickness);
+            var translationCol = Color(translationPending ? WithAlpha(BubbleText, 0.72f) : BubbleTranslationText);
+            AddText(draw, translationPos, TranslationFontSize(fontSize), translationCol, translation, maxTextWidth);
+        }
     }
 
     public static TimeDividerLayout MeasureTimeDivider(string label, float scale)

@@ -8,7 +8,8 @@ namespace FFXIVMomoTalk.Windows;
 internal sealed partial class MomoTalkWindow
 {
     private unsafe string? DrawTimeline(SocialSnapshot snapshot, ConversationHistory view, ConversationDescriptor currentConv,
-        float contentWidth, bool showTyping, AiReplySnapshot replyState, bool canSend, float scale)
+        float contentWidth, bool showTyping, AiReplySnapshot replyState, AiTranslationSnapshot translateState,
+        bool canSend, float scale)
     {
         var hasReplyCard = replyState.Status == AiReplyStatus.Loading
             || (replyState.Status == AiReplyStatus.Ready && replyState.Options.Count > 0);
@@ -16,12 +17,16 @@ internal sealed partial class MomoTalkWindow
             && (lastReplyStateConv != currentConv.Key
                 || lastReplyStatus != replyState.Status
                 || lastReplyGenerationId != replyState.GenerationId);
+        var currentTranslationRevision = aiReply.TranslationRevision;
+        var translationsUpdated = currentTranslationRevision != lastTranslationRevision;
+        lastTranslationRevision = currentTranslationRevision;
 
         var atBottom = ImGui.GetScrollY() >= ImGui.GetScrollMaxY() - 2f * scale;
         var followLatest = view.RevealLatest
             || (view.AddedMessages && view.PrependAnchor is null && atBottom)
             || (showTyping && !wasShowingTyping && atBottom)
-            || (replyCardAppeared && atBottom);
+            || (replyCardAppeared && atBottom)
+            || (translationsUpdated && atBottom);
 
         ImGui.Dummy(new Vector2(0, 6f * scale));
         var availWidth = MathF.Min(ImGui.GetContentRegionAvail().X, contentWidth);
@@ -107,7 +112,8 @@ internal sealed partial class MomoTalkWindow
             if (view.PrependAnchor == message.Id)
                 ImGui.SetScrollY(MathF.Max(0f, ImGui.GetScrollY() + y - previousFirstY));
 
-            DrawMessageBubble(snapshot, message, author, currentConv.Key.IsGroup, isGroupStart, availWidth, fontSize, scale);
+            DrawMessageBubble(snapshot, message, author, currentConv.Key.IsGroup, isGroupStart, translateState,
+                availWidth, fontSize, scale);
 
             if (message.Rejection is { } rejection)
                 DrawTimelineBanner(Loc.Reason(rejection), isAlert: true, availWidth, scale);
@@ -154,8 +160,37 @@ internal sealed partial class MomoTalkWindow
         using var msgMenu = ChatVisuals.BeginContextMenu("##message-context-menu", scale);
         if (msgMenu.IsOpen && contextMessageBody is { } copyBody)
         {
-            if (ChatVisuals.ContextMenuItem("##ctx-copy-text", Loc.Text("CopyText"), 140f * scale, scale))
+            var cachedTranslation = contextMessageId is { } msgId && session is not null
+                ? aiReply.GetTranslation(session.ContentId, msgId, copyBody)
+                : null;
+            var showTranslate = config.IsAiReplyConfigured && contextMessageId is not null;
+            var isTranslating = translateState.Status == AiTranslationStatus.Loading;
+            var copyLabel = Loc.Text("CopyText");
+            var copyTransLabel = cachedTranslation is { Length: > 0 } ? Loc.Text("CopyTranslation") : null;
+            var translateLabel = showTranslate ? (isTranslating ? Loc.Text("Translating") : Loc.Text("TranslateChat")) : null;
+
+            var itemFontSize = ImGui.GetFontSize() * 0.96f;
+            var menuWidth = 140f * scale;
+            menuWidth = MathF.Max(menuWidth, ChatVisuals.CalcTextSize(copyLabel, itemFontSize).X + 24f * scale);
+            if (copyTransLabel is not null)
+                menuWidth = MathF.Max(menuWidth, ChatVisuals.CalcTextSize(copyTransLabel, itemFontSize).X + 24f * scale);
+            if (translateLabel is not null)
+                menuWidth = MathF.Max(menuWidth, ChatVisuals.CalcTextSize(translateLabel, itemFontSize).X + 24f * scale);
+
+            if (ChatVisuals.ContextMenuItem("##ctx-copy-text", copyLabel, menuWidth, scale))
                 ImGui.SetClipboardText(copyBody);
+
+            if (copyTransLabel is not null && cachedTranslation is not null
+                && ChatVisuals.ContextMenuItem("##ctx-copy-translation", copyTransLabel, menuWidth, scale))
+            {
+                ImGui.SetClipboardText(cachedTranslation);
+            }
+
+            if (translateLabel is not null && contextMessageId is { } translateId
+                && ChatVisuals.ContextMenuItem("##ctx-translate-chat", translateLabel, menuWidth, scale, enabled: !isTranslating))
+            {
+                aiReply.TryTranslateMessages(session!, currentConv, snapshot.FormatChannelTag(currentConv), view.Messages, translateId);
+            }
         }
 
         return selectedReplyOption;
@@ -196,7 +231,7 @@ internal sealed partial class MomoTalkWindow
     }
 
     private void DrawMessageBubble(SocialSnapshot snapshot, ChatMessage message, PlayerIdentity author, bool isGroup,
-        bool isGroupStart, float availWidth, float fontSize, float scale)
+        bool isGroupStart, AiTranslationSnapshot translateState, float availWidth, float fontSize, float scale)
     {
         var origin = ImGui.GetCursorScreenPos();
         var sideMargin = 16f * scale;
@@ -212,15 +247,33 @@ internal sealed partial class MomoTalkWindow
         var innerWidth = MathF.Max(80f * scale, availWidth - sideMargin * 2f);
         var maxBody = MathF.Max(36f * scale,
             MathF.Min(420f * scale, innerWidth * 0.78f - avatarOffset - padding.X * 2f));
+        var cachedTranslation = aiReply.GetTranslation(session!.ContentId, message.Id, message.Body);
+        var translationPending = translateState.Status == AiTranslationStatus.Loading
+            && translateState.AnchorMessageId == message.Id;
+        var footerText = translationPending ? Loc.Text("Translating") : cachedTranslation;
         if (!bubbleMeasurements.TryGetValue(message.Id, out var measured)
-            || measured.WrapWidth != maxBody || measured.Body != message.Body)
+            || measured.WrapWidth != maxBody
+            || measured.Body != message.Body
+            || measured.Footer != footerText)
         {
-            measured = (message.Body, maxBody, ChatVisuals.CalcTextSize(message.Body, fontSize, maxBody));
+            var bodyMeasured = ChatVisuals.CalcTextSize(message.Body, fontSize, maxBody);
+            var footerMeasured = string.IsNullOrEmpty(footerText)
+                ? Vector2.Zero
+                : ChatVisuals.CalcTextSize(footerText, ChatVisuals.TranslationFontSize(fontSize), maxBody);
+            measured = (message.Body, footerText, maxBody, bodyMeasured, footerMeasured);
             bubbleMeasurements[message.Id] = measured;
         }
 
         var textSize = measured.TextSize;
-        var bubbleSize = new Vector2(MathF.Min(maxBody, textSize.X) + padding.X * 2f, textSize.Y + padding.Y * 2f);
+        var hasFooter = !string.IsNullOrEmpty(footerText);
+        var bubbleContentWidth = hasFooter ? MathF.Max(textSize.X, measured.FooterSize.X) : textSize.X;
+        var bubbleContentHeight = hasFooter
+            ? textSize.Y
+                + ChatVisuals.TranslationDividerGap(scale) * 2f
+                + ChatVisuals.TranslationDividerThickness(scale)
+                + measured.FooterSize.Y
+            : textSize.Y;
+        var bubbleSize = new Vector2(MathF.Min(maxBody, bubbleContentWidth) + padding.X * 2f, bubbleContentHeight + padding.Y * 2f);
 
         var showName = isGroupStart && showAvatarSlot;
         var nameOffset = showName ? groupNameOffset : 0f;
@@ -270,12 +323,16 @@ internal sealed partial class MomoTalkWindow
                 maxBody,
                 message.Outgoing,
                 isGroupStart,
-                scale);
+                scale,
+                textSize,
+                footerText,
+                translationPending);
 
             if (ImGui.IsWindowHovered() && ImGui.IsMouseHoveringRect(bubblePos, bubblePos + bubbleSize))
             {
                 if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
                 {
+                    contextMessageId = message.Id;
                     contextMessageBody = message.Body;
                     ImGui.OpenPopup("##message-context-menu");
                 }

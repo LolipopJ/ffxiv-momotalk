@@ -16,6 +16,7 @@ internal sealed partial class MomoTalkWindow
         lastReplyStateConv = null;
         lastReplyStatus = AiReplyStatus.Idle;
         lastReplyGenerationId = 0;
+        lastTranslationRevision = aiReply.TranslationRevision;
         inspectedFriend = null;
         inspectedGroup = null;
         selected = null;
@@ -69,6 +70,7 @@ internal sealed partial class MomoTalkWindow
         contextFriend = null;
         contextConversation = null;
         contextStatic = null;
+        contextMessageId = null;
         contextMessageBody = null;
         inputFocused = false;
         inputFocusedConversation = null;
@@ -216,11 +218,14 @@ internal sealed partial class MomoTalkWindow
                 "Failed to hide conversation.");
         }
         aiReply.Clear(conversationDesc.Key);
+        aiReply.ClearTranslationState(conversationDesc.Key);
         if (selected?.Key == conversationDesc.Key)
         {
             selected = null;
             conversation = null;
             bubbleMeasurements.Clear();
+            contextMessageId = null;
+            contextMessageBody = null;
             narrowShowingDetail = false;
             inputFocused = false;
             inputFocusedConversation = null;

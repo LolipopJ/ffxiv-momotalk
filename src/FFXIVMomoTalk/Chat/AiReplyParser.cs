@@ -13,14 +13,19 @@ internal static partial class AiReplyParser
         if (string.IsNullOrWhiteSpace(rawContent))
             return [];
 
-        var cleaned = ThinkBlockRegex().Replace(rawContent, string.Empty).Trim();
-        var unfenced = StripCodeFences(cleaned);
+        var unfenced = CleanResponseContent(rawContent);
 
         var jsonCandidates = TryParseJsonCandidates(unfenced, out var stopFallback);
         if (stopFallback)
             return jsonCandidates;
 
         return ParseLineFallback(unfenced);
+    }
+
+    internal static string CleanResponseContent(string rawContent)
+    {
+        var cleaned = ThinkBlockRegex().Replace(rawContent, string.Empty).Trim();
+        return StripCodeFences(cleaned);
     }
 
     private static string StripCodeFences(string text)
@@ -81,7 +86,7 @@ internal static partial class AiReplyParser
         return [];
     }
 
-    private static bool TrySliceJsonSpan(string text, char open, char close, out string slice)
+    internal static bool TrySliceJsonSpan(string text, char open, char close, out string slice)
     {
         var start = text.IndexOf(open);
         var end = text.LastIndexOf(close);
@@ -161,7 +166,7 @@ internal static partial class AiReplyParser
         }
     }
 
-    private static bool TryGetPropertyIgnoreCase(JsonElement obj, string name, out JsonElement value)
+    internal static bool TryGetPropertyIgnoreCase(JsonElement obj, string name, out JsonElement value)
     {
         if (obj.TryGetProperty(name, out value))
             return true;

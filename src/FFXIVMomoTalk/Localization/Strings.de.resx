@@ -20,6 +20,7 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>In der LLM-Antwort fehlt der Nachrichteninhalt.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>Die LLM-Antwort enthält keine Antwortmöglichkeiten.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>Die KI hat keine gültigen Antwortvorschläge für diesen Kanal geliefert.</value></data>
+  <data name="AiNoTranslations" xml:space="preserve"><value>Die KI hat keine gültigen Übersetzungen geliefert.</value></data>
   <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>Astrologe - Orakel</value></data>
   <data name="AiPresetBardCheerful" xml:space="preserve"><value>Barde - Fröhlich</value></data>
   <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>Schwarzmagier - Inbrunst</value></data>
@@ -35,8 +36,9 @@
   <data name="AiPresetSensei" xml:space="preserve"><value>Kivotos - Sensei</value></data>
   <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>Weißmagier - Barmherzig</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Anfragelimit erreicht (HTTP 429). Warte kurz und versuche es erneut.</value></data>
-  <data name="AiReply" xml:space="preserve"><value>KI-Antworten</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>Die KI-Anfrage hat das Zeitlimit überschritten.</value></data>
+  <data name="AiSettings" xml:space="preserve"><value>KI-Einstellungen</value></data>
+  <data name="AiTranslateFailed" xml:space="preserve"><value>Nachrichten konnten nicht übersetzt werden.</value></data>
   <data name="AiUnsupportedContent" xml:space="preserve"><value>Das Inhaltsformat der LLM-Antwort wird nicht unterstützt.</value></data>
   <data name="ApiKey" xml:space="preserve"><value>API-Schlüssel</value></data>
   <data name="AppName" xml:space="preserve"><value>MomoTalk</value></data>
@@ -59,6 +61,7 @@
   <data name="ConversationExamples" xml:space="preserve"><value>Gesprächsbeispiele</value></data>
   <data name="CopyText" xml:space="preserve"><value>Text kopieren</value></data>
   <data name="CopyToCustom" xml:space="preserve"><value>In eigenen Stil kopieren</value></data>
+  <data name="CopyTranslation" xml:space="preserve"><value>Übersetzung kopieren</value></data>
   <data name="Create" xml:space="preserve"><value>Erstellen</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>Stammgruppe erstellen</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Welten-Kontaktkreis</value></data>
@@ -91,6 +94,7 @@
   <data name="Filter" xml:space="preserve"><value>Filter</value></data>
   <data name="FilterByTags" xml:space="preserve"><value>Nach Tags filtern</value></data>
   <data name="FollowClient" xml:space="preserve"><value>Wie Spielclient</value></data>
+  <data name="FollowPluginLanguage" xml:space="preserve"><value>Wie Plugin-Sprache</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Freie Gesellschaft</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>Du bist nicht mehr Mitglied dieser Freien Gesellschaft.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FG</value></data>
@@ -222,6 +226,9 @@
   <data name="TellUnavailableInPvP" xml:space="preserve"><value>Während des PvP kannst du keine Flüsternachrichten senden.</value></data>
   <data name="TestConnection" xml:space="preserve"><value>Verbindung testen</value></data>
   <data name="Testing" xml:space="preserve"><value>Wird geprüft…</value></data>
+  <data name="TranslateChat" xml:space="preserve"><value>Chat übersetzen</value></data>
+  <data name="Translating" xml:space="preserve"><value>Wird übersetzt…</value></data>
+  <data name="TranslationLanguage" xml:space="preserve"><value>Übersetzungssprache</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>Dieser Chattyp wird nicht unterstützt.</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>An den WKK schreiben…</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>An die FG schreiben…</value></data>

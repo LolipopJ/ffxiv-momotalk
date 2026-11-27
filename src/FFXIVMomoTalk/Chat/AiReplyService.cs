@@ -71,10 +71,13 @@ internal sealed partial class AiReplyService(
     private readonly CancellationTokenSource shutdown = new();
     private readonly Lock gate = new();
     private readonly Dictionary<ConversationKey, ConversationReplyState> states = new();
+    private readonly Dictionary<ConversationKey, ConversationTranslationState> translationStates = new();
+    private readonly ChatTranslationCache translationCache = new();
     private readonly Dictionary<long, Task> inFlight = new();
 
     private PlayerSession? activeSession;
     private long nextGenerationId;
+    private long translationRevision;
     private AiConnectionTestStatus connectionTestStatus;
     private AiNotice? connectionTestMessage;
     private long connectionTestGenerationId;
@@ -278,6 +281,7 @@ internal sealed partial class AiReplyService(
         }
 
         states.Clear();
+        CancelAllTranslationStatesLocked();
     }
 
     private async Task RunGenerateAsync(GenerationRequest request)

@@ -320,15 +320,17 @@ internal static partial class ChatVisuals
         return new ContextMenuScope(ImGui.BeginPopup(id));
     }
 
-    public static bool ContextMenuItem(string id, string label, float width, float scale, bool danger = false)
+    public static bool ContextMenuItem(string id, string label, float width, float scale, bool danger = false, bool enabled = true)
     {
         var height = 30f * scale;
         var fontSize = ImGui.GetFontSize() * 0.96f;
         var textSize = CalcTextSize(label, fontSize);
         var origin = ImGui.GetCursorScreenPos();
         var size = new Vector2(MathF.Max(width, textSize.X + 24f * scale), height);
-        var clicked = ImGui.InvisibleButton(id, size);
-        var hovered = ImGui.IsItemHovered();
+        bool clicked;
+        using (ImRaii.Disabled(!enabled))
+            clicked = ImGui.InvisibleButton(id, size);
+        var hovered = enabled && ImGui.IsItemHovered();
 
         var draw = ImGui.GetWindowDrawList();
         if (hovered)
@@ -338,13 +340,13 @@ internal static partial class ChatVisuals
         }
 
         var textPos = new Vector2(origin.X + 12f * scale, origin.Y + (height - textSize.Y) * 0.5f);
-        var textCol = Color(danger ? AlertText : Ink);
+        var textCol = Color(!enabled ? Muted : danger ? AlertText : Ink);
         AddText(draw, textPos, fontSize, textCol, label);
 
-        if (clicked)
+        if (clicked && enabled)
             ImGui.CloseCurrentPopup();
 
-        return clicked;
+        return clicked && enabled;
     }
 
     public readonly struct ContextMenuScope(bool isOpen) : IDisposable

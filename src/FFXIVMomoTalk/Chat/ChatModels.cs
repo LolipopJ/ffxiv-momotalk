@@ -343,7 +343,7 @@ internal sealed record SocialSnapshot(
             && MatchesNameToken(candLast, obsLast);
     }
 
-    private static bool TrySplitTwoPartName(ReadOnlySpan<char> value, out ReadOnlySpan<char> first, out ReadOnlySpan<char> last)
+    internal static bool TrySplitTwoPartName(ReadOnlySpan<char> value, out ReadOnlySpan<char> first, out ReadOnlySpan<char> last)
     {
         first = default;
         last = default;

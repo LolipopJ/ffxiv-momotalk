@@ -43,6 +43,7 @@ public sealed class Configuration : IPluginConfiguration
     private string llmEndpoint = string.Empty;
     private string llmApiKey = string.Empty;
     private string llmModel = string.Empty;
+    private string? llmTranslationLanguage;
     private AiReplyPreset? llmPreset = AiReplyPresets.Default;
     private string llmCustomPrompt = AiReplyPresets.DefaultPrompt;
     private int llmContextWindowMinutes = DefaultContextWindowMinutes;
@@ -82,6 +83,22 @@ public sealed class Configuration : IPluginConfiguration
         set => llmModel = value ?? string.Empty;
     }
 
+    public string? LlmTranslationLanguage
+    {
+        get => llmTranslationLanguage;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                llmTranslationLanguage = null;
+                return;
+            }
+
+            var normalized = Loc.NormalizeLanguageCode(value);
+            llmTranslationLanguage = Loc.Languages.Any(language => language.Code == normalized) ? normalized : null;
+        }
+    }
+
     public string LlmPromptPreset
     {
         get => llmPreset?.Id ?? AiReplyPresets.CustomId;
@@ -119,6 +136,12 @@ public sealed class Configuration : IPluginConfiguration
         !string.IsNullOrWhiteSpace(LlmEndpoint)
         && !string.IsNullOrWhiteSpace(LlmApiKey)
         && !string.IsNullOrWhiteSpace(LlmModel);
+
+    [JsonIgnore]
+    public string EffectiveTranslationLanguage =>
+        string.IsNullOrWhiteSpace(LlmTranslationLanguage)
+            ? Loc.NormalizeLanguageCode(Loc.Culture.Name)
+            : LlmTranslationLanguage;
 
     [JsonIgnore]
     public bool IsCustomPreset => llmPreset is null;

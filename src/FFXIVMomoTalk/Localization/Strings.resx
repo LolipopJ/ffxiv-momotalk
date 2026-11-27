@@ -20,6 +20,7 @@
   <data name="AiMissingMessage" xml:space="preserve"><value>LLM response was missing message content.</value></data>
   <data name="AiNoChoices" xml:space="preserve"><value>LLM response did not contain any choices.</value></data>
   <data name="AiNoReplies" xml:space="preserve"><value>AI returned no valid reply options for this channel.</value></data>
+  <data name="AiNoTranslations" xml:space="preserve"><value>AI returned no valid translations.</value></data>
   <data name="AiPresetAstrologianOracle" xml:space="preserve"><value>Astrologian - Oracle</value></data>
   <data name="AiPresetBardCheerful" xml:space="preserve"><value>Bard - Cheerful</value></data>
   <data name="AiPresetBlackMageFervor" xml:space="preserve"><value>Black Mage - Fervor</value></data>
@@ -35,8 +36,9 @@
   <data name="AiPresetSensei" xml:space="preserve"><value>Kivotos - Sensei</value></data>
   <data name="AiPresetWhiteMageMercy" xml:space="preserve"><value>White Mage - Merciful</value></data>
   <data name="AiRateLimitExceeded" xml:space="preserve"><value>Rate limit exceeded (HTTP 429). Please wait and try again.</value></data>
-  <data name="AiReply" xml:space="preserve"><value>AI Reply</value></data>
   <data name="AiRequestTimedOut" xml:space="preserve"><value>AI request timed out.</value></data>
+  <data name="AiSettings" xml:space="preserve"><value>AI Settings</value></data>
+  <data name="AiTranslateFailed" xml:space="preserve"><value>Failed to translate messages.</value></data>
   <data name="AiUnsupportedContent" xml:space="preserve"><value>LLM response contained an unsupported content format.</value></data>
   <data name="ApiKey" xml:space="preserve"><value>API Key</value></data>
   <data name="AppName" xml:space="preserve"><value>MomoTalk</value></data>
@@ -59,6 +61,7 @@
   <data name="ConversationExamples" xml:space="preserve"><value>Conversation Examples</value></data>
   <data name="CopyText" xml:space="preserve"><value>Copy Text</value></data>
   <data name="CopyToCustom" xml:space="preserve"><value>Copy to Custom</value></data>
+  <data name="CopyTranslation" xml:space="preserve"><value>Copy Translation</value></data>
   <data name="Create" xml:space="preserve"><value>Create</value></data>
   <data name="CreateStaticGroup" xml:space="preserve"><value>Create Static Group</value></data>
   <data name="CrossWorldLinkshell" xml:space="preserve"><value>Cross-World Linkshell</value></data>
@@ -91,6 +94,7 @@
   <data name="Filter" xml:space="preserve"><value>Filter</value></data>
   <data name="FilterByTags" xml:space="preserve"><value>Filter by Tags</value></data>
   <data name="FollowClient" xml:space="preserve"><value>Follow game client</value></data>
+  <data name="FollowPluginLanguage" xml:space="preserve"><value>Follow plugin language</value></data>
   <data name="FreeCompany" xml:space="preserve"><value>Free Company</value></data>
   <data name="FreeCompanyLeft" xml:space="preserve"><value>You are no longer a member of this Free Company.</value></data>
   <data name="FreeCompanyTag" xml:space="preserve"><value>FC</value></data>
@@ -222,6 +226,9 @@
   <data name="TellUnavailableInPvP" xml:space="preserve"><value>Unable to use Tell during PvP.</value></data>
   <data name="TestConnection" xml:space="preserve"><value>Test Connection</value></data>
   <data name="Testing" xml:space="preserve"><value>Testing...</value></data>
+  <data name="TranslateChat" xml:space="preserve"><value>Translate Chat</value></data>
+  <data name="Translating" xml:space="preserve"><value>Translating...</value></data>
+  <data name="TranslationLanguage" xml:space="preserve"><value>Translation Language</value></data>
   <data name="UnsupportedConversation" xml:space="preserve"><value>Unsupported conversation type.</value></data>
   <data name="WriteCrossWorldLinkshell" xml:space="preserve"><value>Message CWLS...</value></data>
   <data name="WriteFreeCompany" xml:space="preserve"><value>Message Free Company...</value></data>
