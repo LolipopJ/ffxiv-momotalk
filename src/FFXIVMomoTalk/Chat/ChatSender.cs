@@ -46,6 +46,9 @@ internal sealed class ChatSender(
         capture.Captured -= OnCaptured;
         chat.LogMessage -= OnLogMessage;
         chat.ChatMessageUnhandled -= OnChatMessage;
+        foreach (var request in pending)
+            SaveFailedTell(request);
+
         pending.Clear();
     }
 
@@ -69,11 +72,16 @@ internal sealed class ChatSender(
         for (var index = pending.Count - 1; index >= 0; index--)
         {
             var request = pending[index];
-            if (IsActive(request, session))
+            var rejectedWithoutEcho = request.Conversation.Kind == ConversationKind.Tell
+                && request.Echo is null && request.Rejection is not null;
+            if (!rejectedWithoutEcho && IsActive(request, session))
                 continue;
 
-            if (ReferenceEquals(request.Session, session) && request.Echo is null && request.Rejection is null)
+            if (!SaveFailedTell(request) && ReferenceEquals(request.Session, session)
+                && request.Echo is null && request.Rejection is null)
+            {
                 Warn(request, FallbackRejection(request.Conversation.Kind));
+            }
 
             pending.RemoveAt(index);
         }
@@ -179,12 +187,8 @@ internal sealed class ChatSender(
             pending.Add(request);
             submitting = request;
             request.StartedAt = Stopwatch.GetTimestamp();
+            request.SentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             ui->ProcessChatBoxEntry(input);
-        }
-        catch
-        {
-            pending.Remove(request);
-            throw;
         }
         finally
         {
@@ -199,8 +203,10 @@ internal sealed class ChatSender(
             return;
 
         var body = NormalizeBody(captured.Body);
-        var request = pending.FirstOrDefault(candidate => candidate.Echo is null && IsActive(candidate, captured.Session)
-            && candidate.Conversation == captured.Conversation.Key && candidate.Body == body);
+        var request = submitting is { } current && MatchesEcho(current)
+            ? current
+            : pending.FirstOrDefault(candidate => MatchesEcho(candidate)
+                && (candidate.Conversation.Kind != ConversationKind.Tell || candidate.Rejection is null));
         if (request is null)
         {
             // Track Tells sent directly from the native in-game chat box so server rejections still attach.
@@ -220,6 +226,10 @@ internal sealed class ChatSender(
 
         request.Echo = archive;
         AttachRejection(request);
+
+        bool MatchesEcho(PendingMessage candidate) =>
+            candidate.Echo is null && IsActive(candidate, captured.Session)
+            && candidate.Conversation == captured.Conversation.Key && candidate.Body == body;
     }
 
     private void OnChatMessage(IChatMessage message)
@@ -251,7 +261,7 @@ internal sealed class ChatSender(
         if (snapshot.Session is not { } session)
             return;
 
-        if (submitting is { Conversation.IsGroup: true } activeGroup)
+        if (!hasRecipient && submitting is { Conversation.IsGroup: true } activeGroup)
         {
             var groupReason = ReadGroupLogRejection(id);
             if (framework.IsInFrameworkUpdateThread)
@@ -259,34 +269,30 @@ internal sealed class ChatSender(
             return;
         }
 
-        string? rawRecipient = null;
         TellPeer? recipient = null;
         if (hasRecipient && message.TryGetStringParameter(0, out var parameter))
-        {
-            var parsed = SeString.Parse(parameter.Data.Span);
-            rawRecipient = parsed.TextValue.Replace(SeIconChar.CrossWorld.ToIconString(), "@").Trim();
-            recipient = ChatCapture.ReadPeer(parsed);
-        }
+            recipient = ChatCapture.ReadPeer(SeString.Parse(parameter.Data.Span));
 
-        if (message.TargetEntity is { IsPlayer: true, HomeWorldId: > 0 } target)
+        if (recipient is null or { WorldId: 0, World: null }
+            && message.TargetEntity is { IsPlayer: true, HomeWorldId: > 0 } target)
         {
-            var identity = new TellPeer(target.Name.ExtractText(), target.HomeWorldId, null);
-            if (snapshot.ResolveTellPeer(identity) is not null)
-                recipient = identity;
+            var name = target.Name.ExtractText();
+            if (recipient is not { } observed || SocialSnapshot.MatchesCharacterName(name, observed.Name, allowAbbreviation: true))
+                recipient = new TellPeer(name, target.HomeWorldId, null);
         }
 
         var reason = ReadTellRejection(id);
         if (framework.IsInFrameworkUpdateThread)
-            HandleRejection(session, id, recipient, rawRecipient, nativeCallOnly, reason);
+            HandleRejection(session, id, recipient, hasRecipient, nativeCallOnly, reason);
         else if (!nativeCallOnly)
-            _ = framework.RunOnFrameworkThread(() => HandleRejection(session, id, recipient, rawRecipient, false, reason));
+            _ = framework.RunOnFrameworkThread(() => HandleRejection(session, id, recipient, hasRecipient, false, reason));
     }
 
     private void HandleRejection(
         PlayerSession session,
         uint logMessageId,
         TellPeer? recipient,
-        string? rawRecipient,
+        bool hasRecipient,
         bool nativeCallOnly,
         string reason)
     {
@@ -294,14 +300,17 @@ internal sealed class ChatSender(
         if (disposed || !ReferenceEquals(snapshot.Session, session))
             return;
 
-        var peerKey = ResolveRejectionConversation(snapshot, session, recipient, rawRecipient);
+        var peerKey = ResolveRejectionConversation(snapshot, session, recipient);
+        if (peerKey is null && (hasRecipient || recipient is not null))
+            return;
+
         if (submitting is { } current && (peerKey is null || current.Conversation == peerKey))
         {
             Reject(current, reason);
             return;
         }
 
-        if (nativeCallOnly || (!string.IsNullOrWhiteSpace(rawRecipient) && peerKey is null))
+        if (nativeCallOnly)
             return;
 
         var mayBeGroupRejection = peerKey is null && IsGroupRejectionLogMessage(logMessageId);
@@ -328,36 +337,29 @@ internal sealed class ChatSender(
         }
     }
 
-    private ConversationKey? ResolveRejectionConversation(
-        SocialSnapshot snapshot,
-        PlayerSession session,
-        TellPeer? recipient,
-        string? rawRecipient)
+    private ConversationKey? ResolveRejectionConversation(SocialSnapshot snapshot, PlayerSession session, TellPeer? recipient)
     {
-        if (recipient is { } target && snapshot.ResolveTellPeer(target) is { } resolved)
-            return ConversationKey.Tell(resolved.ContentId);
-
-        if (string.IsNullOrWhiteSpace(rawRecipient))
+        if (recipient is not { } target)
             return null;
 
-        var separator = rawRecipient.IndexOf('@');
-        var rawName = (separator < 0 ? rawRecipient : rawRecipient[..separator]).Trim();
-        var rawWorld = separator < 0 ? null : rawRecipient[(separator + 1)..].Trim();
+        if (snapshot.ResolveTellPeer(target) is { } resolved)
+            return ConversationKey.Tell(resolved.ContentId);
 
+        var mayHaveUnseparatedWorld = target.WorldId == 0 && target.World is null;
         ConversationKey? matched = null;
         foreach (var request in pending)
         {
-            if (request.Rejection is not null || !IsActive(request, session) || request.Target.TellPeer is not { } candidate)
+            if (request.Rejection is not null || !IsActive(request, session) || request.Target.TellPeer is not { } candidate
+                || !SocialSnapshot.MatchesWorld(candidate, target))
+            {
                 continue;
+            }
 
-            var worldMatches = string.IsNullOrEmpty(rawWorld)
-                || StringComparer.OrdinalIgnoreCase.Equals(rawWorld, candidate.World);
-            var matches = (worldMatches && SocialSnapshot.MatchesCharacterName(candidate.Name, rawName, allowAbbreviation: true))
-                || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}@{candidate.World}")
-                || StringComparer.OrdinalIgnoreCase.Equals(rawRecipient, $"{candidate.Name}{candidate.World}")
-                || rawRecipient.Contains(candidate.Name, StringComparison.OrdinalIgnoreCase);
-            if (!matches)
+            if (!SocialSnapshot.MatchesCharacterName(candidate.Name, target.Name, allowAbbreviation: !target.HasPlayerPayload)
+                && !(mayHaveUnseparatedWorld && StringComparer.OrdinalIgnoreCase.Equals(target.Name, candidate.Name + candidate.World)))
+            {
                 continue;
+            }
 
             if (matched is { } existing && existing != request.Conversation)
                 return null;
@@ -453,6 +455,19 @@ internal sealed class ChatSender(
         rejection.AttachedToMessage = true;
     }
 
+    private bool SaveFailedTell(PendingMessage request)
+    {
+        if (request.Echo is not null || request.Target.TellPeer is not { } peer)
+            return false;
+
+        var rejection = request.Rejection;
+        capture.RecordFailedTell(request.Session, peer, request.SentAt, request.Body, rejection?.Message ?? FallbackTellRejection);
+        if (rejection is not null)
+            rejection.AttachedToMessage = true;
+
+        return true;
+    }
+
     private void Warn(PendingMessage request, string reason) =>
         warnings.Enqueue(new SendWarning(request.Session, request.Conversation, reason));
 
@@ -476,5 +491,7 @@ internal sealed class ChatSender(
         public SendWarning? Rejection { get; set; }
 
         public long StartedAt { get; set; }
+
+        public long SentAt { get; set; }
     }
 }

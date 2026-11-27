@@ -24,12 +24,12 @@ try
 
     var history = new ConversationHistory(store, owner.ContentId, conversation.Key);
     // This read completes after the history's page request on the same database worker.
-    await store.ReadRecentAsync(owner.ContentId, conversation.Key, 1);
+    await store.ReadPageAsync(owner.ContentId, conversation.Key);
     history.Update();
 
     await store.RecordAsync(new(owner, conversation, peer, 1_400, false, "Merged line"));
     history.Update();
-    await store.ReadRecentAsync(owner.ContentId, conversation.Key, 1);
+    await store.ReadPageAsync(owner.ContentId, conversation.Key);
     history.Update();
 
     if (history.Messages.Count != 2 || history.Messages[^1] is not { SentAt: 1_000, Body: "Latest\nMerged line" } latest

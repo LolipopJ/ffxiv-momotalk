@@ -37,13 +37,14 @@ internal readonly record struct AiConnectionTestSnapshot(
     public static AiConnectionTestSnapshot Idle { get; } = new(AiConnectionTestStatus.Idle, null);
 }
 
-internal readonly record struct AiNotice(string Key, int? Number = null)
+internal readonly record struct AiNotice(string Key, int? Number = null, string? Preview = null)
 {
     public string Format(CultureInfo? culture = null)
     {
         culture ??= Loc.Culture;
-        var message = Loc.TextFor(culture, Key);
-        return Number is int number ? string.Format(culture, message, number) : message;
+        var template = Loc.TextFor(culture, Key);
+        var message = Number is int number ? string.Format(culture, template, number) : template;
+        return Preview is null ? message : $"{message} {Preview}";
     }
 }
 
@@ -164,11 +165,7 @@ internal sealed partial class AiReplyService(
             var maxMessages = config.LlmContextMaxMessages;
             var minMessages = Math.Min(config.LlmContextMinMessages, maxMessages);
 
-            var start = Math.Max(0, messages.Count - maxMessages);
-            var count = messages.Count - start;
-            var fallbackMessages = new ChatMessage[count];
-            for (var i = 0; i < count; i++)
-                fallbackMessages[i] = messages[start + i];
+            var fallbackMessages = messages.Where(message => message.Rejection is null).TakeLast(maxMessages).ToArray();
 
             var generationId = ++nextGenerationId;
             var requestCts = new CancellationTokenSource();
@@ -295,7 +292,7 @@ internal sealed partial class AiReplyService(
             try
             {
                 loadedMessages = await messageStore
-                    .ReadRecentAsync(request.Session.ContentId, request.Conversation.Key, request.MaxMessages)
+                    .ReadAiContextAsync(request.Session.ContentId, request.Conversation.Key, request.MaxMessages)
                     .WaitAsync(linked.Token)
                     .ConfigureAwait(false);
             }

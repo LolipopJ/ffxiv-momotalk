@@ -372,6 +372,10 @@ internal sealed record SocialSnapshot(
             && !fullToken.IsEmpty
             && char.ToUpperInvariant(fullToken[0]) == char.ToUpperInvariant(observedToken[0]));
 
+    internal static bool MatchesWorld(PlayerIdentity candidate, TellPeer peer) =>
+        peer.WorldId != 0 ? candidate.WorldId == peer.WorldId
+            : peer.World is null || StringComparer.OrdinalIgnoreCase.Equals(peer.World, candidate.World);
+
     private static PlayerIdentity? MatchPlayer(IEnumerable<PlayerIdentity> candidates, TellPeer peer) =>
         MatchPlayerCore(candidates, peer, allowAbbreviation: false)
         ?? (!peer.HasPlayerPayload ? MatchPlayerCore(candidates, peer, allowAbbreviation: true) : null);
@@ -385,19 +389,8 @@ internal sealed record SocialSnapshot(
         PlayerIdentity? match = null;
         foreach (var candidate in candidates)
         {
-            if (!MatchesCharacterName(candidate.Name, targetName, allowAbbreviation))
+            if (!MatchesCharacterName(candidate.Name, targetName, allowAbbreviation) || !MatchesWorld(candidate, peer))
                 continue;
-
-            if (peer.WorldId != 0)
-            {
-                if (candidate.WorldId != peer.WorldId)
-                    continue;
-            }
-            else if (peer.World is not null
-                && !StringComparer.OrdinalIgnoreCase.Equals(peer.World, candidate.World))
-            {
-                continue;
-            }
 
             if (match is not null)
                 return null;

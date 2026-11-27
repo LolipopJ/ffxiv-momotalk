@@ -31,6 +31,12 @@ internal sealed class ChatCapture(
     public void RecordRejection(PlayerSession session, Task<long> echo, string reason) =>
         _ = ObserveWriteAsync(session.ContentId, messages.RecordRejectionAsync(session.ContentId, echo, reason));
 
+    public void RecordFailedTell(PlayerSession session, PlayerIdentity peer, long sentAt, string body, string reason)
+    {
+        var attempt = new CapturedMessage(session, ConversationDescriptor.FromFriend(peer), session.Player, sentAt, true, body);
+        _ = ObserveWriteAsync(session.ContentId, messages.RecordFailedTellAsync(attempt, reason));
+    }
+
     public void Attach() => chat.ChatMessageUnhandled += OnChatMessage;
 
     public void Dispose()

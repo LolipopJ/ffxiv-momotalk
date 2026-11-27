@@ -42,4 +42,10 @@ jobs:
           dotnet format whitespace ./tests --folder --verify-no-changes
 
       - name: Run compiler and analyzer checks
-        run: dotnet build ./FFXIVMomoTalk.slnx --no-restore -warnaserror
+        run: dotnet build ./FFXIVMomoTalk.slnx --no-restore -c Debug -warnaserror
+      - name: Run regression scripts
+        shell: bash
+        run: |
+          for script in tests/*.cs; do
+            dotnet run --file "$script"
+          done

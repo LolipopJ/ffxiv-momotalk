@@ -63,6 +63,12 @@ internal sealed class MessageStore(string charactersDirectory)
     public long RejectionRevision => Interlocked.Read(ref rejectionRevision);
 
     public Task<long> RecordAsync(CapturedMessage captured, bool updateDisplayName = true) =>
+        RecordAsync(captured, updateDisplayName, rejection: null);
+
+    public Task<long> RecordFailedTellAsync(CapturedMessage attempt, string reason) =>
+        RecordAsync(attempt, updateDisplayName: false, reason);
+
+    private Task<long> RecordAsync(CapturedMessage captured, bool updateDisplayName, string? rejection) =>
         Enqueue(captured.Session.ContentId, connection =>
         {
             using var transaction = connection.BeginTransaction();
@@ -102,6 +108,8 @@ internal sealed class MessageStore(string charactersDirectory)
             }
 
             var messageId = InsertMessageRow(connection, transaction, conversationId, captured);
+            if (rejection is not null)
+                InsertRejection(connection, messageId, rejection, transaction);
 
             transaction.Commit();
             Interlocked.Increment(ref revision);
@@ -113,14 +121,7 @@ internal sealed class MessageStore(string charactersDirectory)
         if (!echo.IsCompletedSuccessfully)
             return false;
 
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO message_rejections (message_id, reason) VALUES ($message, $reason)
-            ON CONFLICT (message_id) DO NOTHING
-            """;
-        command.Parameters.AddWithValue("$message", echo.Result);
-        command.Parameters.AddWithValue("$reason", reason);
-        if (command.ExecuteNonQuery() != 0)
+        if (InsertRejection(connection, echo.Result, reason))
         {
             Interlocked.Increment(ref rejectionRevision);
             Interlocked.Increment(ref revision);
@@ -128,6 +129,19 @@ internal sealed class MessageStore(string charactersDirectory)
 
         return true;
     });
+
+    private static bool InsertRejection(SqliteConnection connection, long messageId, string reason, SqliteTransaction? transaction = null)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO message_rejections (message_id, reason) VALUES ($message, $reason)
+            ON CONFLICT (message_id) DO NOTHING
+            """;
+        command.Parameters.AddWithValue("$message", messageId);
+        command.Parameters.AddWithValue("$reason", reason);
+        return command.ExecuteNonQuery() != 0;
+    }
 
     public Task<IReadOnlyList<ConversationSummary>> ReadConversationsAsync(ulong owner) =>
         Enqueue<IReadOnlyList<ConversationSummary>>(owner, connection =>
@@ -181,7 +195,7 @@ internal sealed class MessageStore(string charactersDirectory)
             return new MessagePage(messages, hasOlder);
         });
 
-    public Task<IReadOnlyList<ChatMessage>> ReadRecentAsync(ulong owner, ConversationKey key, int maxCount) =>
+    public Task<IReadOnlyList<ChatMessage>> ReadAiContextAsync(ulong owner, ConversationKey key, int maxCount) =>
         Enqueue<IReadOnlyList<ChatMessage>>(owner, connection =>
         {
             if (maxCount <= 0)
@@ -189,7 +203,7 @@ internal sealed class MessageStore(string charactersDirectory)
 
             using var command = connection.CreateCommand();
             BindConversationKey(command, key);
-            command.CommandText = SelectMessages + "\nORDER BY m.sent_at DESC, m.id DESC LIMIT $limit";
+            command.CommandText = SelectMessages + "\nAND r.reason IS NULL ORDER BY m.sent_at DESC, m.id DESC LIMIT $limit";
             command.Parameters.AddWithValue("$limit", maxCount);
             var messages = ReadMessages(command);
             messages.Reverse();

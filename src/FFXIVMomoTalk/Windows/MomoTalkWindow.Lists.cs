@@ -197,24 +197,7 @@ internal sealed partial class MomoTalkWindow
             DrawListRow(ConversationDescriptor.FromFriend(friend), note, friend.World, isSelected,
                 $"##contact-{friend.ContentId:X16}", out var clicked, out var doubleClicked, out var rightClicked, scale,
                 nameColor: GetFriendNameColor(friend.ContentId));
-            if (rightClicked)
-            {
-                contextFriend = friend;
-                ImGui.OpenPopup("##contact-row-menu");
-            }
-            else if (doubleClicked)
-            {
-                CommitActiveNote();
-                OpenConversation(ConversationDescriptor.FromFriend(friend));
-            }
-            else if (clicked)
-            {
-                if (inspectedFriend?.ContentId != friend.ContentId)
-                    CommitActiveNote();
-
-                inspectedFriend = friend;
-                narrowShowingDetail = true;
-            }
+            HandleFriendRowInteraction(friend, clicked, doubleClicked, rightClicked);
         }
 
         using var contactMenu = ChatVisuals.BeginContextMenu("##contact-row-menu", scale);
@@ -222,6 +205,28 @@ internal sealed partial class MomoTalkWindow
         {
             if (ChatVisuals.ContextMenuItem("##ctx-contact-lodestone", Loc.Text("OpenLodestone"), 156f * scale, scale))
                 Util.OpenLink(avatars.GetLodestoneUrl(menuPeer));
+        }
+    }
+
+    private void HandleFriendRowInteraction(PlayerIdentity friend, bool clicked, bool doubleClicked, bool rightClicked)
+    {
+        if (rightClicked)
+        {
+            contextFriend = friend;
+            ImGui.OpenPopup("##contact-row-menu");
+        }
+        else if (doubleClicked)
+        {
+            CommitActiveNote();
+            OpenConversation(ConversationDescriptor.FromFriend(friend));
+        }
+        else if (clicked)
+        {
+            if (inspectedFriend?.ContentId != friend.ContentId)
+                CommitActiveNote();
+
+            inspectedFriend = friend;
+            narrowShowingDetail = true;
         }
     }
 

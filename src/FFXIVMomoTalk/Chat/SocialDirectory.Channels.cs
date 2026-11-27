@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
 
 namespace FFXIVMomoTalk.Chat;
@@ -98,25 +99,24 @@ internal sealed unsafe partial class SocialDirectory
     {
         lastSocialRead = Stopwatch.GetTimestamp();
 
-        var inCrossWorldDuty = IsInCrossWorldDuty();
-        var onHomeWorld = !inCrossWorldDuty && IsOnHomeWorld();
-        var onHomeDataCenter = !inCrossWorldDuty && IsOnHomeDataCenter();
+        var ui = UIModule.Instance();
+        var canReadMembership = ui is not null && ui->IsUIReady() && !IsInCrossWorldDuty();
+        var readHomeWorld = canReadMembership && IsOnHomeWorld();
+        var readHomeDataCenter = canReadMembership && IsOnHomeDataCenter();
 
-        var liveLs = onHomeWorld ? ReadLinkshells() : null;
-        var liveCwls = onHomeDataCenter ? ReadCrossWorldLinkshells() : null;
+        var liveLs = readHomeWorld ? ReadLinkshells() : null;
+        var liveCwls = readHomeDataCenter ? ReadCrossWorldLinkshells() : null;
         var party = ReadActiveParty(owner);
 
         var snapshot = Current;
         if (!ReferenceEquals(snapshot.Session, owner))
             return;
 
-        // A new native buffer can be empty before it receives membership data.
-        // Only a list that was already live can confirm departures with an empty read.
+        // Once the game UI and proxy are ready, an empty read confirms that no memberships remain.
         var liveChannels = ChannelAvailability.None;
         var nextFc = snapshot.FreeCompany;
         var persistFc = false;
-        if (onHomeWorld && TryReadFreeCompany(out var liveFc)
-            && (liveFc is not null || snapshot.LiveChannels.HasFlag(ChannelAvailability.FreeCompany)))
+        if (readHomeWorld && TryReadFreeCompany(out var liveFc))
         {
             nextFc = MergeChannelName(liveFc, snapshot.FreeCompany);
             liveChannels |= ChannelAvailability.FreeCompany;
@@ -126,8 +126,7 @@ internal sealed unsafe partial class SocialDirectory
 
         var nextLs = snapshot.Linkshells;
         var persistLs = false;
-        if (liveLs is not null
-            && (liveLs.Count > 0 || snapshot.LiveChannels.HasFlag(ChannelAvailability.Linkshells)))
+        if (liveLs is not null)
         {
             nextLs = MergeChannelNames(liveLs, snapshot.Linkshells);
             liveChannels |= ChannelAvailability.Linkshells;
@@ -137,8 +136,7 @@ internal sealed unsafe partial class SocialDirectory
 
         var nextCwls = snapshot.CrossWorldLinkshells;
         var persistCwls = false;
-        if (liveCwls is not null
-            && (liveCwls.Count > 0 || snapshot.LiveChannels.HasFlag(ChannelAvailability.CrossWorldLinkshells)))
+        if (liveCwls is not null)
         {
             nextCwls = MergeChannelNames(liveCwls, snapshot.CrossWorldLinkshells);
             liveChannels |= ChannelAvailability.CrossWorldLinkshells;

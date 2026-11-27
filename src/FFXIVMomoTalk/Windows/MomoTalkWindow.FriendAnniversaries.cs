@@ -71,24 +71,7 @@ internal sealed partial class MomoTalkWindow
                 out var doubleClicked,
                 out var rightClicked);
 
-            if (rightClicked)
-            {
-                contextFriend = friend;
-                ImGui.OpenPopup("##contact-row-menu");
-            }
-            else if (doubleClicked)
-            {
-                CommitActiveNote();
-                OpenConversation(ConversationDescriptor.FromFriend(friend));
-            }
-            else if (clicked)
-            {
-                if (inspectedFriend?.ContentId != friend.ContentId)
-                    CommitActiveNote();
-
-                inspectedFriend = friend;
-                narrowShowingDetail = true;
-            }
+            HandleFriendRowInteraction(friend, clicked, doubleClicked, rightClicked);
         }
     }
 

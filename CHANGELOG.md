@@ -4,6 +4,17 @@ This file records notable changes to FFXIV MomoTalk. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+
+- Run the regression scripts after the Debug build in CI.
+
+### Fixed
+
+- Keep private chat and notes echoed by AI providers out of plugin logs while showing a redacted error preview in the UI.
+- Save failed Tells without a game echo and keep successful retries from inheriting their rejection.
+- Match named Tell rejections to the recipient's world, even when the friend list cannot resolve the recipient.
+- Clear stale group send targets when a ready native roster is empty, including after a plugin reload.
+
 ## [v1.2.0.0] - 2026-11-27
 
 ### Added

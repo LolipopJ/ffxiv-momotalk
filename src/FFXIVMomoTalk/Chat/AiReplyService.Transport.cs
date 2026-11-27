@@ -114,17 +114,15 @@ internal sealed partial class AiReplyService
         return !message.StartsWith('{') && !message.StartsWith('[') && UnsupportedResponseFormatRegex().IsMatch(message);
     }
 
-    private static AiRequestException CreateHttpError(HttpStatusCode statusCode, string responseBody, string trimmedApiKey)
-        => new(DescribeHttpError(statusCode), FormatHttpError(statusCode, responseBody, trimmedApiKey));
+    private static AiRequestException CreateHttpError(HttpStatusCode statusCode, string responseBody, string trimmedApiKey) =>
+        new(DescribeHttpError(statusCode),
+            statusCode == HttpStatusCode.Unauthorized ? null : ReadHttpErrorPreview(responseBody, trimmedApiKey));
 
-    private static string FormatHttpError(HttpStatusCode statusCode, string responseBody, string trimmedApiKey)
+    private static string? ReadHttpErrorPreview(string responseBody, string trimmedApiKey)
     {
-        if (statusCode == HttpStatusCode.Unauthorized)
-            return DescribeHttpError(statusCode).Format(CultureInfo.InvariantCulture);
-
         var message = ReadApiError(responseBody).Message;
         if (string.IsNullOrWhiteSpace(message))
-            return DescribeHttpError(statusCode).Format(CultureInfo.InvariantCulture);
+            return null;
 
         if (trimmedApiKey.Length > 0)
             message = message.Replace(trimmedApiKey, "[redacted]", StringComparison.Ordinal);
@@ -133,15 +131,7 @@ internal sealed partial class AiReplyService
         if (detail.Length > MaxErrorPreviewLength)
             detail = detail[..(MaxErrorPreviewLength - 3)].TrimEnd() + "...";
 
-        if (detail.Length == 0)
-            return DescribeHttpError(statusCode).Format(CultureInfo.InvariantCulture);
-
-        return statusCode switch
-        {
-            HttpStatusCode.Forbidden => $"Authentication error (HTTP 403): {detail}",
-            HttpStatusCode.TooManyRequests => $"Rate limit exceeded (HTTP 429): {detail}",
-            _ => $"HTTP {(int)statusCode}: {detail}",
-        };
+        return detail.Length == 0 ? null : detail;
     }
 
     private static AiNotice DescribeHttpError(HttpStatusCode statusCode)
@@ -267,9 +257,9 @@ internal sealed partial class AiReplyService
         """, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.IgnorePatternWhitespace)]
     private static partial Regex UnsupportedResponseFormatRegex();
 
-    private sealed class AiRequestException(AiNotice displayMessage, string? logMessage = null)
-        : Exception(logMessage ?? displayMessage.Format(CultureInfo.InvariantCulture))
+    private sealed class AiRequestException(AiNotice summary, string? preview = null)
+        : Exception(summary.Format(CultureInfo.InvariantCulture))
     {
-        public AiNotice DisplayMessage { get; } = displayMessage;
+        public AiNotice DisplayMessage { get; } = summary with { Preview = preview };
     }
 }

@@ -240,6 +240,19 @@ try
     Check(replies.GetArrayLength() == 2 && replies[0].GetString() == "可以说 \"好\"，路径 C:\\raid。"
         && replies[1].GetString() == "もちろん！", "The example JSON should preserve escaped multilingual replies.");
 
+    const string privateText = "Synthetic private chat sentence";
+    const string apiKey = "synthetic-secret";
+    var errorBody = JsonSerializer.Serialize(new { error = new { message = $"{privateText} {apiKey}\n{new string('x', 200)}" } });
+    var createHttpError = aiReply.GetMethod("CreateHttpError", BindingFlags.Static | BindingFlags.NonPublic)!;
+    var requestError = (Exception)createHttpError.Invoke(null, [System.Net.HttpStatusCode.BadRequest, errorBody, apiKey])!;
+    Check(requestError.Message.Contains("HTTP 400") && !requestError.Message.Contains(privateText)
+        && !requestError.Message.Contains(apiKey), "HTTP warning details should include the status and exclude provider text.");
+    var displayNotice = requestError.GetType().GetProperty("DisplayMessage")!.GetValue(requestError)!;
+    var preview = (string)displayNotice.GetType().GetMethod("Format")!.Invoke(displayNotice, [System.Globalization.CultureInfo.InvariantCulture])!;
+    Check(preview.Contains(privateText) && preview.Contains("[redacted]") && !preview.Contains(apiKey)
+        && !preview.Contains('\n') && preview.EndsWith("...", StringComparison.Ordinal),
+        "The UI should show a redacted and truncated provider preview.");
+
     Console.WriteLine("AI reply configuration, migration recovery, and prompt examples passed.");
 
     void AddExample(string context, params string[] replies)
